@@ -1,0 +1,64 @@
+/**
+ * Tycoon Celo Agent - HTTP server that receives decision requests from Tycoon backend.
+ * Compatible with Celo "Build Agents for the Real World" hackathon (ERC-8004).
+ *
+ * Run: npm start
+ * Register with Tycoon: npm run register (set TYCOON_API_URL, AGENT_SLOT, AGENT_CALLBACK_URL, AGENT_ID)
+ */
+
+import http from "node:http";
+import { getLLMDecision } from "./llmDecision.js";
+import { decide } from "./decisionLogic.js";
+
+const PORT = Number(process.env.PORT) || 4077;
+
+const server = http.createServer(async (req, res) => {
+  if (req.method !== "POST" || req.url !== "/decision") {
+    res.writeHead(404, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Not found. POST /decision only." }));
+    return;
+  }
+
+  let body = "";
+  for await (const chunk of req) body += chunk;
+  let payload;
+  try {
+    payload = JSON.parse(body);
+    console.log("[Agent] Received decision request:", {
+      requestId: payload.requestId,
+      gameId: payload.gameId,
+      slot: payload.slot,
+      decisionType: payload.decisionType,
+    });
+  } catch {
+    res.writeHead(400, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Invalid JSON" }));
+    return;
+  }
+
+  const { requestId, decisionType, context } = payload;
+  const dt = decisionType || "property";
+  const ctx = context || {};
+  let result = await getLLMDecision(dt, ctx);
+  if (!result) {
+    result = decide(dt, ctx);
+    console.log("[Agent] Using rule-based fallback:", result.action);
+  }
+  const response = {
+    requestId,
+    action: result.action,
+    propertyId: result.propertyId,
+    reasoning: result.reasoning,
+    confidence: result.confidence,
+  };
+  if (result.counterOffer) response.counterOffer = result.counterOffer;
+  console.log("[Agent] Sending decision response:", response);
+
+  res.writeHead(200, { "Content-Type": "application/json" });
+  res.end(JSON.stringify(response));
+});
+
+server.listen(PORT, () => {
+  console.log(`Tycoon Celo Agent listening on port ${PORT}`);
+  console.log("POST /decision with body: { requestId, gameId, slot, decisionType, context }");
+});
