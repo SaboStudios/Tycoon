@@ -8,7 +8,7 @@ import Footer from "@/components/shared/Footer";
 const HeroSection = dynamic(() => import("@/components/guest/HeroSection"), {
   loading: () => (
     <div
-      className="min-h-[100dvh] w-full bg-[#010F10]"
+      className="min-h-below-mobile-nav w-full bg-[#010F10]"
       aria-busy="true"
       aria-label="Loading"
     />

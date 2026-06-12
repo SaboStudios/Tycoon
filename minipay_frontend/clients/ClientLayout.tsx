@@ -16,8 +16,7 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
   const [isClient, setIsClient] = useState(false);
   const pathname = usePathname();
   const isBoard3D = pathname === "/board-3d-mobile" || pathname === "/board-3d-multi-mobile";
-  const isHome = pathname === "/";
-  const needsMobileNavPadding = !isBoard3D && !isHome;
+  const needsMobileNavPadding = !isBoard3D;
   const contentClassName = [
     needsMobileNavPadding ? "pt-below-mobile-nav" : "",
     !isBoard3D ? "max-w-md mx-auto w-full" : "",

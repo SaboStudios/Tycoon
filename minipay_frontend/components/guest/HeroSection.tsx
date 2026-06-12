@@ -469,7 +469,7 @@ const HeroSection: React.FC = () => {
 
   if (isConnecting) {
     return (
-      <div className="w-full h-screen flex items-center justify-center bg-[#010F10]">
+      <div className="w-full min-h-below-mobile-nav flex items-center justify-center bg-[#010F10]">
         <p className="font-orbitron text-[#00F0FF] text-lg">Connecting to wallet...</p>
       </div>
     );
@@ -478,7 +478,7 @@ const HeroSection: React.FC = () => {
   return (
     <section
       ref={parallaxRef}
-      className="z-0 w-full h-screen relative bg-[#010F10]"
+      className="z-0 w-full min-h-below-mobile-nav relative bg-[#010F10]"
     >
       <div className="absolute inset-0 overflow-hidden">
         <motion.div
@@ -507,10 +507,10 @@ const HeroSection: React.FC = () => {
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#010F10]/20 to-[#010F10]/60 z-5" />
       </div>
 
-      <main className="relative z-20 flex h-full w-full flex-col items-center justify-start gap-1 overflow-y-auto overflow-x-hidden px-4 pt-8 pb-24">
+      <main className={`relative z-20 flex h-full w-full flex-col items-center justify-start gap-1 overflow-y-auto overflow-x-hidden px-4 pb-24 ${isReturningPlayer ? "pt-2" : "pt-4"}`}>
         {/* Welcome Message */}
         {isReturningPlayer && (
-          <div className="mt-4 flex w-full max-w-sm flex-col items-center gap-4 px-2">
+          <div className="flex w-full max-w-sm flex-col items-center gap-4 px-2">
             <motion.p
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
