@@ -44,12 +44,7 @@ function isValidNonZeroAddress(a: string | null | undefined): a is `0x${string}`
   return /^0x[a-fA-F0-9]{40}$/i.test(s);
 }
 
-interface HeroSectionProps {
-  /** When true, server-rendered HomeHeroStatic supplies bg + title; this layer adds interactivity only. */
-  reuseStaticVisuals?: boolean;
-}
-
-const HeroSection: React.FC<HeroSectionProps> = ({ reuseStaticVisuals = false }) => {
+const HeroSection: React.FC = () => {
   const router = useRouter();
   const { address, isConnecting } = useAccount();
   const chainId = useChainId();
@@ -250,6 +245,12 @@ const HeroSection: React.FC<HeroSectionProps> = ({ reuseStaticVisuals = false })
     if (guestUser) return "privy";
     return "disconnected";
   }, [address, user, isUserRegistered, guestUser, localRegistered, onChainUsername]);
+
+  const isReturningPlayer =
+    (registrationStatus === "fully-registered" ||
+      registrationStatus === "backend-only" ||
+      registrationStatus === "privy") &&
+    !loading;
 
   const displayUsername = useMemo(() => {
     if (guestUser) return guestUser.username;
@@ -477,9 +478,9 @@ const HeroSection: React.FC<HeroSectionProps> = ({ reuseStaticVisuals = false })
   return (
     <section
       ref={parallaxRef}
-      className={`z-0 w-full h-screen relative overflow-hidden ${reuseStaticVisuals ? "bg-transparent pointer-events-none" : "bg-[#010F10]"}`}
+      className="z-0 w-full h-screen relative bg-[#010F10]"
     >
-      {!reuseStaticVisuals && (
+      <div className="absolute inset-0 overflow-hidden">
         <motion.div
           className="w-full h-full overflow-hidden absolute inset-0"
           animate={{
@@ -500,21 +501,16 @@ const HeroSection: React.FC<HeroSectionProps> = ({ reuseStaticVisuals = false })
             quality={75}
           />
         </motion.div>
-      )}
 
-      {/* Particle effects */}
-      <ParticleBackground />
+        <ParticleBackground />
+        <ScanlineOverlay />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#010F10]/20 to-[#010F10]/60 z-5" />
+      </div>
 
-      {/* Scanline and grid overlay */}
-      <ScanlineOverlay />
-
-      {/* Gradient overlay */}
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#010F10]/20 to-[#010F10]/60 z-5" />
-
-      <main className={`w-full h-full absolute top-0 left-0 z-20 bg-transparent flex flex-col justify-start items-center gap-1 px-4 pt-8 ${reuseStaticVisuals ? "pointer-events-auto" : ""}`}>
+      <main className="relative z-20 flex h-full w-full flex-col items-center justify-start gap-1 overflow-y-auto overflow-x-hidden px-4 pt-8 pb-24">
         {/* Welcome Message */}
-        {(registrationStatus === "fully-registered" || registrationStatus === "backend-only" || registrationStatus === "privy") && !loading && (
-          <div className="mt-12 flex flex-col items-center gap-4 px-4">
+        {isReturningPlayer && (
+          <div className="mt-4 flex w-full max-w-sm flex-col items-center gap-4 px-2">
             <motion.p
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -526,29 +522,6 @@ const HeroSection: React.FC<HeroSectionProps> = ({ reuseStaticVisuals = false })
             >
               Welcome back, {displayUsername}!
             </motion.p>
-
-            {/* HUD Block */}
-            <motion.div
-              className="flex gap-2 border border-cyan-500/40 rounded p-2 text-[12px] font-orbitron"
-              initial={{ opacity: 0, y: -5 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2, delay: 0 }}
-            >
-              <div className="text-[#00F0FF]">LEVEL <span className="text-white font-bold">26</span></div>
-              <div className="text-[#00F0FF]">STATUS <span className="text-cyan-400 font-bold">Elite</span></div>
-            </motion.div>
-
-            {/* XP Bar */}
-            <motion.div
-              className="flex flex-col items-center gap-1 text-[11px]"
-              initial={{ opacity: 0, y: -5 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2, delay: 0 }}
-            >
-              <div className="text-[#00F0FF]/70 font-orbitron">XP PROGRESS 60/70</div>
-              <div className="h-1 bg-cyan-500 w-32 rounded"/>
-              <div className="text-[#00F0FF] font-orbitron font-bold">⚡ READY FOR BATTLE</div>
-            </motion.div>
 
             {levelInfo && (
               <motion.div
@@ -610,89 +583,87 @@ const HeroSection: React.FC<HeroSectionProps> = ({ reuseStaticVisuals = false })
           </div>
         )}
 
-        <motion.div
-          className="flex justify-center items-center gap-3 mt-4"
-          style={{ overflow: "visible", whiteSpace: "nowrap" }}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0, duration: 0.3 }}
-        >
-          <TypeAnimation
-            sequence={[
-              "Conquer",
-              1200,
-              "Conquer • Build",
-              1200,
-              "Conquer • Build • Trade On",
-              1800,
-              "Play Solo vs AI",
-              2000,
-              "Conquer • Build",
-              1000,
-              "Conquer",
-              1000,
-              "",
-              500,
-            ]}
-            wrapper="span"
-            speed={40}
-            repeat={Infinity}
-            className="font-orbitron text-[20px] font-[700] text-[#F0F7F7] text-center block"
-            style={{
-              textShadow: "0 0 8px rgba(0, 240, 255, 0.6), 0 0 16px rgba(0, 240, 255, 0.3)",
-            }}
-          />
-        </motion.div>
+        {!isReturningPlayer && (
+          <>
+            <motion.div
+              className="mt-4 flex w-full max-w-sm justify-center px-2"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0, duration: 0.3 }}
+            >
+              <TypeAnimation
+                sequence={[
+                  "Conquer",
+                  1200,
+                  "Conquer • Build",
+                  1200,
+                  "Conquer • Build • Trade",
+                  1800,
+                  "Play Solo vs AI",
+                  2000,
+                  "Conquer • Build",
+                  1000,
+                  "Conquer",
+                  1000,
+                  "",
+                  500,
+                ]}
+                wrapper="span"
+                speed={40}
+                repeat={Infinity}
+                className="font-orbitron text-[18px] font-[700] text-[#F0F7F7] text-center block leading-snug"
+                style={{
+                  textShadow: "0 0 8px rgba(0, 240, 255, 0.6), 0 0 16px rgba(0, 240, 255, 0.3)",
+                }}
+              />
+            </motion.div>
 
-        {!reuseStaticVisuals && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0, duration: 0.3 }}
-          >
-            <NeonTitle text="TYCOON" size="lg" />
-          </motion.div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0, duration: 0.3 }}
+            >
+              <NeonTitle text="TYCOON" size="lg" />
+            </motion.div>
+
+            <motion.div
+              className="w-full max-w-sm px-2 text-center text-[#F0F7F7] -tracking-[2%]"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0, duration: 0.3 }}
+            >
+              <TypeAnimation
+                sequence={[
+                  "Roll the dice",
+                  2000,
+                  "Buy properties",
+                  2000,
+                  "Collect rent",
+                  2000,
+                  "Play against AI opponents",
+                  2200,
+                  "Become the top tycoon",
+                  2000,
+                ]}
+                wrapper="span"
+                speed={50}
+                repeat={Infinity}
+                className="font-orbitron text-[16px] font-[700] text-[#F0F7F7] text-center block leading-snug"
+                style={{
+                  textShadow: "0 0 6px rgba(0, 240, 255, 0.5), 0 0 12px rgba(0, 240, 255, 0.2)",
+                }}
+              />
+              <p className="font-dmSans font-[400] text-[13px] text-[#F0F7F7] mt-3 leading-relaxed text-pretty">
+                Step into Tycoon — the Web3 twist on the classic game of strategy,
+                ownership, and fortune. Play solo against AI, compete in multiplayer
+                rooms, collect tokens, complete quests, and become the ultimate
+                blockchain tycoon.
+              </p>
+            </motion.div>
+          </>
         )}
 
-        <motion.div
-          className="w-full px-4 text-center text-[#F0F7F7] -tracking-[2%]"
-          style={{ overflow: "visible", whiteSpace: "nowrap" }}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0, duration: 0.3 }}
-        >
-          <TypeAnimation
-            sequence={[
-              "Roll the dice",
-              2000,
-              "Buy properties",
-              2000,
-              "Collect rent",
-              2000,
-              "Play against AI opponents",
-              2200,
-              "Become the top tycoon",
-              2000,
-            ]}
-            wrapper="span"
-            speed={50}
-            repeat={Infinity}
-            className="font-orbitron text-[18px] font-[700] text-[#F0F7F7] text-center block"
-            style={{
-              textShadow: "0 0 6px rgba(0, 240, 255, 0.5), 0 0 12px rgba(0, 240, 255, 0.2)",
-            }}
-          />
-          {!reuseStaticVisuals && (
-            <p className="font-dmSans font-[400] text-[13px] text-[#F0F7F7] mt-3 leading-relaxed">
-              Step into Tycoon — the Web3 twist on the classic game of strategy,
-              ownership, and fortune. Play solo against AI, compete in multiplayer
-              rooms, collect tokens, complete quests, and become the ultimate
-              blockchain tycoon.
-            </p>
-          )}
-        </motion.div>
-
-        <div className="z-1 w-full flex min-h-[152px] flex-col justify-center items-center mt-6 gap-4">
+        <div className={`z-1 w-full flex min-h-[152px] flex-col justify-center items-center gap-4 ${isReturningPlayer ? "mt-8 flex-1" : "mt-6"}`}>
           {/* EOA mandatory Privy: wallet connected but not signed in with Privy — must sign in with Privy to continue */}
           {address && !walletSessionReady && !loading && (
             <div className="w-[85%] max-w-xs flex flex-col gap-4 items-center">
