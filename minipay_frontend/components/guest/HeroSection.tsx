@@ -18,7 +18,7 @@ import {
   useRegisterPlayer,
 } from "@/context/ContractProvider";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
-import { toast } from "react-toastify";
+import { toast } from "react-hot-toast";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { apiClient } from "@/lib/api";
 import { getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
