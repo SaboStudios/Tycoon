@@ -7,7 +7,7 @@ import JoinOurCommunity from "@/components/guest/JoinOurCommunity";
 import Footer from "@/components/shared/Footer";
 
 /** Hero pulls wagmi + Privy + contracts — own chunk so the home entry bundle parses less upfront. */
-const HeroSectionMobile = dynamic(() => import("@/components/guest/HeroSection-mobile"), {
+const HeroSection = dynamic(() => import("@/components/guest/HeroSection"), {
   loading: () => (
     <div
       className="min-h-[100dvh] w-full bg-[#010F10]"
@@ -26,7 +26,7 @@ const HowItWorks = dynamic(() => import("@/components/guest/HowItWorks"), {
 export default function HomeClient() {
   return (
     <main className="w-full">
-      <HeroSectionMobile />
+      <HeroSection />
       <WhatIsTycoon />
       <HowItWorks />
       <JoinOurCommunity />
