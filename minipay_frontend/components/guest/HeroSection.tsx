@@ -19,13 +19,23 @@ const WorldStatsBar = dynamic(
   () => import("@/components/hero/WorldStatsBar").then((m) => ({ default: m.WorldStatsBar })),
   { ssr: false }
 );
+const HeroActionSkeleton = () => (
+  <div
+    className="z-1 mt-6 flex min-h-[152px] w-full flex-col items-center justify-center gap-4"
+    aria-busy="true"
+    aria-label="Loading actions"
+  />
+);
+
 const HeroWalletPanel = dynamic(() => import("@/components/guest/HeroWalletPanel"), {
   ssr: false,
-  loading: () => null,
+  loading: HeroActionSkeleton,
 });
 
 const HeroSection: React.FC = () => {
   const [walletReady, setWalletReady] = useState(false);
+  const [hideDescription, setHideDescription] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(true);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const parallaxRef = useRef<HTMLDivElement>(null);
 
@@ -51,8 +61,11 @@ const HeroSection: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const isMobile = window.innerWidth < 768;
-    if (isMobile) return;
+    setIsMobileViewport(window.innerWidth < 768);
+  }, []);
+
+  useEffect(() => {
+    if (isMobileViewport) return;
 
     const handleMouseMove = (e: MouseEvent) => {
       if (!parallaxRef.current) return;
@@ -64,7 +77,7 @@ const HeroSection: React.FC = () => {
 
     window.addEventListener("mousemove", handleMouseMove);
     return () => window.removeEventListener("mousemove", handleMouseMove);
-  }, []);
+  }, [isMobileViewport]);
 
   return (
     <section
@@ -75,8 +88,8 @@ const HeroSection: React.FC = () => {
         <motion.div
           className="w-full h-full overflow-hidden absolute inset-0"
           animate={{
-            x: window.innerWidth < 768 ? 0 : mousePosition.x * 10,
-            y: window.innerWidth < 768 ? 0 : mousePosition.y * 10,
+            x: isMobileViewport ? 0 : mousePosition.x * 10,
+            y: isMobileViewport ? 0 : mousePosition.y * 10,
           }}
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
         >
@@ -99,10 +112,12 @@ const HeroSection: React.FC = () => {
       </div>
 
       <main className="relative z-20 flex h-full w-full flex-col items-center justify-start gap-1 overflow-y-auto overflow-x-hidden px-4 pt-4 pb-24">
-        {walletReady ? (
-          <HeroWalletPanel />
-        ) : (
-          <HeroMarketingContent />
+        <HeroMarketingContent
+          showDescription={!hideDescription}
+          showActionPlaceholder={!walletReady}
+        />
+        {walletReady && (
+          <HeroWalletPanel onReturningPlayerChange={setHideDescription} />
         )}
       </main>
 

@@ -50,7 +50,7 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
     : '/game-shop';
   const scaleX = useSpring(scrollYProgress, { stiffness: 100, damping: 30, restDelta: 0.001 });
 
-  const [navVisible, setNavVisible] = useState(false);
+  const [navVisible, setNavVisible] = useState(true);
   const lastScrollY = useRef(0);
   const hasScrolled = useRef(false);
 

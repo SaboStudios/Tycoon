@@ -19,7 +19,7 @@ interface ClientLayoutProps {
 }
 
 export default function ClientLayout({ children }: ClientLayoutProps) {
-  const [isClient, setIsClient] = useState(false);
+  const [providersReady, setProvidersReady] = useState(false);
   const pathname = usePathname();
   const isBoard3D = pathname === "/board-3d-mobile" || pathname === "/board-3d-multi-mobile";
   const isPublic = isPublicPath(pathname ?? "");
@@ -32,33 +32,27 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
     .join(" ");
 
   useEffect(() => {
-    setIsClient(true);
+    setProvidersReady(true);
   }, []);
-
-  if (!isClient) {
-    return (
-      <div suppressHydrationWarning className={`${orbitron.variable} ${dmSans.variable} ${kronaOne.variable}`}>
-        {children}
-      </div>
-    );
-  }
 
   const pageContent = (
     <div className={contentClassName || undefined}>{children}</div>
   );
 
-  return (
-    <ProfileProvider>
-      <div suppressHydrationWarning className={`${orbitron.variable} ${dmSans.variable} ${kronaOne.variable}`}>
-        {isBoard3D ? (
-          <NavBarMobile minimal />
-        ) : (
-          <div className="max-w-md mx-auto w-full">
-            <NavBarMobile />
-          </div>
-        )}
-        {isPublic ? pageContent : <AuthGuard>{pageContent}</AuthGuard>}
-      </div>
-    </ProfileProvider>
+  const layoutShell = (
+    <div suppressHydrationWarning className={`${orbitron.variable} ${dmSans.variable} ${kronaOne.variable}`}>
+      {isBoard3D ? (
+        <NavBarMobile minimal />
+      ) : (
+        <div className="max-w-md mx-auto w-full">
+          <NavBarMobile />
+        </div>
+      )}
+      {providersReady && !isPublic ? <AuthGuard>{pageContent}</AuthGuard> : pageContent}
+    </div>
   );
+
+  if (!providersReady) return layoutShell;
+
+  return <ProfileProvider>{layoutShell}</ProfileProvider>;
 }

@@ -22,8 +22,6 @@ import { getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
 import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
 import { useUserLevel } from "@/hooks/useUserLevel";
-import HeroMarketingContent from "@/components/guest/HeroMarketingContent";
-
 function chainIdToBackendChain(chainId: number): string {
   return "CELO";
 }
@@ -38,7 +36,11 @@ function isValidNonZeroAddress(a: string | null | undefined): a is `0x${string}`
   return /^0x[a-fA-F0-9]{40}$/i.test(s);
 }
 
-const HeroWalletPanel: React.FC = () => {
+type HeroWalletPanelProps = {
+  onReturningPlayerChange?: (isReturning: boolean) => void;
+};
+
+const HeroWalletPanel: React.FC<HeroWalletPanelProps> = ({ onReturningPlayerChange }) => {
   const router = useRouter();
   const { address, isConnecting } = useAccount();
   const chainId = useChainId();
@@ -225,6 +227,10 @@ const HeroWalletPanel: React.FC = () => {
       registrationStatus === "backend-only" ||
       registrationStatus === "privy") &&
     !loading;
+
+  useEffect(() => {
+    onReturningPlayerChange?.(isReturningPlayer);
+  }, [isReturningPlayer, onReturningPlayerChange]);
 
   const displayUsername = useMemo(() => {
     if (guestUser) return guestUser.username;
@@ -441,14 +447,6 @@ const HeroWalletPanel: React.FC = () => {
   router.push(`/board-3d-multi-mobile?gameCode=${encodeURIComponent(code)}`);
 };
 
-  if (isConnecting) {
-    return (
-      <div className="w-full min-h-below-mobile-nav flex items-center justify-center bg-[#010F10]">
-        <p className="font-orbitron text-[#00F0FF] text-lg">Connecting to wallet...</p>
-      </div>
-    );
-  }
-
   return (
     <>
         {/* Welcome Message */}
@@ -526,11 +524,13 @@ const HeroWalletPanel: React.FC = () => {
           </div>
         )}
 
-        <HeroMarketingContent showDescription={!isReturningPlayer} showActionPlaceholder={false} />
-
         <div className="z-1 mt-6 flex min-h-[152px] w-full flex-col items-center justify-center gap-4">
+          {isConnecting && (
+            <p className="font-orbitron text-[#00F0FF] text-lg text-center">Connecting to wallet...</p>
+          )}
+
           {/* EOA mandatory Privy: wallet connected but not signed in with Privy — must sign in with Privy to continue */}
-          {address && !walletSessionReady && !loading && (
+          {address && !walletSessionReady && !loading && !isConnecting && (
             <div className="w-[85%] max-w-xs flex flex-col gap-4 items-center">
               <p className="text-[#869298] text-sm text-center font-dmSans">
                 Wallet connected. Continue with wallet.
@@ -563,7 +563,7 @@ const HeroWalletPanel: React.FC = () => {
           )}
 
           {/* Wallet: username input for new users (only when Privy-authed) */}
-          {address && walletSessionReady && registrationStatus === "none" && !loading && (
+          {address && walletSessionReady && registrationStatus === "none" && !loading && !isConnecting && (
             <input
               type="text"
               value={inputUsername}
@@ -574,7 +574,7 @@ const HeroWalletPanel: React.FC = () => {
           )}
 
           {/* When disconnected: primary path is wallet connect. */}
-          {!address && registrationStatus === "disconnected" && !loading && (
+          {!address && registrationStatus === "disconnected" && !loading && !isConnecting && (
             <div className="w-[85%] max-w-xs flex flex-col gap-4 items-center">
               {isMiniPay ? (
                 <p className="text-[#17ffff] text-sm text-center font-dmSans animate-pulse">
@@ -615,7 +615,7 @@ const HeroWalletPanel: React.FC = () => {
           )}
 
           {/* "Let's Go!" for wallet users (backend-only or none) — only when Privy-authed */}
-          {address && walletSessionReady && registrationStatus !== "fully-registered" && !loading && (
+          {address && walletSessionReady && registrationStatus !== "fully-registered" && !loading && !isConnecting && (
             <button
               onClick={handleRegister}
               disabled={
@@ -644,14 +644,14 @@ const HeroWalletPanel: React.FC = () => {
               </span>
             </button>
           )}
-          {address && walletSessionReady && registrationStatus !== "fully-registered" && !loading && (
+          {address && walletSessionReady && registrationStatus !== "fully-registered" && !loading && !isConnecting && (
             <p className="text-[#869298] text-xs text-center font-dmSans -mt-1">
               {user ? "Sign the registration transaction in your wallet" : "Sign in your wallet to register on-chain"}
             </p>
           )}
 
           {/* Register + Link wallet: when Privy/guest without smart wallet — hide when action buttons are shown */}
-          {(registrationStatus === "privy" || (address && walletSessionReady && registrationStatus === "fully-registered" && !hasSmartWallet)) && !hasSmartWallet && (guestUser || walletSessionReady) && !loading && !((address && registrationStatus === "fully-registered" && walletSessionReady) || (registrationStatus === "privy" && (guestUser || walletSessionReady))) && (
+          {(registrationStatus === "privy" || (address && walletSessionReady && registrationStatus === "fully-registered" && !hasSmartWallet)) && !hasSmartWallet && (guestUser || walletSessionReady) && !loading && !isConnecting && !((address && registrationStatus === "fully-registered" && walletSessionReady) || (registrationStatus === "privy" && (guestUser || walletSessionReady))) && (
             <div className="flex flex-col items-center gap-4 mt-4">
               <p className="text-[#869298] text-sm text-center max-w-sm">
                 Register or link a wallet to unlock Challenge AI, Multiplayer, and Join Room.
@@ -695,7 +695,7 @@ const HeroWalletPanel: React.FC = () => {
           )}
 
           {/* Action buttons: require Privy for EOA; guest/Privy. Show when fully set up (hasSmartWallet preferred, but allow linked/registered users to try). */}
-          {((address && registrationStatus === "fully-registered" && walletSessionReady) || (registrationStatus === "privy" && (guestUser || walletSessionReady))) ? (
+          {!isConnecting && ((address && registrationStatus === "fully-registered" && walletSessionReady) || (registrationStatus === "privy" && (guestUser || walletSessionReady))) ? (
             <motion.div
               className="flex flex-wrap justify-center items-center gap-2 mb-20"
               initial={{ opacity: 0, y: 10 }}
@@ -831,7 +831,7 @@ const HeroWalletPanel: React.FC = () => {
             </motion.div>
           ) : null}
 
-          {!address && !guestUser && !walletSessionReady && (
+          {!isConnecting && !address && !guestUser && !walletSessionReady && (
             <p className="text-gray-400 text-sm text-center mt-4">
               Sign in or connect your wallet to play.
             </p>
