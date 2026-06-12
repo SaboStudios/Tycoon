@@ -2,7 +2,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useMediaQuery } from "@/components/useMediaQuery";
+import { useState, useEffect } from "react";
 import WhatIsTycoon from "@/components/guest/WhatIsTycoon";
 import JoinOurCommunity from "@/components/guest/JoinOurCommunity";
 import Footer from "@/components/shared/Footer";
@@ -34,7 +34,15 @@ const HowItWorks = dynamic(() => import("@/components/guest/HowItWorks"), {
 });
 
 export default function HomeClient() {
-  const isMobile = useMediaQuery("(max-width: 768px)");
+  const [isMobile, setIsMobile] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMobile(window.innerWidth <= 768);
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
 
   return (
     <main className="w-full">

@@ -8,10 +8,8 @@ import AppKitProviderWrapper from "@/components/AppKitProviderWrapper";
 import ReferralCapture from "@/components/ReferralCapture";
 import { TycoonProvider } from "@/context/ContractProvider";
 import { GuestAuthProvider } from "@/context/GuestAuthContext";
-import { ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
 import { Toaster } from "react-hot-toast";
-import FarcasterReady from "@/components/FarcasterReady"; 
+import FarcasterReady from "@/components/FarcasterReady";
 import { minikitConfig } from "../minikit.config";
 import type { Metadata } from "next";
 import Script from "next/script";
@@ -105,6 +103,7 @@ export default async function RootLayout({
         <link rel="dns-prefetch" href="https://pulse.walletconnect.org" />
         <link rel="dns-prefetch" href="https://fonts.reown.com" />
         <link rel="preconnect" href="https://fonts.reown.com" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://pulse.walletconnect.org" />
       </head>
 
       <body
@@ -131,24 +130,6 @@ export default async function RootLayout({
                 </ClientLayout>
 
                 <ScrollToTopBtn />
-                <ToastContainer
-                  position="top-right"
-                  autoClose={5000}
-                  hideProgressBar={false}
-                  newestOnTop
-                  closeOnClick
-                  rtl={false}
-                  pauseOnFocusLoss
-                  draggable
-                  pauseOnHover
-                  theme="dark"
-                  toastStyle={{
-                    fontFamily: "Orbitron, sans-serif",
-                    background: "#0E1415",
-                    color: "#00F0FF",
-                    border: "1px solid #003B3E",
-                  }}
-                />
                 <Toaster position="top-center" />
                 </QueryProvider>
               </AppKitProviderWrapper>
