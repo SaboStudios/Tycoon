@@ -6,14 +6,12 @@ interface WorldStatsBarProps {
   playersOnline?: number;
   propertiesOwned?: number;
   tokensInPlay?: string;
-  compact?: boolean;
 }
 
 export function WorldStatsBar({
   playersOnline = 1234,
   propertiesOwned = 5678,
   tokensInPlay = "12.5M",
-  compact = false,
 }: WorldStatsBarProps) {
   const [displayStats, setDisplayStats] = useState({
     players: 0,
@@ -43,29 +41,10 @@ export function WorldStatsBar({
   }, [playersOnline, propertiesOwned]);
 
   const stats = [
-    { label: "Players online", value: displayStats.players.toLocaleString() },
-    { label: "Properties owned", value: displayStats.properties.toLocaleString() },
-    { label: "Tokens in play", value: tokensInPlay },
+    { label: "Players Online", value: displayStats.players.toLocaleString() },
+    { label: "Properties Owned", value: displayStats.properties.toLocaleString() },
+    { label: "Tokens in Play", value: tokensInPlay },
   ];
-
-  if (compact) {
-    return (
-      <div className="w-full max-w-sm mx-auto px-1 pb-2">
-        <div className="grid grid-cols-3 gap-2 rounded-xl border border-[#00F0FF]/25 bg-[#0B191A]/90 px-2 py-3 backdrop-blur-sm">
-          {stats.map((stat) => (
-            <div key={stat.label} className="text-center min-w-0">
-              <div className="text-[10px] font-orbitron font-semibold uppercase tracking-wide text-[#00F0FF]/80 leading-tight mb-1">
-                {stat.label}
-              </div>
-              <div className="text-sm font-orbitron font-bold text-[#E8FFFF] truncate">
-                {stat.value}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
 
   return (
     <motion.div
@@ -88,8 +67,15 @@ export function WorldStatsBar({
                 <div className="text-xs font-orbitron text-[#00F0FF]/70 uppercase tracking-wider mb-1">
                   {stat.label}
                 </div>
-                <div className="text-sm md:text-lg font-orbitron font-bold text-[#17ffff]">
-                  {stat.value}
+                <div className="relative">
+                  <div className="text-sm md:text-lg font-orbitron font-bold text-[#17ffff]">
+                    {stat.value}
+                  </div>
+                  <div className="absolute -inset-2 rounded opacity-0 group-hover:opacity-100 transition duration-300 blur-lg -z-10"
+                    style={{
+                      background: "linear-gradient(135deg, rgba(0, 240, 255, 0.2), rgba(15, 240, 252, 0.1))",
+                    }}
+                  />
                 </div>
               </motion.div>
             ))}

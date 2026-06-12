@@ -325,13 +325,6 @@ body {
   text-shadow: 0 0 8px rgba(0, 240, 255, 0.8), 0 0 16px rgba(0, 240, 255, 0.6);
 }
 
-.neon-title-text-subtle {
-  position: relative;
-  z-index: 1;
-  display: block;
-  text-shadow: 0 0 6px rgba(0, 240, 255, 0.45), 0 1px 0 rgba(1, 15, 16, 0.9);
-}
-
 .neon-title-glow-pulse {
   position: absolute;
   inset: 0;
