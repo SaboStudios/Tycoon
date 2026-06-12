@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useState, useMemo, useRef } from "react";
+import dynamic from "next/dynamic";
 import herobg from "@/public/heroBg.png";
 import Image from "next/image";
 import { Dices, Gamepad2 } from "lucide-react";
@@ -25,10 +26,17 @@ import { getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
 import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
 import { useUserLevel } from "@/hooks/useUserLevel";
-import { ParticleBackground } from "@/components/hero/ParticleBackground";
-import { ScanlineOverlay } from "@/components/hero/ScanlineOverlay";
 import { NeonTitle } from "@/components/hero/NeonTitle";
 import { WorldStatsBar } from "@/components/hero/WorldStatsBar";
+
+const ParticleBackground = dynamic(
+  () => import("@/components/hero/ParticleBackground").then((m) => m.ParticleBackground),
+  { ssr: false }
+);
+const ScanlineOverlay = dynamic(
+  () => import("@/components/hero/ScanlineOverlay").then((m) => m.ScanlineOverlay),
+  { ssr: false }
+);
 
 function chainIdToBackendChain(chainId: number): string {
   return "CELO";
@@ -44,7 +52,12 @@ function isValidNonZeroAddress(a: string | null | undefined): a is `0x${string}`
   return /^0x[a-fA-F0-9]{40}$/i.test(s);
 }
 
-const HeroSection: React.FC = () => {
+interface HeroSectionProps {
+  /** When true, overlays server HeroLcpShell (no duplicate title, absolute fill). */
+  overlayMode?: boolean;
+}
+
+const HeroSection: React.FC<HeroSectionProps> = ({ overlayMode = false }) => {
   const router = useRouter();
   const { address, isConnecting } = useAccount();
   const chainId = useChainId();
@@ -113,7 +126,16 @@ const HeroSection: React.FC = () => {
   const [guestLastGame, setGuestLastGame] = useState<{ code: string; status: string; is_ai?: boolean } | null>(null);
   const [guestGameCount, setGuestGameCount] = useState(0);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [isMobileViewport, setIsMobileViewport] = useState(true);
   const parallaxRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const update = () => setIsMobileViewport(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
 
   useEffect(() => {
     if (!gameCode || typeof gameCode !== "string") {
@@ -163,8 +185,7 @@ const HeroSection: React.FC = () => {
 
   // Parallax mouse tracking - desktop only
   useEffect(() => {
-    const isMobile = window.innerWidth < 768;
-    if (isMobile) return;
+    if (isMobileViewport) return;
 
     const handleMouseMove = (e: MouseEvent) => {
       if (!parallaxRef.current) return;
@@ -176,7 +197,7 @@ const HeroSection: React.FC = () => {
 
     window.addEventListener("mousemove", handleMouseMove);
     return () => window.removeEventListener("mousemove", handleMouseMove);
-  }, []);
+  }, [isMobileViewport]);
 
   const [user, setUser] = useState<UserType | null>(null);
 
@@ -461,7 +482,7 @@ const HeroSection: React.FC = () => {
   router.push(`/board-3d-multi-mobile?gameCode=${encodeURIComponent(code)}`);
 };
 
-  if (isConnecting) {
+  if (isConnecting && !overlayMode) {
     return (
       <div className="w-full h-screen flex items-center justify-center bg-[#010F10]">
         <p className="font-orbitron text-[#00F0FF] text-lg">Connecting to wallet...</p>
@@ -472,129 +493,103 @@ const HeroSection: React.FC = () => {
   return (
     <section
       ref={parallaxRef}
-      className="z-0 w-full h-screen relative overflow-hidden bg-[#010F10]"
+      className={
+        overlayMode
+          ? "absolute inset-0 z-0 w-full h-full overflow-hidden bg-transparent"
+          : "z-0 w-full h-screen relative overflow-hidden bg-[#010F10]"
+      }
     >
-      {/* Background with parallax - disabled on mobile */}
-      <motion.div
-        className="w-full h-full overflow-hidden absolute inset-0"
-        animate={{
-          x: window.innerWidth < 768 ? 0 : mousePosition.x * 10,
-          y: window.innerWidth < 768 ? 0 : mousePosition.y * 10,
-        }}
-        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-      >
-        <Image
-          src={herobg}
-          alt="Hero Background"
-          className="w-full h-full object-cover"
-          width={1440}
-          height={1024}
-          priority
-          fetchPriority="high"
-          sizes="(max-width: 768px) 100vw, 1440px"
-          quality={75}
-        />
-      </motion.div>
+      {/* Background — hidden on mobile overlay so board art does not peek at edges */}
+      {!(overlayMode && isMobileViewport) && (
+        <motion.div
+          className="w-full h-full overflow-hidden absolute inset-0"
+          animate={{
+            x: isMobileViewport ? 0 : mousePosition.x * 10,
+            y: isMobileViewport ? 0 : mousePosition.y * 10,
+          }}
+          transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        >
+          <Image
+            src={herobg}
+            alt=""
+            aria-hidden
+            className="w-full h-full object-cover"
+            width={1440}
+            height={1024}
+            priority={!overlayMode}
+            fetchPriority={overlayMode ? "low" : "high"}
+            sizes="(max-width: 768px) 100vw, 1440px"
+            quality={overlayMode ? 60 : 75}
+          />
+        </motion.div>
+      )}
 
-      {/* Particle effects */}
-      <ParticleBackground />
-
-      {/* Scanline and grid overlay */}
-      <ScanlineOverlay />
+      {!overlayMode && <ParticleBackground />}
+      {!overlayMode && <ScanlineOverlay />}
 
       {/* Gradient overlay */}
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#010F10]/20 to-[#010F10]/60 z-5" />
+      <div
+        className={
+          overlayMode
+            ? "absolute inset-0 z-[5] bg-[#010F10]/40 pointer-events-none"
+            : "absolute inset-0 bg-gradient-to-b from-transparent via-[#010F10]/20 to-[#010F10]/60 z-5"
+        }
+      />
 
-      <main className="w-full h-full absolute top-0 left-0 z-20 bg-transparent flex flex-col justify-start items-center gap-1 px-4 pt-8">
-        {/* Welcome Message */}
+      <main
+        className={
+          overlayMode
+            ? "w-full h-full absolute top-0 left-0 z-20 bg-transparent flex flex-col items-center px-4 pt-[var(--mobile-nav-offset)] pb-3"
+            : "w-full h-full absolute top-0 left-0 z-20 bg-transparent flex flex-col justify-start items-center gap-1 px-4 pt-8"
+        }
+      >
+        {/* Welcome + level — top of overlay, tight below nav */}
         {(registrationStatus === "fully-registered" || registrationStatus === "backend-only" || registrationStatus === "privy") && !loading && (
-          <div className="mt-12 flex flex-col items-center gap-4 px-4">
+          <div className={`w-full max-w-sm flex flex-col items-center gap-2 ${overlayMode ? "shrink-0" : "mt-12 px-4"}`}>
             <motion.p
-              initial={{ opacity: 0, y: -10 }}
+              initial={{ opacity: 0, y: -6 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              className="font-orbitron text-[18px] font-[700] text-[#00F0FF] text-center drop-shadow-lg"
-              style={{
-                textShadow: "0 0 10px rgba(0, 240, 255, 0.8), 0 0 20px rgba(0, 240, 255, 0.4)",
-              }}
+              transition={{ duration: 0.25 }}
+              className={`font-orbitron font-bold text-[#00F0FF] text-center ${overlayMode ? "text-base" : "text-[18px] drop-shadow-lg"}`}
             >
               Welcome back, {displayUsername}!
             </motion.p>
 
-            {/* HUD Block */}
-            <motion.div
-              className="flex gap-2 border border-cyan-500/40 rounded p-2 text-[12px] font-orbitron"
-              initial={{ opacity: 0, y: -5 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2, delay: 0 }}
-            >
-              <div className="text-[#00F0FF]">LEVEL <span className="text-white font-bold">26</span></div>
-              <div className="text-[#00F0FF]">STATUS <span className="text-cyan-400 font-bold">Elite</span></div>
-            </motion.div>
-
-            {/* XP Bar */}
-            <motion.div
-              className="flex flex-col items-center gap-1 text-[11px]"
-              initial={{ opacity: 0, y: -5 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2, delay: 0 }}
-            >
-              <div className="text-[#00F0FF]/70 font-orbitron">XP PROGRESS 60/70</div>
-              <div className="h-1 bg-cyan-500 w-32 rounded"/>
-              <div className="text-[#00F0FF] font-orbitron font-bold">⚡ READY FOR BATTLE</div>
-            </motion.div>
-
             {levelInfo && (
               <motion.div
-                className="flex flex-col items-center gap-3 bg-gradient-to-b from-[#0E282A]/80 to-[#0A1719]/80 rounded-lg p-4 border border-[#00F0FF]/40 backdrop-blur-sm"
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.3, delay: 0 }}
+                className={`w-full flex flex-col gap-2 rounded-lg border border-[#00F0FF]/35 bg-[#0B191A]/85 backdrop-blur-sm ${overlayMode ? "px-3 py-2.5" : "items-center gap-3 p-4"}`}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25 }}
               >
-                <div className="flex items-center gap-3 flex-wrap justify-center">
-                  <motion.span
-                    className="game-badge text-[12px] px-3 py-1.5 bg-gradient-to-r from-[#00F0FF] to-[#00D4D4] text-[#010F10] font-bold rounded-md"
-                    animate={{
-                      boxShadow: [
-                        "0 0 10px rgba(0, 240, 255, 0.5)",
-                        "0 0 20px rgba(0, 240, 255, 0.8)",
-                        "0 0 10px rgba(0, 240, 255, 0.5)",
-                      ]
-                    }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                  >
-                    LEVEL {levelInfo.level}
-                  </motion.span>
-                  <span className="game-level-label text-[11px] text-[#00F0FF]/90 font-orbitron font-semibold tracking-wider">{levelInfo.label}</span>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="game-badge text-xs px-2.5 py-1 bg-gradient-to-r from-[#00F0FF] to-[#00D4D4] text-[#010F10] font-bold rounded-md font-orbitron">
+                    LVL {levelInfo.level}
+                  </span>
+                  <span className="text-xs text-[#00F0FF]/90 font-orbitron font-semibold tracking-wide">{levelInfo.label}</span>
                 </div>
                 {levelInfo.level < 99 && levelInfo.xpForNextLevel > 0 && (
-                  <motion.div
-                    className="w-48 flex flex-col gap-1"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.3 }}
-                  >
-                    <div className="text-[10px] font-orbitron text-[#00F0FF]/70 flex justify-between">
-                      <span>XP PROGRESS</span>
+                  <div className="w-full flex flex-col gap-1">
+                    <div className="text-[10px] font-orbitron text-[#00F0FF]/75 flex justify-between">
+                      <span>XP progress</span>
                       <span>{Math.round(levelInfo.progress * 100)}%</span>
                     </div>
-                    <div className="w-full h-2.5 rounded-full bg-[#0E282A] overflow-hidden border border-[#00F0FF]/60">
+                    <div className="w-full h-2 rounded-full bg-[#0E282A] overflow-hidden border border-[#00F0FF]/50">
                       <motion.div
                         className="h-full rounded-full bg-gradient-to-r from-[#00F0FF] to-[#00D4D4]"
                         initial={{ width: 0 }}
                         animate={{ width: `${Math.round(levelInfo.progress * 100)}%` }}
-                        transition={{ duration: 1, ease: "easeOut" }}
-                        style={{
-                          boxShadow: "0 0 10px rgba(0, 240, 255, 0.8), inset 0 0 5px rgba(0, 240, 255, 0.4)"
-                        }}
+                        transition={{ duration: 0.8, ease: "easeOut" }}
                       />
                     </div>
-                  </motion.div>
+                  </div>
                 )}
               </motion.div>
             )}
           </div>
         )}
+
+        {overlayMode && <div className="flex-1 min-h-[6rem] w-full pointer-events-none" aria-hidden />}
 
         {loading && (
           <div className="mt-16">
@@ -604,85 +599,97 @@ const HeroSection: React.FC = () => {
           </div>
         )}
 
-        <motion.div
-          className="flex justify-center items-center gap-3 mt-4"
-          style={{ overflow: "visible", whiteSpace: "nowrap" }}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0, duration: 0.3 }}
-        >
-          <TypeAnimation
-            sequence={[
-              "Conquer",
-              1200,
-              "Conquer • Build",
-              1200,
-              "Conquer • Build • Trade On",
-              1800,
-              "Play Solo vs AI",
-              2000,
-              "Conquer • Build",
-              1000,
-              "Conquer",
-              1000,
-              "",
-              500,
-            ]}
-            wrapper="span"
-            speed={40}
-            repeat={Infinity}
-            className="font-orbitron text-[20px] font-[700] text-[#F0F7F7] text-center block"
-            style={{
-              textShadow: "0 0 8px rgba(0, 240, 255, 0.6), 0 0 16px rgba(0, 240, 255, 0.3)",
-            }}
-          />
-        </motion.div>
+        {!overlayMode && (
+          <motion.div
+            className="flex justify-center items-center gap-3 mt-4"
+            style={{ overflow: "visible", whiteSpace: "nowrap" }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0, duration: 0.3 }}
+          >
+            <TypeAnimation
+              sequence={[
+                "Conquer",
+                1200,
+                "Conquer • Build",
+                1200,
+                "Conquer • Build • Trade On",
+                1800,
+                "Play Solo vs AI",
+                2000,
+                "Conquer • Build",
+                1000,
+                "Conquer",
+                1000,
+                "",
+                500,
+              ]}
+              wrapper="span"
+              speed={40}
+              repeat={Infinity}
+              className="font-orbitron text-[20px] font-[700] text-[#F0F7F7] text-center block"
+              style={{
+                textShadow: "0 0 8px rgba(0, 240, 255, 0.6), 0 0 16px rgba(0, 240, 255, 0.3)",
+              }}
+            />
+          </motion.div>
+        )}
 
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0, duration: 0.3 }}
-        >
-          <NeonTitle text="TYCOON" size="lg" />
-        </motion.div>
+        {!overlayMode && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0, duration: 0.3 }}
+          >
+            <NeonTitle text="TYCOON" size="lg" />
+          </motion.div>
+        )}
 
-        <motion.div
-          className="w-full px-4 text-center text-[#F0F7F7] -tracking-[2%]"
-          style={{ overflow: "visible", whiteSpace: "nowrap" }}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0, duration: 0.3 }}
-        >
-          <TypeAnimation
-            sequence={[
-              "Roll the dice",
-              2000,
-              "Buy properties",
-              2000,
-              "Collect rent",
-              2000,
-              "Play against AI opponents",
-              2200,
-              "Become the top tycoon",
-              2000,
-            ]}
-            wrapper="span"
-            speed={50}
-            repeat={Infinity}
-            className="font-orbitron text-[18px] font-[700] text-[#F0F7F7] text-center block"
-            style={{
-              textShadow: "0 0 6px rgba(0, 240, 255, 0.5), 0 0 12px rgba(0, 240, 255, 0.2)",
-            }}
-          />
-          <p className="font-dmSans font-[400] text-[13px] text-[#F0F7F7] mt-3 leading-relaxed">
-            Step into Tycoon — the Web3 twist on the classic game of strategy,
-            ownership, and fortune. Play solo against AI, compete in multiplayer
-            rooms, collect tokens, complete quests, and become the ultimate
-            blockchain tycoon.
-          </p>
-        </motion.div>
+        {!overlayMode && (
+          <motion.div
+            className="w-full px-4 text-center text-[#F0F7F7] -tracking-[2%]"
+            style={{ overflow: "visible", whiteSpace: "nowrap" }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0, duration: 0.3 }}
+          >
+            <TypeAnimation
+              sequence={[
+                "Roll the dice",
+                2000,
+                "Buy properties",
+                2000,
+                "Collect rent",
+                2000,
+                "Play against AI opponents",
+                2200,
+                "Become the top tycoon",
+                2000,
+              ]}
+              wrapper="span"
+              speed={50}
+              repeat={Infinity}
+              className="font-orbitron text-[18px] font-[700] text-[#F0F7F7] text-center block"
+              style={{
+                textShadow: "0 0 6px rgba(0, 240, 255, 0.5), 0 0 12px rgba(0, 240, 255, 0.2)",
+              }}
+            />
+            <p className="font-dmSans font-[400] text-[13px] text-[#F0F7F7] mt-3 leading-relaxed">
+              Step into Tycoon — the Web3 twist on the classic game of strategy,
+              ownership, and fortune. Play solo against AI, compete in multiplayer
+              rooms, collect tokens, complete quests, and become the ultimate
+              blockchain tycoon.
+            </p>
+          </motion.div>
+        )}
 
-        <div className="z-1 w-full flex min-h-[152px] flex-col justify-center items-center mt-6 gap-4">
+        <div
+          className={
+            overlayMode
+              ? "z-1 w-full max-w-sm shrink-0 flex flex-col items-center gap-3"
+              : "z-1 w-full flex min-h-[152px] flex-col justify-center items-center mt-6 gap-4"
+          }
+        >
           {/* EOA mandatory Privy: wallet connected but not signed in with Privy — must sign in with Privy to continue */}
           {address && !walletSessionReady && !loading && (
             <div className="w-[85%] max-w-xs flex flex-col gap-4 items-center">
@@ -851,7 +858,11 @@ const HeroSection: React.FC = () => {
           {/* Action buttons: require Privy for EOA; guest/Privy. Show when fully set up (hasSmartWallet preferred, but allow linked/registered users to try). */}
           {((address && registrationStatus === "fully-registered" && walletSessionReady) || (registrationStatus === "privy" && (guestUser || walletSessionReady))) ? (
             <motion.div
-              className="flex flex-wrap justify-center items-center gap-2 mb-20"
+              className={
+                overlayMode
+                  ? "flex flex-col w-full gap-2.5 mb-2"
+                  : "flex flex-wrap justify-center items-center gap-2 mb-20"
+              }
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: 0 }}
@@ -861,7 +872,7 @@ const HeroSection: React.FC = () => {
                 (guestUser && guestLastGame && guestLastGame.status !== "COMPLETED" && guestLastGame.status !== "CANCELLED")) && (
                 <motion.button
                   onClick={handleContinuePrevious}
-                  className="relative group w-[240px] h-[48px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-105"
+                  className={`relative group bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform group-hover:scale-105 ${overlayMode ? "w-full h-12" : "w-[240px] h-[48px]"}`}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.98 }}
                 >
@@ -890,74 +901,24 @@ const HeroSection: React.FC = () => {
                 </motion.button>
               )}
 
-              {/* Play with Friends */}
-              <button
-                onClick={() => router.push("/game-settings-3d")}
-                className="relative group w-[130px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
-              >
-                <svg
-                  width="130"
-                  height="40"
-                  viewBox="0 0 130 40"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="absolute top-0 left-0 w-full h-full"
-                >
-                  <path
-                    d="M6 1H124C128.373 1 130.996 5.85486 128.601 9.5127L110.167 37.5127C109.151 39.0646 107.42 40 105.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
-                    fill="#003B3E"
-                    stroke="#003B3E"
-                    strokeWidth={1}
-                    className="group-hover:stroke-[#00F0FF] transition-all duration-300"
-                  />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-2">
-                  <Gamepad2 className="mr-1.5 w-[16px] h-[16px]" />
-                  Multiplayer
-                </span>
-              </button>
-
-              {/* Join Room */}
-              <button
-                onClick={() => router.push("/join-room-3d")}
-                className="relative group w-[130px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
-              >
-                <svg
-                  width="130"
-                  height="40"
-                  viewBox="0 0 130 40"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="absolute top-0 left-0 w-full h-full"
-                >
-                  <path
-                    d="M6 1H124C128.373 1 130.996 5.85486 128.601 9.5127L110.167 37.5127C109.151 39.0646 107.42 40 105.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
-                    fill="#003B3E"
-                    stroke="#003B3E"
-                    strokeWidth={1}
-                    className="group-hover:stroke-[#00F0FF] transition-all duration-300"
-                  />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-2">
-                  <Dices className="mr-1.5 w-[16px] h-[16px]" />
-                  Join Room
-                </span>
-              </button>
-
-              {/* Challenge AI */}
+              {/* Challenge AI — primary play action */}
               <motion.button
                 onClick={() => router.push("/play-ai-3d")}
-                className="relative group w-[240px] h-[48px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform duration-300 group-hover:scale-105"
-                whileHover={{ scale: 1.05 }}
+                className={`relative group bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform duration-300 group-hover:scale-105 ${overlayMode ? "w-full h-12" : "w-[240px] h-[48px]"}`}
+                whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                animate={{
-                  boxShadow: [
-                    "0 0 10px rgba(0, 240, 255, 0)",
-                    "0 0 20px rgba(0, 240, 255, 0.6)",
-                    "0 0 10px rgba(0, 240, 255, 0)",
-                  ]
-                }}
-                transition={{ duration: 3, repeat: Infinity }}
+                animate={
+                  overlayMode
+                    ? undefined
+                    : {
+                        boxShadow: [
+                          "0 0 10px rgba(0, 240, 255, 0)",
+                          "0 0 20px rgba(0, 240, 255, 0.6)",
+                          "0 0 10px rgba(0, 240, 255, 0)",
+                        ],
+                      }
+                }
+                transition={overlayMode ? undefined : { duration: 3, repeat: Infinity }}
               >
                 <svg
                   width="260"
@@ -977,10 +938,66 @@ const HeroSection: React.FC = () => {
                     }}
                   />
                 </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[#010F10] uppercase text-[16px] -tracking-[2%] font-orbitron font-[700] z-2">
+                <span className="absolute inset-0 flex items-center justify-center text-[#010F10] uppercase text-sm font-orbitron font-[700] z-2">
                   Challenge AI
                 </span>
               </motion.button>
+
+              <div className={overlayMode ? "grid grid-cols-2 gap-2 w-full" : "contents"}>
+                {/* Multiplayer */}
+                <button
+                  onClick={() => router.push("/game-settings-3d")}
+                  className={`relative group bg-transparent border-none p-0 overflow-hidden cursor-pointer ${overlayMode ? "w-full h-11" : "w-[130px] h-[40px]"}`}
+                >
+                  <svg
+                    width="130"
+                    height="40"
+                    viewBox="0 0 130 40"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="absolute top-0 left-0 w-full h-full"
+                  >
+                    <path
+                      d="M6 1H124C128.373 1 130.996 5.85486 128.601 9.5127L110.167 37.5127C109.151 39.0646 107.42 40 105.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
+                      fill="#003B3E"
+                      stroke="#00F0FF"
+                      strokeWidth={1}
+                      className="opacity-90"
+                    />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-xs font-dmSans font-semibold z-2">
+                    <Gamepad2 className="mr-1 w-4 h-4" />
+                    Multiplayer
+                  </span>
+                </button>
+
+                {/* Join Room */}
+                <button
+                  onClick={() => router.push("/join-room-3d")}
+                  className={`relative group bg-transparent border-none p-0 overflow-hidden cursor-pointer ${overlayMode ? "w-full h-11" : "w-[130px] h-[40px]"}`}
+                >
+                  <svg
+                    width="130"
+                    height="40"
+                    viewBox="0 0 130 40"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="absolute top-0 left-0 w-full h-full"
+                  >
+                    <path
+                      d="M6 1H124C128.373 1 130.996 5.85486 128.601 9.5127L110.167 37.5127C109.151 39.0646 107.42 40 105.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
+                      fill="#003B3E"
+                      stroke="#00F0FF"
+                      strokeWidth={1}
+                      className="opacity-90"
+                    />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-xs font-dmSans font-semibold z-2">
+                    <Dices className="mr-1 w-4 h-4" />
+                    Join Room
+                  </span>
+                </button>
+              </div>
 
             </motion.div>
           ) : null}
@@ -990,15 +1007,25 @@ const HeroSection: React.FC = () => {
               Sign in or connect your wallet to play.
             </p>
           )}
+
+          {overlayMode && (
+            <WorldStatsBar
+              playersOnline={1234}
+              propertiesOwned={5678}
+              tokensInPlay="12.5M"
+              compact
+            />
+          )}
         </div>
       </main>
 
-      {/* World Stats Bar */}
-      <WorldStatsBar
-        playersOnline={1234}
-        propertiesOwned={5678}
-        tokensInPlay="12.5M"
-      />
+      {!overlayMode && (
+        <WorldStatsBar
+          playersOnline={1234}
+          propertiesOwned={5678}
+          tokensInPlay="12.5M"
+        />
+      )}
     </section>
   );
 };

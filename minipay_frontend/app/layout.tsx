@@ -1,5 +1,5 @@
+import dynamic from "next/dynamic";
 import { dmSans, kronaOne, orbitron } from "@/components/shared/fonts";
-import ScrollToTopBtn from "@/components/shared/scroll-to-top-btn";
 import "@/styles/globals.css";
 import { headers } from "next/headers";
 import ContextProvider from "@/context";
@@ -8,17 +8,21 @@ import ReferralCapture from "@/components/ReferralCapture";
 import { TycoonProvider } from "@/context/ContractProvider";
 import { GuestAuthProvider } from "@/context/GuestAuthContext";
 import { Toaster } from "react-hot-toast";
-import FarcasterReady from "@/components/FarcasterReady";
 import { minikitConfig } from "../minikit.config";
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import ClientLayout from "../clients/ClientLayout";
 import QueryProvider from "./QueryProvider";
-import BfcacheReloadGuard from "@/components/BfcacheReloadGuard";
 import MinipaySiteRedirect from "@/components/MinipaySiteRedirect";
-import MinipayAutoConnect from "@/components/MinipayAutoConnect";
+import DeferredMinipayAutoConnect from "@/components/DeferredMinipayAutoConnect";
 import DeferredToasts from "@/components/DeferredToasts";
 import { buildMinipaySiteRedirectScript } from "@/lib/minipaySiteRedirect";
+
+const ScrollToTopBtn = dynamic(() => import("@/components/shared/scroll-to-top-btn"), { ssr: false });
+const FarcasterReady = dynamic(() => import("@/components/FarcasterReady"), { ssr: false });
+const BfcacheReloadGuard = dynamic(() => import("@/components/BfcacheReloadGuard"), { ssr: false });
+
+const NEON_TITLE_CRITICAL_CSS = `.neon-title-text{position:relative;z-index:1;display:block;text-shadow:0 0 8px rgba(0,240,255,.8),0 0 16px rgba(0,240,255,.6)}.neon-title-text-subtle{position:relative;z-index:1;display:block;text-shadow:0 0 6px rgba(0,240,255,.45),0 1px 0 rgba(1,15,16,.9)}`;
 
 // Run before React: (1) Reload board when restored from bfcache so WebGL is fresh. (2) Disable bfcache on board so back button does full load instead of restore (avoids Context Lost + .style crash).
 const BFCACHE_RELOAD_SCRIPT = `
@@ -105,12 +109,7 @@ export default async function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link rel="dns-prefetch" href="https://api.web3modal.org" />
-        <link rel="dns-prefetch" href="https://pulse.walletconnect.org" />
-        <link rel="dns-prefetch" href="https://fonts.reown.com" />
-        <link rel="preconnect" href="https://fonts.reown.com" crossOrigin="anonymous" />
-        <link rel="preconnect" href="https://pulse.walletconnect.org" />
-
+        <style dangerouslySetInnerHTML={{ __html: NEON_TITLE_CRITICAL_CSS }} />
       </head>
 
       <body
@@ -130,7 +129,7 @@ export default async function RootLayout({
               <ReferralCapture />
               <AppKitProviderWrapper>
                 <QueryProvider>
-                <MinipayAutoConnect />
+                <DeferredMinipayAutoConnect />
                 <BfcacheReloadGuard />
                 <ClientLayout cookies={cookies}>
                   {children}
