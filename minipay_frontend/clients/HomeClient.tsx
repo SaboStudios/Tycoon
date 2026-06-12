@@ -9,11 +9,7 @@ import Footer from "@/components/shared/Footer";
 /** Hero pulls wagmi + Privy + contracts — own chunk so the home entry bundle parses less upfront. */
 const HeroSection = dynamic(() => import("@/components/guest/HeroSection"), {
   loading: () => (
-    <div
-      className="min-h-[100dvh] w-full bg-[#010F10]"
-      aria-busy="true"
-      aria-label="Loading"
-    />
+    <div className="min-h-[100dvh] w-full" aria-busy="true" aria-label="Loading" />
   ),
 });
 

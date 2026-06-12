@@ -69,6 +69,10 @@ const HeroSection: React.FC = () => {
   const [linkWalletLoading, setLinkWalletLoading] = useState(false);
 
   useEffect(() => {
+    document.getElementById("home-hero-static")?.remove();
+  }, []);
+
+  useEffect(() => {
     if (typeof window === "undefined") return;
     const eth = (window as Window & { ethereum?: { isMiniPay?: boolean } }).ethereum;
     setIsMiniPay(Boolean(eth?.isMiniPay));

@@ -15,6 +15,29 @@ const siteUrl = (() => {
 
 let isInitialized = false;
 
+function initAppKit() {
+  if (isInitialized) return;
+  createAppKit({
+    adapters: [wagmiAdapter],
+    networks: [defaultNetwork],
+    projectId,
+    defaultNetwork,
+    themeVariables: {
+      "--w3m-z-index": 10000,
+    },
+    metadata: {
+      name: "Tycoon",
+      description: "Play Monopoly onchain",
+      url: siteUrl,
+      icons: [`${siteUrl}/logo.png`],
+    },
+    features: {
+      analytics: false,
+    },
+  });
+  isInitialized = true;
+}
+
 /** Reown injects #wcm-modal without aria-label; set one for screen readers / Lighthouse. */
 function useWcmModalAccessibleName() {
   useEffect(() => {
@@ -41,27 +64,28 @@ export default function AppKitProviderWrapper({
   useWcmModalAccessibleName();
 
   useEffect(() => {
-    if (!isInitialized) {
-      createAppKit({
-        adapters: [wagmiAdapter],
-        networks: [defaultNetwork],
-        projectId,
-        defaultNetwork,
-        themeVariables: {
-          '--w3m-z-index': 10000, // Set high z-index for Reown modal
-        },
-        metadata: {
-          name: 'Tycoon',
-          description: 'Play Monopoly onchain',
-          url: siteUrl,
-          icons: [`${siteUrl}/logo.png`],
-        },
-        features: {
-          analytics: true,
-        },
-      });
-      isInitialized = true;
+    const onUserIntent = () => initAppKit();
+    window.addEventListener("pointerdown", onUserIntent, { once: true, passive: true });
+    window.addEventListener("keydown", onUserIntent, { once: true });
+
+    const scheduleIdleInit = () => initAppKit();
+    let idleId: number | undefined;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    if ("requestIdleCallback" in window) {
+      idleId = window.requestIdleCallback(scheduleIdleInit, { timeout: 5000 });
+    } else {
+      timeoutId = setTimeout(scheduleIdleInit, 4000);
     }
+
+    return () => {
+      window.removeEventListener("pointerdown", onUserIntent);
+      window.removeEventListener("keydown", onUserIntent);
+      if (idleId !== undefined && "cancelIdleCallback" in window) {
+        window.cancelIdleCallback(idleId);
+      }
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
+    };
   }, []);
 
   return <>{children}</>;
