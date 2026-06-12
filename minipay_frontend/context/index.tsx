@@ -5,8 +5,16 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import React, { type ReactNode } from 'react'
 import { cookieToInitialState, WagmiProvider, type Config } from 'wagmi'
 
-// Set up queryClient
-const queryClient = new QueryClient()
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: 0,
+      retry: 1,
+    },
+  },
+})
 
 if (!projectId) {
   throw new Error('Project ID is not defined')

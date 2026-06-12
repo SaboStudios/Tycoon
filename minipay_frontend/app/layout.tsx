@@ -4,15 +4,12 @@ import "@/styles/globals.css";
 import { headers } from "next/headers";
 import ContextProvider from "@/context";
 import AppKitProviderWrapper from "@/components/AppKitProviderWrapper";
-import ReferralCapture from "@/components/ReferralCapture";
-import { TycoonProvider } from "@/context/ContractProvider";
-import { GuestAuthProvider } from "@/context/GuestAuthContext";
+import DeferredGuestAuthProvider from "@/components/DeferredGuestAuthProvider";
 import { Toaster } from "react-hot-toast";
 import { minikitConfig } from "../minikit.config";
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import ClientLayout from "../clients/ClientLayout";
-import QueryProvider from "./QueryProvider";
 import MinipaySiteRedirect from "@/components/MinipaySiteRedirect";
 import DeferredMinipayAutoConnect from "@/components/DeferredMinipayAutoConnect";
 import DeferredToasts from "@/components/DeferredToasts";
@@ -21,6 +18,7 @@ import { buildMinipaySiteRedirectScript } from "@/lib/minipaySiteRedirect";
 const ScrollToTopBtn = dynamic(() => import("@/components/shared/scroll-to-top-btn"), { ssr: false });
 const FarcasterReady = dynamic(() => import("@/components/FarcasterReady"), { ssr: false });
 const BfcacheReloadGuard = dynamic(() => import("@/components/BfcacheReloadGuard"), { ssr: false });
+const ReferralCapture = dynamic(() => import("@/components/ReferralCapture"), { ssr: false });
 
 const NEON_TITLE_CRITICAL_CSS = [
   `.neon-title-hero{-webkit-font-smoothing:antialiased;text-rendering:geometricPrecision}`,
@@ -128,11 +126,9 @@ export default async function RootLayout({
         <MinipaySiteRedirect />
         <FarcasterReady />
         <ContextProvider cookies={cookies}>
-            <TycoonProvider>
-              <GuestAuthProvider>
+              <DeferredGuestAuthProvider>
               <ReferralCapture />
               <AppKitProviderWrapper>
-                <QueryProvider>
                 <DeferredMinipayAutoConnect />
                 <BfcacheReloadGuard />
                 <ClientLayout cookies={cookies}>
@@ -142,10 +138,8 @@ export default async function RootLayout({
                 <ScrollToTopBtn />
                 <DeferredToasts />
                 <Toaster position="top-center" />
-                </QueryProvider>
               </AppKitProviderWrapper>
-              </GuestAuthProvider>
-            </TycoonProvider>
+              </DeferredGuestAuthProvider>
         </ContextProvider>
       </body>
     </html>

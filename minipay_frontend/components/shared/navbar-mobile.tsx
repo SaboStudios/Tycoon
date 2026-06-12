@@ -17,9 +17,7 @@ import ThemeSoundPlayer from './ThemeSoundPlayer';
 const WalletConnectModal = dynamic(() => import('./wallet-connect-modal'), { ssr: false });
 const WalletDisconnectModal = dynamic(() => import('./wallet-disconnect-modal'), { ssr: false });
 import NetworkSwitcherModal from './network-switcher-modal';
-import { useGetUsername } from '@/context/ContractProvider';
 import { useProfileAvatar } from '@/context/ProfileContext';
-import { isAddress } from 'viem';
 import { usePrivy } from '@/hooks/usePrivy';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import { mergeProfilesFromGuestUser } from '@/lib/profile-storage';
@@ -106,8 +104,6 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
     return () => window.clearTimeout(t);
   }, [router]);
 
-  const safeAddress = address && isAddress(address) ? address as `0x${string}` : undefined;
-  const { data: fetchedUsername } = useGetUsername(safeAddress);
   const profileAvatar = useProfileAvatar();
 
   const [storedProfileTick, setStoredProfileTick] = useState(0);
@@ -134,13 +130,11 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
     return () => { active = false; };
   }, [address]);
 
-  // Exact same priority as hero section: guestUser.username > backend user.username > fetchedUsername (on-chain) > "Player"
   const displayName = useMemo(() => {
     if (guestUser?.username) return guestUser.username;
     if (backendUsername) return backendUsername;
-    if (fetchedUsername) return fetchedUsername;
     return 'Player';
-  }, [guestUser, backendUsername, fetchedUsername]);
+  }, [guestUser, backendUsername]);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.ethereum?.isMiniPay) {
