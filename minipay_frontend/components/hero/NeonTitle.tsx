@@ -1,9 +1,11 @@
 interface NeonTitleProps {
   text: string;
   size?: "sm" | "mobile" | "md" | "lg";
+  /** Lighter glow — better legibility on small screens. */
+  subtle?: boolean;
 }
 
-export function NeonTitle({ text, size = "lg" }: NeonTitleProps) {
+export function NeonTitle({ text, size = "lg", subtle = false }: NeonTitleProps) {
   const sizeClasses = {
     sm: "text-4xl md:text-5xl",
     mobile: "text-5xl sm:text-6xl",
@@ -15,10 +17,12 @@ export function NeonTitle({ text, size = "lg" }: NeonTitleProps) {
     <h1
       className={`neon-title-hero ${sizeClasses[size]} font-kronaOne font-bold uppercase tracking-tighter text-[#00F0FF] relative z-10`}
     >
-      <span className="neon-title-text">{text}</span>
-      <span className="neon-title-glow-pulse" aria-hidden="true">
-        {text}
-      </span>
+      <span className={subtle ? "neon-title-text-subtle" : "neon-title-text"}>{text}</span>
+      {!subtle && (
+        <span className="neon-title-glow-pulse" aria-hidden="true">
+          {text}
+        </span>
+      )}
     </h1>
   );
 }

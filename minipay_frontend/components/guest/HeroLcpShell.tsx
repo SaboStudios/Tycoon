@@ -2,23 +2,22 @@ import { NeonTitle } from "@/components/hero/NeonTitle";
 
 /**
  * Server-rendered hero shell — paints TYCOON in the first HTML response (mobile LCP).
- * Interactive wallet UI loads in HomeHeroClient on top of this shell.
+ * Title sits in the middle band; welcome + CTAs overlay above/below via HomeHeroClient.
  */
 export default function HeroLcpShell() {
   return (
-    <div
-      className="flex min-h-[100dvh] w-full flex-col items-center justify-center bg-[#010F10] px-4"
-    >
-      <p
-        className="mb-3 text-center font-orbitron text-base font-bold text-[#F0F7F7] sm:text-lg"
-        style={{ textShadow: "0 0 8px rgba(0, 240, 255, 0.6)" }}
-      >
-        Conquer • Build • Trade On-chain
-      </p>
-      <NeonTitle text="TYCOON" size="mobile" />
-      <p className="mt-4 max-w-xs text-center font-dmSans text-sm text-[#E0F7F8]/90">
-        Roll the dice • Buy properties • Collect rent
-      </p>
+    <div className="flex min-h-[100dvh] w-full flex-col bg-[#010F10] px-4">
+      {/* Top band: reserved for welcome / level (overlay) */}
+      <div className="h-[calc(var(--mobile-nav-offset)+4.5rem)] shrink-0" aria-hidden />
+      {/* Middle band: LCP title */}
+      <div className="flex flex-1 flex-col items-center justify-center py-2">
+        <p className="mb-2 text-center font-orbitron text-sm font-bold text-[#F0F7F7]/90">
+          Conquer • Build • Trade On-chain
+        </p>
+        <NeonTitle text="TYCOON" size="mobile" subtle />
+      </div>
+      {/* Bottom band: reserved for action buttons + stats (overlay) */}
+      <div className="h-[14.5rem] shrink-0" aria-hidden />
     </div>
   );
 }
