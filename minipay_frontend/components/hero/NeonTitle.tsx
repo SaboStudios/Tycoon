@@ -1,11 +1,12 @@
 interface NeonTitleProps {
   text: string;
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "mobile" | "md" | "lg";
 }
 
 export function NeonTitle({ text, size = "lg" }: NeonTitleProps) {
   const sizeClasses = {
     sm: "text-4xl md:text-5xl",
+    mobile: "text-5xl sm:text-6xl",
     md: "text-6xl md:text-7xl",
     lg: "text-7xl md:text-8xl lg:text-9xl",
   };
