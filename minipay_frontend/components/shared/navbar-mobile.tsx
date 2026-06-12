@@ -20,7 +20,11 @@ import NetworkSwitcherModal from './network-switcher-modal';
 import { useProfileAvatar } from '@/context/ProfileContext';
 import { usePrivy } from '@/hooks/usePrivy';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
+import { useGetUsername } from '@/context/contractReads';
+import { apiClient } from '@/lib/api';
 import { mergeProfilesFromGuestUser } from '@/lib/profile-storage';
+import type { User as UserType } from '@/lib/types/users';
+import { isAddress } from 'viem';
 
 const SCROLL_TOP_THRESHOLD = 40;
 const SCROLL_SENSITIVITY = 8;
@@ -104,6 +108,8 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
     return () => window.clearTimeout(t);
   }, [router]);
 
+  const safeAddress = address && isAddress(address) ? (address as `0x${string}`) : undefined;
+  const { data: onChainUsername } = useGetUsername(safeAddress);
   const profileAvatar = useProfileAvatar();
 
   const [storedProfileTick, setStoredProfileTick] = useState(0);
@@ -118,23 +124,33 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
     return mergeProfilesFromGuestUser(guestUser)?.avatar ?? null;
   }, [guestUser, pathname, storedProfileTick]);
 
-  // Fetch backend username — same as hero section
   const [backendUsername, setBackendUsername] = useState<string | null>(null);
   useEffect(() => {
-    if (!address) { setBackendUsername(null); return; }
+    if (!address) {
+      setBackendUsername(null);
+      return;
+    }
     let active = true;
-    fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL ?? ''}/api/users/by-address/${address}?chain=Celo`)
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => { if (active && data?.data?.username) setBackendUsername(data.data.username); })
+    apiClient
+      .get<UserType>(`/users/by-address/${address}?chain=Celo`)
+      .then((res) => {
+        if (!active || !res.success || !res.data) return;
+        const username = (res.data as UserType).username?.trim();
+        if (username) setBackendUsername(username);
+      })
       .catch(() => {});
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [address]);
 
   const displayName = useMemo(() => {
     if (guestUser?.username) return guestUser.username;
     if (backendUsername) return backendUsername;
-    return 'Player';
-  }, [guestUser, backendUsername]);
+    const onChain = onChainUsername != null ? String(onChainUsername).trim() : "";
+    if (onChain) return onChain;
+    return "Player";
+  }, [guestUser, backendUsername, onChainUsername]);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.ethereum?.isMiniPay) {
@@ -263,7 +279,7 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[10px] text-[#00F0FF]/50 uppercase tracking-widest font-orbitron mb-0.5">Player</p>
+                    <p className="text-[10px] text-[#00F0FF]/50 uppercase tracking-widest font-orbitron mb-0.5">Profile</p>
                     <p className="text-[#00F0FF] font-orbitron font-semibold text-sm tracking-wide truncate">{displayName}</p>
                   </div>
                   <ChevronRight size={16} className="text-[#00F0FF]/40 shrink-0" />
