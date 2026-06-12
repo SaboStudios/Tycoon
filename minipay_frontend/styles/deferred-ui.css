@@ -1,7 +1,49 @@
 /**
- * Non-critical UI CSS — loaded after first paint (tw-animate, toast theme).
+ * Non-critical UI CSS — loaded after first paint (wallet modals, privy theme, tw-animate).
  */
 @import "tw-animate-css";
+
+.w3m-modal {
+  z-index: 10000 !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+}
+
+#walletconnect-wrapper,
+.coinbase-wallet-sdk,
+.coinbase-wallet-modal,
+.walletconnect-modal,
+.appkit-modal,
+[class*="appkit-modal"] {
+  z-index: 999999 !important;
+  position: relative !important;
+}
+
+body {
+  --privy-color-background: #010F10;
+  --privy-color-background-2: #0e1415;
+  --privy-color-background-3: #0e282a;
+  --privy-color-foreground: #f0f7f7;
+  --privy-color-foreground-2: #afbac0;
+  --privy-color-foreground-3: #869298;
+  --privy-color-foreground-4: #6b7a80;
+  --privy-color-foreground-accent: #00f0ff;
+  --privy-color-accent: #00f0ff;
+  --privy-color-accent-light: #00d4e6;
+  --privy-color-accent-lightest: rgba(0, 240, 255, 0.15);
+  --privy-color-accent-dark: #003b3e;
+  --privy-color-accent-darkest: #0e282a;
+  --privy-color-success: #22c55e;
+  --privy-color-error: #ef4444;
+  --privy-color-error-light: rgba(239, 68, 68, 0.15);
+  --privy-border-radius-sm: 8px;
+  --privy-border-radius-md: 12px;
+  --privy-border-radius-lg: 16px;
+  --privy-border-radius-full: 9999px;
+}
 
 .Toastify__toast {
   background: #0a1a1b !important;

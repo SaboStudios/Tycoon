@@ -1,7 +1,33 @@
 @import "tailwindcss";
 
-@source "../app/**/*.{js,ts,jsx,tsx,mdx}";
-@source "../components/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../app/(home)/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../app/how-to-play/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../app/leaderboard/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../app/join-room-3d/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../app/play-ai-3d/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../app/game-settings-3d/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../app/game-waiting-3d/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../app/profile/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../app/privacy/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../app/terms/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../app/cookies/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../app/u/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../app/game-shop/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../app/(room)/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../components/auth/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../components/game/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../components/shop/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../components/collectibles/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../components/guest/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../components/hero/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../components/shared/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../components/legal/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../components/leaderboard/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../components/profile/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../components/settings/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../components/tournaments/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../components/agents/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../components/admin/**/*.{js,ts,jsx,tsx,mdx}";
 @source "../clients/**/*.{js,ts,jsx,tsx,mdx}";
 
 @custom-variant dark (&:is(.dark *));
@@ -217,26 +243,6 @@ button {
   cursor: pointer;
 }
 
-.w3m-modal {
-  z-index: 10000 !important;
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  width: 100vw !important;
-  height: 100vh !important;
-}
-
-/* Force Coinbase/AppKit modal above everything */
-#walletconnect-wrapper,
-.coinbase-wallet-sdk,
-.coinbase-wallet-modal,
-.walletconnect-modal,
-.appkit-modal,
-[class*="appkit-modal"] {
-  z-index: 999999 !important;
-  position: relative !important;
-}
-
 /* ========== Gamified home page UI ========== */
 .game-panel {
   --hero-cyan: #00F0FF;
@@ -276,30 +282,6 @@ button {
   letter-spacing: 0.05em;
   color: #F0F7F7;
   text-shadow: 0 0 20px rgba(0, 240, 255, 0.15);
-}
-
-/* Privy login modal – match Tycoon dark + cyan theme */
-body {
-  --privy-color-background: #010F10;
-  --privy-color-background-2: #0E1415;
-  --privy-color-background-3: #0E282A;
-  --privy-color-foreground: #F0F7F7;
-  --privy-color-foreground-2: #AFBAC0;
-  --privy-color-foreground-3: #869298;
-  --privy-color-foreground-4: #6B7A80;
-  --privy-color-foreground-accent: #00F0FF;
-  --privy-color-accent: #00F0FF;
-  --privy-color-accent-light: #00D4E6;
-  --privy-color-accent-lightest: rgba(0, 240, 255, 0.15);
-  --privy-color-accent-dark: #003B3E;
-  --privy-color-accent-darkest: #0E282A;
-  --privy-color-success: #22c55e;
-  --privy-color-error: #ef4444;
-  --privy-color-error-light: rgba(239, 68, 68, 0.15);
-  --privy-border-radius-sm: 8px;
-  --privy-border-radius-md: 12px;
-  --privy-border-radius-lg: 16px;
-  --privy-border-radius-full: 9999px;
 }
 
 /* Content below fixed mobile navbar */
