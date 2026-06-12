@@ -68,23 +68,9 @@ export default function AppKitProviderWrapper({
     window.addEventListener("pointerdown", onUserIntent, { once: true, passive: true });
     window.addEventListener("keydown", onUserIntent, { once: true });
 
-    const scheduleIdleInit = () => initAppKit();
-    let idleId: number | undefined;
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-
-    if ("requestIdleCallback" in window) {
-      idleId = window.requestIdleCallback(scheduleIdleInit, { timeout: 5000 });
-    } else {
-      timeoutId = setTimeout(scheduleIdleInit, 4000);
-    }
-
     return () => {
       window.removeEventListener("pointerdown", onUserIntent);
       window.removeEventListener("keydown", onUserIntent);
-      if (idleId !== undefined && "cancelIdleCallback" in window) {
-        window.cancelIdleCallback(idleId);
-      }
-      if (timeoutId !== undefined) clearTimeout(timeoutId);
     };
   }, []);
 

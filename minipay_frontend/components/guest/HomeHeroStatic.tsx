@@ -3,15 +3,14 @@ import herobg from "@/public/heroBg.png";
 import { NeonTitle } from "@/components/hero/NeonTitle";
 
 /**
- * Server-rendered hero snapshot for LCP. Hidden when interactive HeroSection mounts.
- * Matches the hero center layout without changing the live hero UI.
+ * Server-rendered hero visuals for LCP. Interactive HeroSection overlays this
+ * without re-painting the title or background.
  */
 export default function HomeHeroStatic() {
   return (
     <section
       id="home-hero-static"
-      aria-hidden="true"
-      className="absolute inset-0 z-0 w-full h-screen overflow-hidden bg-[#010F10] pointer-events-none"
+      className="relative z-0 w-full min-h-screen h-screen overflow-hidden bg-[#010F10]"
     >
       <Image
         src={herobg}

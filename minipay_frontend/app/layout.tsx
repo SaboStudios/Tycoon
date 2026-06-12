@@ -22,7 +22,11 @@ const ScrollToTopBtn = dynamic(() => import("@/components/shared/scroll-to-top-b
 const FarcasterReady = dynamic(() => import("@/components/FarcasterReady"), { ssr: false });
 const BfcacheReloadGuard = dynamic(() => import("@/components/BfcacheReloadGuard"), { ssr: false });
 
-const NEON_TITLE_CRITICAL_CSS = `.neon-title-text{position:relative;z-index:1;display:block;text-shadow:0 0 8px rgba(0,240,255,.8),0 0 16px rgba(0,240,255,.6)}`;
+const NEON_TITLE_CRITICAL_CSS = [
+  `.neon-title-hero{-webkit-font-smoothing:antialiased;text-rendering:geometricPrecision}`,
+  `.neon-title-text{position:relative;z-index:1;display:block;text-shadow:0 0 8px rgba(0,240,255,.8),0 0 16px rgba(0,240,255,.6)}`,
+  `.neon-title-glow-pulse{position:absolute;inset:0;display:block;color:inherit;pointer-events:none;opacity:.55;text-shadow:0 0 10px rgba(0,240,255,.9),0 0 20px rgba(15,240,252,.75)}`,
+].join("");
 
 // Run before React: (1) Reload board when restored from bfcache so WebGL is fresh. (2) Disable bfcache on board so back button does full load instead of restore (avoids Context Lost + .style crash).
 const BFCACHE_RELOAD_SCRIPT = `

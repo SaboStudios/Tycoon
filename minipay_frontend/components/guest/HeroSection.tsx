@@ -44,7 +44,12 @@ function isValidNonZeroAddress(a: string | null | undefined): a is `0x${string}`
   return /^0x[a-fA-F0-9]{40}$/i.test(s);
 }
 
-const HeroSection: React.FC = () => {
+interface HeroSectionProps {
+  /** When true, server-rendered HomeHeroStatic supplies bg + title; this layer adds interactivity only. */
+  reuseStaticVisuals?: boolean;
+}
+
+const HeroSection: React.FC<HeroSectionProps> = ({ reuseStaticVisuals = false }) => {
   const router = useRouter();
   const { address, isConnecting } = useAccount();
   const chainId = useChainId();
@@ -67,10 +72,6 @@ const HeroSection: React.FC = () => {
   const [guestLoading, setGuestLoading] = useState(false);
   const [registerOnChainLoading, setRegisterOnChainLoading] = useState(false);
   const [linkWalletLoading, setLinkWalletLoading] = useState(false);
-
-  useEffect(() => {
-    document.getElementById("home-hero-static")?.remove();
-  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -476,29 +477,30 @@ const HeroSection: React.FC = () => {
   return (
     <section
       ref={parallaxRef}
-      className="z-0 w-full h-screen relative overflow-hidden bg-[#010F10]"
+      className={`z-0 w-full h-screen relative overflow-hidden ${reuseStaticVisuals ? "bg-transparent pointer-events-none" : "bg-[#010F10]"}`}
     >
-      {/* Background with parallax - disabled on mobile */}
-      <motion.div
-        className="w-full h-full overflow-hidden absolute inset-0"
-        animate={{
-          x: window.innerWidth < 768 ? 0 : mousePosition.x * 10,
-          y: window.innerWidth < 768 ? 0 : mousePosition.y * 10,
-        }}
-        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-      >
-        <Image
-          src={herobg}
-          alt="Hero Background"
-          className="w-full h-full object-cover"
-          width={1440}
-          height={1024}
-          priority
-          fetchPriority="high"
-          sizes="(max-width: 768px) 100vw, 1440px"
-          quality={75}
-        />
-      </motion.div>
+      {!reuseStaticVisuals && (
+        <motion.div
+          className="w-full h-full overflow-hidden absolute inset-0"
+          animate={{
+            x: window.innerWidth < 768 ? 0 : mousePosition.x * 10,
+            y: window.innerWidth < 768 ? 0 : mousePosition.y * 10,
+          }}
+          transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        >
+          <Image
+            src={herobg}
+            alt="Hero Background"
+            className="w-full h-full object-cover"
+            width={1440}
+            height={1024}
+            priority
+            fetchPriority="high"
+            sizes="(max-width: 768px) 100vw, 1440px"
+            quality={75}
+          />
+        </motion.div>
+      )}
 
       {/* Particle effects */}
       <ParticleBackground />
@@ -509,7 +511,7 @@ const HeroSection: React.FC = () => {
       {/* Gradient overlay */}
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#010F10]/20 to-[#010F10]/60 z-5" />
 
-      <main className="w-full h-full absolute top-0 left-0 z-20 bg-transparent flex flex-col justify-start items-center gap-1 px-4 pt-8">
+      <main className={`w-full h-full absolute top-0 left-0 z-20 bg-transparent flex flex-col justify-start items-center gap-1 px-4 pt-8 ${reuseStaticVisuals ? "pointer-events-auto" : ""}`}>
         {/* Welcome Message */}
         {(registrationStatus === "fully-registered" || registrationStatus === "backend-only" || registrationStatus === "privy") && !loading && (
           <div className="mt-12 flex flex-col items-center gap-4 px-4">
@@ -642,13 +644,15 @@ const HeroSection: React.FC = () => {
           />
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0, duration: 0.3 }}
-        >
-          <NeonTitle text="TYCOON" size="lg" />
-        </motion.div>
+        {!reuseStaticVisuals && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0, duration: 0.3 }}
+          >
+            <NeonTitle text="TYCOON" size="lg" />
+          </motion.div>
+        )}
 
         <motion.div
           className="w-full px-4 text-center text-[#F0F7F7] -tracking-[2%]"
@@ -678,12 +682,14 @@ const HeroSection: React.FC = () => {
               textShadow: "0 0 6px rgba(0, 240, 255, 0.5), 0 0 12px rgba(0, 240, 255, 0.2)",
             }}
           />
-          <p className="font-dmSans font-[400] text-[13px] text-[#F0F7F7] mt-3 leading-relaxed">
-            Step into Tycoon — the Web3 twist on the classic game of strategy,
-            ownership, and fortune. Play solo against AI, compete in multiplayer
-            rooms, collect tokens, complete quests, and become the ultimate
-            blockchain tycoon.
-          </p>
+          {!reuseStaticVisuals && (
+            <p className="font-dmSans font-[400] text-[13px] text-[#F0F7F7] mt-3 leading-relaxed">
+              Step into Tycoon — the Web3 twist on the classic game of strategy,
+              ownership, and fortune. Play solo against AI, compete in multiplayer
+              rooms, collect tokens, complete quests, and become the ultimate
+              blockchain tycoon.
+            </p>
+          )}
         </motion.div>
 
         <div className="z-1 w-full flex min-h-[152px] flex-col justify-center items-center mt-6 gap-4">
