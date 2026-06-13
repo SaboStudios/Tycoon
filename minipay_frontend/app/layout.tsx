@@ -4,15 +4,12 @@ import "@/styles/globals.css";
 import { headers } from "next/headers";
 import ContextProvider from "@/context";
 import AppKitProviderWrapper from "@/components/AppKitProviderWrapper";
-import ReferralCapture from "@/components/ReferralCapture";
-import { TycoonProvider } from "@/context/ContractProvider";
-import { GuestAuthProvider } from "@/context/GuestAuthContext";
+import DeferredGuestAuthProvider from "@/components/DeferredGuestAuthProvider";
 import { Toaster } from "react-hot-toast";
 import { minikitConfig } from "../minikit.config";
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import ClientLayout from "../clients/ClientLayout";
-import QueryProvider from "./QueryProvider";
 import MinipaySiteRedirect from "@/components/MinipaySiteRedirect";
 import DeferredMinipayAutoConnect from "@/components/DeferredMinipayAutoConnect";
 import DeferredToasts from "@/components/DeferredToasts";
@@ -21,8 +18,18 @@ import { buildMinipaySiteRedirectScript } from "@/lib/minipaySiteRedirect";
 const ScrollToTopBtn = dynamic(() => import("@/components/shared/scroll-to-top-btn"), { ssr: false });
 const FarcasterReady = dynamic(() => import("@/components/FarcasterReady"), { ssr: false });
 const BfcacheReloadGuard = dynamic(() => import("@/components/BfcacheReloadGuard"), { ssr: false });
+const ReferralCapture = dynamic(() => import("@/components/ReferralCapture"), { ssr: false });
+const DeferredUiStyles = dynamic(() => import("@/components/DeferredUiStyles"), { ssr: false });
 
-const NEON_TITLE_CRITICAL_CSS = `.neon-title-text{position:relative;z-index:1;display:block;text-shadow:0 0 8px rgba(0,240,255,.8),0 0 16px rgba(0,240,255,.6)}.neon-title-text-subtle{position:relative;z-index:1;display:block;text-shadow:0 0 6px rgba(0,240,255,.45),0 1px 0 rgba(1,15,16,.9)}`;
+const CRITICAL_SHELL_CSS = [
+  ":root{--mobile-nav-height:82px;--mobile-nav-offset:calc(var(--mobile-nav-height) + env(safe-area-inset-top,0px))}",
+  "body{margin:0;background:#010F10}",
+  ".pt-below-mobile-nav{padding-top:var(--mobile-nav-offset)}",
+  ".min-h-below-mobile-nav{min-height:calc(100dvh - var(--mobile-nav-offset))}",
+  ".neon-title-hero{-webkit-font-smoothing:antialiased;text-rendering:geometricPrecision}",
+  ".neon-title-text{position:relative;z-index:1;display:block;text-shadow:0 0 8px rgba(0,240,255,.8),0 0 16px rgba(0,240,255,.6)}",
+  ".neon-title-glow-pulse{position:absolute;inset:0;display:block;color:inherit;pointer-events:none;opacity:.55;text-shadow:0 0 10px rgba(0,240,255,.9),0 0 20px rgba(15,240,252,.75)}",
+].join("");
 
 // Run before React: (1) Reload board when restored from bfcache so WebGL is fresh. (2) Disable bfcache on board so back button does full load instead of restore (avoids Context Lost + .style crash).
 const BFCACHE_RELOAD_SCRIPT = `
@@ -109,7 +116,7 @@ export default async function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <style dangerouslySetInnerHTML={{ __html: NEON_TITLE_CRITICAL_CSS }} />
+        <style dangerouslySetInnerHTML={{ __html: CRITICAL_SHELL_CSS }} />
       </head>
 
       <body
@@ -124,11 +131,9 @@ export default async function RootLayout({
         <MinipaySiteRedirect />
         <FarcasterReady />
         <ContextProvider cookies={cookies}>
-            <TycoonProvider>
-              <GuestAuthProvider>
+              <DeferredGuestAuthProvider>
               <ReferralCapture />
               <AppKitProviderWrapper>
-                <QueryProvider>
                 <DeferredMinipayAutoConnect />
                 <BfcacheReloadGuard />
                 <ClientLayout cookies={cookies}>
@@ -136,12 +141,11 @@ export default async function RootLayout({
                 </ClientLayout>
 
                 <ScrollToTopBtn />
+                <DeferredUiStyles />
                 <DeferredToasts />
                 <Toaster position="top-center" />
-                </QueryProvider>
               </AppKitProviderWrapper>
-              </GuestAuthProvider>
-            </TycoonProvider>
+              </DeferredGuestAuthProvider>
         </ContextProvider>
       </body>
     </html>
