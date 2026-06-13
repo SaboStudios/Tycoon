@@ -1,0 +1,152 @@
+@import "tailwindcss";
+
+/* Non-home routes + heavy UI — loaded after first paint (see DeferredUiStyles). */
+@source "../clients/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../components/guest/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../components/hero/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../components/shared/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../app/how-to-play/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../app/leaderboard/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../app/join-room-3d/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../app/play-ai-3d/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../app/game-settings-3d/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../app/game-waiting-3d/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../app/profile/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../app/privacy/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../app/terms/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../app/cookies/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../app/u/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../app/game-shop/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../app/(room)/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../components/auth/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../components/game/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../components/shop/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../components/collectibles/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../components/legal/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../components/leaderboard/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../components/profile/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../components/settings/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../components/tournaments/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../components/agents/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../components/admin/**/*.{js,ts,jsx,tsx,mdx}";
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+.block-text {
+  text-shadow:
+    inset 0 0 0 #077379,
+    2px 2px 4px rgba(7, 115, 121, 0.8),
+    -2px -2px 4px rgba(23, 255, 255, 0.6),
+    inset 3px 3px 6px rgba(7, 115, 121, 0.9),
+    inset -3px -3px 6px rgba(23, 255, 255, 0.7),
+    inset 3px -3px 6px rgba(7, 115, 121, 0.2),
+    inset -3px 3px 6px rgba(7, 115, 121, 0.2),
+    0 0 10px rgba(23, 255, 255, 0.3),
+    0 0 20px rgba(7, 115, 121, 0.2),
+    1px 1px 2px rgba(7, 115, 121, 0.5),
+    -1px -1px 2px rgba(23, 255, 255, 0.3);
+  filter: drop-shadow(2px 2px 4px rgba(7, 115, 121, 0.6)) drop-shadow(-2px -2px 4px rgba(23, 255, 255, 0.4));
+}
+
+.custom-glow-blur {
+  box-shadow:
+    0px 0px 0.93px #0FF0FC33,
+    0px 0px 1.86px #0FF0FC33,
+    0px 0px 6.52px #0FF0FC33,
+    0px 0px 13.03px #0FF0FC33,
+    0px 0px 22.34px #0FF0FC33,
+    0px 0px 39.1px #0FF0FC33;
+  backdrop-filter: blur(12px);
+}
+
+.bg-settings {
+  background-image: url('../public/heroBg.png');
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(128, 128, 128, 0.25) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 3px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 128, 0.2);
+  border-radius: 3px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(128, 128, 128, 0.35);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.game-panel {
+  --hero-cyan: #00F0FF;
+  --hero-dark: #0E282A;
+  box-shadow:
+    inset 0 0 40px rgba(0, 240, 255, 0.04),
+    0 0 24px rgba(0, 240, 255, 0.06);
+  border: 1px solid rgba(0, 240, 255, 0.2);
+  border-radius: 8px;
+}
+
+.game-section-title {
+  font-family: var(--font-orbitron);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #F0F7F7;
+  text-shadow: 0 0 20px rgba(0, 240, 255, 0.15);
+}

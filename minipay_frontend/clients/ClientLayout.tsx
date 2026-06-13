@@ -5,7 +5,6 @@ import NavBarMobile from "@/components/shared/navbar-mobile";
 import { ProfileProvider } from "@/context/ProfileContext";
 import { ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { dmSans, kronaOne, orbitron } from "@/components/shared/fonts";
 import { isPublicPath } from "@/lib/publicPaths";
 
 const AuthGuard = dynamic(() => import("@/components/auth/AuthGuard"), { ssr: false });
@@ -33,7 +32,7 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
 
   return (
     <ProfileProvider>
-      <div suppressHydrationWarning className={`${orbitron.variable} ${dmSans.variable} ${kronaOne.variable}`}>
+      <div suppressHydrationWarning>
         {isBoard3D ? (
           <NavBarMobile minimal />
         ) : (

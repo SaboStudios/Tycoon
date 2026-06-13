@@ -1,6 +1,5 @@
 import dynamic from "next/dynamic";
-import { dmSans, kronaOne, orbitron } from "@/components/shared/fonts";
-import "@/styles/globals.css";
+import "@/styles/critical.css";
 import { headers } from "next/headers";
 import ContextProvider from "@/context";
 import AppKitProviderWrapper from "@/components/AppKitProviderWrapper";
@@ -22,8 +21,9 @@ const ReferralCapture = dynamic(() => import("@/components/ReferralCapture"), { 
 const DeferredUiStyles = dynamic(() => import("@/components/DeferredUiStyles"), { ssr: false });
 
 const CRITICAL_SHELL_CSS = [
-  ":root{--mobile-nav-height:82px;--mobile-nav-offset:calc(var(--mobile-nav-height) + env(safe-area-inset-top,0px))}",
-  "body{margin:0;background:#010F10}",
+  ":root{--mobile-nav-height:82px;--mobile-nav-offset:calc(var(--mobile-nav-height) + env(safe-area-inset-top,0px));--font-dm-sans:ui-sans-serif,system-ui,sans-serif;--font-krona-one:ui-sans-serif,system-ui,sans-serif;--font-orbitron-sans:ui-sans-serif,system-ui,sans-serif}",
+  "html{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}",
+  "body{margin:0;background:#010F10;color:#F0F7F7;width:100%}",
   ".pt-below-mobile-nav{padding-top:var(--mobile-nav-offset)}",
   ".min-h-below-mobile-nav{min-height:calc(100dvh - var(--mobile-nav-offset))}",
   ".neon-title-hero{-webkit-font-smoothing:antialiased;text-rendering:geometricPrecision}",
@@ -119,9 +119,7 @@ export default async function RootLayout({
         <style dangerouslySetInnerHTML={{ __html: CRITICAL_SHELL_CSS }} />
       </head>
 
-      <body
-        className={`${dmSans.variable} ${kronaOne.variable} ${orbitron.variable} antialiased bg-[#010F10] w-full`}
-      >
+      <body className="antialiased bg-[#010F10] w-full">
         <Script id="bfcache-reload" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: BFCACHE_RELOAD_SCRIPT }} />
         <Script
           id="minipay-site-redirect"
