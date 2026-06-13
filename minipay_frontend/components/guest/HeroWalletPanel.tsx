@@ -453,7 +453,7 @@ const HeroWalletPanel: React.FC<HeroWalletPanelProps> = ({ onReturningPlayerChan
         {isReturningPlayer && (
           <div className="flex w-full max-w-sm flex-col items-center gap-4 px-2">
             <motion.p
-              initial={{ opacity: 0, y: -10 }}
+              initial={false}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
               className="font-orbitron text-[18px] font-[700] text-[#00F0FF] text-center drop-shadow-lg"
@@ -467,7 +467,7 @@ const HeroWalletPanel: React.FC<HeroWalletPanelProps> = ({ onReturningPlayerChan
             {levelInfo && (
               <motion.div
                 className="flex flex-col items-center gap-3 bg-gradient-to-b from-[#0E282A]/80 to-[#0A1719]/80 rounded-lg p-4 border border-[#00F0FF]/40 backdrop-blur-sm"
-                initial={{ opacity: 0, scale: 0.9 }}
+                initial={false}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.3, delay: 0 }}
               >
@@ -490,7 +490,7 @@ const HeroWalletPanel: React.FC<HeroWalletPanelProps> = ({ onReturningPlayerChan
                 {levelInfo.level < 99 && levelInfo.xpForNextLevel > 0 && (
                   <motion.div
                     className="w-48 flex flex-col gap-1"
-                    initial={{ opacity: 0 }}
+                    initial={false}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.3 }}
                   >
@@ -524,7 +524,7 @@ const HeroWalletPanel: React.FC<HeroWalletPanelProps> = ({ onReturningPlayerChan
           </div>
         )}
 
-        <div className="z-1 mt-6 flex min-h-[152px] w-full flex-col items-center justify-center gap-4">
+        <div className="z-1 flex min-h-[152px] w-full flex-col items-center justify-center gap-4">
           {isConnecting && (
             <p className="font-orbitron text-[#00F0FF] text-lg text-center">Connecting to wallet...</p>
           )}
@@ -698,7 +698,7 @@ const HeroWalletPanel: React.FC<HeroWalletPanelProps> = ({ onReturningPlayerChan
           {!isConnecting && ((address && registrationStatus === "fully-registered" && walletSessionReady) || (registrationStatus === "privy" && (guestUser || walletSessionReady))) ? (
             <motion.div
               className="flex flex-wrap justify-center items-center gap-2 mb-20"
-              initial={{ opacity: 0, y: 10 }}
+              initial={false}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: 0 }}
             >

@@ -1,16 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-
-const HeroSection = dynamic(() => import("@/components/guest/HeroSection"), {
-  loading: () => (
-    <div
-      className="min-h-below-mobile-nav w-full bg-[#010F10]"
-      aria-busy="true"
-      aria-label="Loading"
-    />
-  ),
-});
+import HeroSection from "@/components/guest/HeroSection";
 
 const HowItWorks = dynamic(() => import("@/components/guest/HowItWorks"), {
   loading: () => (
