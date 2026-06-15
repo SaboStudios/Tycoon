@@ -38,7 +38,7 @@ import { MIN_FLUTTERWAVE_CHECKOUT_NGN } from '@/lib/constants/ngnPayments';
 import { shopPerkRow } from '@/lib/shopPerkRow';
 import { isShopPerkHidden } from '@/lib/perkShopAssets';
 import { pickMinipayPreferredStable, type MinipayStableOption } from '@/lib/shop/preferredStable';
-import { ensureErc20Allowance, waitForTxConfirmed } from '@/lib/ensureErc20Allowance';
+import { ensureErc20Allowance, SHOP_APPROVAL_CAP, waitForTxConfirmed } from '@/lib/ensureErc20Allowance';
 
 import {
   useRewardBuyCollectible,
@@ -689,7 +689,7 @@ export default function GameShopMobile() {
             spender: contractAddress,
             requiredAmount: price,
             approve: smartWalletApprove,
-            unlimited: true,
+            approvalCap: SHOP_APPROVAL_CAP,
           });
           const buyHash = await buyFrom(smartWalletAddress, item.tokenId, paymentToken);
           if (buyHash) await waitForTxConfirmed(publicClient, buyHash);
@@ -705,7 +705,7 @@ export default function GameShopMobile() {
           spender: contractAddress,
           requiredAmount: price,
           approve,
-          unlimited: true,
+          approvalCap: SHOP_APPROVAL_CAP,
         });
         const buyHash = await buy(item.tokenId, paymentToken);
         if (buyHash) await waitForTxConfirmed(publicClient, buyHash);
@@ -795,7 +795,7 @@ export default function GameShopMobile() {
       spender: contractAddress,
       requiredAmount: amount,
       approve,
-      unlimited: true,
+      approvalCap: SHOP_APPROVAL_CAP,
     });
   };
 
@@ -862,7 +862,7 @@ export default function GameShopMobile() {
           spender: contractAddress,
           requiredAmount: priceWei,
           approve: smartWalletApprove,
-          unlimited: true,
+          approvalCap: SHOP_APPROVAL_CAP,
         });
         const fromHash = await buyBundleFrom(smartWalletAddress!, BigInt(bundleEntry.id), true);
         await waitForBundleTx(fromHash);

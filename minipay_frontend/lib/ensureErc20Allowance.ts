@@ -1,5 +1,8 @@
-import { type Address, type Hash, type PublicClient, maxUint256 } from 'viem';
+import { type Address, type Hash, type PublicClient } from 'viem';
 import Erc20Abi from '@/context/abi/ERC20abi.json';
+
+/** Max ERC-20 approval for perk shop flows — $10 at 6 decimals (USDC / cUSD / USDT). */
+export const SHOP_APPROVAL_CAP = 10_000_000n;
 
 export async function readErc20Allowance(
   publicClient: PublicClient,
@@ -26,7 +29,7 @@ type ApproveFn = (token: Address, spender: Address, amount: bigint) => Promise<H
 
 /**
  * Reads allowance on-chain (not from React cache), approves if needed, and waits for confirmation.
- * Use `unlimited: true` for shop flows so users can buy multiple perks without re-approving.
+ * Pass `approvalCap` for shop flows — approves up to the cap so users can buy multiple perks per session.
  */
 export async function ensureErc20Allowance(options: {
   publicClient: PublicClient;
@@ -35,15 +38,22 @@ export async function ensureErc20Allowance(options: {
   spender: Address;
   requiredAmount: bigint;
   approve: ApproveFn;
-  /** Approve max uint256 — recommended for repeat purchases in the perk shop */
-  unlimited?: boolean;
+  /** Cap approval at this amount (e.g. SHOP_APPROVAL_CAP). Must be >= requiredAmount. */
+  approvalCap?: bigint;
 }): Promise<void> {
-  const { publicClient, token, owner, spender, requiredAmount, approve, unlimited = false } = options;
+  const { publicClient, token, owner, spender, requiredAmount, approve, approvalCap } = options;
 
   const current = await readErc20Allowance(publicClient, token, owner, spender);
   if (current >= requiredAmount) return;
 
-  const approveAmount = unlimited ? maxUint256 : requiredAmount;
+  let approveAmount = requiredAmount;
+  if (approvalCap !== undefined) {
+    if (requiredAmount > approvalCap) {
+      throw new Error('Purchase exceeds the $10 approval limit. Buy in smaller amounts or approve again later.');
+    }
+    approveAmount = approvalCap;
+  }
+
   const hash = await approve(token, spender, approveAmount);
   if (hash) {
     await waitForTxConfirmed(publicClient, hash);

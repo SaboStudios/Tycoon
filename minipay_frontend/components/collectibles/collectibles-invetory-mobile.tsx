@@ -12,7 +12,7 @@ import {
   usePublicClient,
 } from "wagmi";
 import { formatUnits, type Address, type Abi, erc20Abi } from "viem";
-import { ensureErc20Allowance, waitForTxConfirmed } from "@/lib/ensureErc20Allowance";
+import { ensureErc20Allowance, SHOP_APPROVAL_CAP, waitForTxConfirmed } from "@/lib/ensureErc20Allowance";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
@@ -544,7 +544,7 @@ export default function CollectibleInventoryBar({
             spender: contractAddress,
             requiredAmount: price,
             approve: smartWalletApprove,
-            unlimited: true,
+            approvalCap: SHOP_APPROVAL_CAP,
           });
           toast.dismiss("approve-sw");
           setBuyingId(item.tokenId);
@@ -566,7 +566,7 @@ export default function CollectibleInventoryBar({
           spender: contractAddress,
           requiredAmount: price,
           approve,
-          unlimited: true,
+          approvalCap: SHOP_APPROVAL_CAP,
         });
         toast.dismiss("approve");
         setApprovingId(null);
