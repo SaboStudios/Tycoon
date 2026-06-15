@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, Loader2, User } from 'lucide-react';
 import { apiClient } from '@/lib/api';
+import { HIDE_WALLET_ADDRESS_UI } from '@/lib/miniappUi';
 
 function formatStakeOrEarned(value: number): string {
   if (value >= 1e18) return (value / 1e18).toFixed(2);
@@ -138,7 +139,9 @@ export default function PublicPlayerProfile({ username }: { username: string }) 
             <div className="p-6 border-b border-white/10 bg-gradient-to-br from-cyan-500/10 to-transparent">
               <p className="text-cyan-300/90 text-xs uppercase tracking-widest mb-1">Tycoon player</p>
               <h2 className="text-2xl font-bold text-white break-all">{parsed.username}</h2>
-              <p className="text-white/50 text-sm font-mono mt-2">{parsed.shortAddress}</p>
+              {!HIDE_WALLET_ADDRESS_UI && parsed.shortAddress ? (
+                <p className="text-white/50 text-sm font-mono mt-2">{parsed.shortAddress}</p>
+              ) : null}
             </div>
             <div className="px-6 pt-5">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">

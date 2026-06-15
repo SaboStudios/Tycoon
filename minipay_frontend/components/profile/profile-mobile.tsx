@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import Image from 'next/image';
 import {
   BarChart2, Crown, Coins, Wallet, Ticket, ShoppingBag,
-  Loader2, Send, ChevronDown, ChevronUp, ArrowLeft, Camera, Copy, Check, User, FileText, Pencil, Shield
+  Loader2, Send, ChevronDown, ChevronUp, ArrowLeft, Camera, User, FileText, Pencil, Shield
 } from 'lucide-react';
 import Link from 'next/link';
 import avatar from '@/public/avatar.jpg';
@@ -34,6 +34,7 @@ import { getPerkShopAsset } from '@/lib/perkShopAssets';
 import { ProfilePerkCardImage } from '@/components/profile/ProfilePerkCardImage';
 import ProfileReferralCard from '@/components/profile/ProfileReferralCard';
 import { getGuestUserPlayAddress } from '@/lib/minipayGuestFlow';
+import { HIDE_WALLET_ADDRESS_UI } from '@/lib/miniappUi';
 import GameRoomLoading from '@/components/settings/game-room-loading';
 
 const MAX_AVATAR_SIZE = 1024 * 1024; // 1MB
@@ -265,12 +266,6 @@ function GuestProfileViewMobile({
   const tycoonAddress = TYCOON_CONTRACT_ADDRESSES[CELO_CHAIN_ID];
   const rewardAddress = REWARD_CONTRACT_ADDRESSES[CELO_CHAIN_ID] as Address | undefined;
 
-  const shortLinkedWalletAddress = linkedWalletAddress
-    ? `${linkedWalletAddress.slice(0, 6)}...${linkedWalletAddress.slice(-4)}`
-    : null;
-  const shortSmartWalletAddress = smartWalletAddress
-    ? `${smartWalletAddress.slice(0, 6)}...${smartWalletAddress.slice(-4)}`
-    : null;
   const showSmartBalances =
     !!smartWalletAddress &&
     (!linkedWalletAddress || smartWalletAddress.toLowerCase() !== linkedWalletAddress.toLowerCase());
@@ -595,12 +590,6 @@ function GuestProfileViewMobile({
                 ) : null}
                 {!guestOnChainAddress && (
                   <p className="text-cyan-300/80 text-xs mb-2">Your progress is saved. Connect your wallet from the nav to link this account.</p>
-                )}
-                {shortLinkedWalletAddress && (
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-                    <span className="text-cyan-400 font-semibold shrink-0">Connected</span>
-                    <span className="text-slate-300 font-mono truncate">{shortLinkedWalletAddress}</span>
-                  </div>
                 )}
               </div>
             </div>
@@ -928,7 +917,6 @@ export default function ProfilePageMobile() {
   const [redeemingId, setRedeemingId] = useState<bigint | null>(null);
   const [showVouchers, setShowVouchers] = useState(false);
   const [profileTab, setProfileTab] = useState<'stats' | 'about' | 'perks' | 'vouchers'>('stats');
-  const [copied, setCopied] = useState(false);
   const [localDisplayName, setLocalDisplayName] = useState('');
   const [localBio, setLocalBio] = useState('');
   const [editingBio, setEditingBio] = useState(false);
@@ -1282,14 +1270,6 @@ export default function ProfilePageMobile() {
     e.target.value = '';
   };
 
-  const copyAddress = () => {
-    if (!walletAddress) return;
-    navigator.clipboard.writeText(walletAddress);
-    setCopied(true);
-    toast.success('Address copied');
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   const saveDisplayName = () => {
     const trimmed = localDisplayName.trim() || null;
     setDisplayName(trimmed);
@@ -1455,15 +1435,14 @@ export default function ProfilePageMobile() {
                 Member since {new Date(userData.registeredAt * 1000).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
               </p>
             )}
-            <p className="mt-3 text-slate-500 text-[10px] text-center">Connected wallet</p>
-            <button
-              type="button"
-              onClick={copyAddress}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-slate-400 text-xs w-full max-w-[260px] mx-auto justify-center hover:border-cyan-500/20 hover:text-cyan-300/80 transition"
-            >
-              <span className="font-mono truncate">{userData.shortAddress || walletAddress}</span>
-              {copied ? <Check className="w-4 h-4 text-emerald-400 shrink-0" /> : <Copy className="w-4 h-4 shrink-0" />}
-            </button>
+            {!HIDE_WALLET_ADDRESS_UI && (
+              <>
+                <p className="mt-3 text-slate-500 text-[10px] text-center">Connected wallet</p>
+                <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-slate-400 text-xs w-full max-w-[260px] mx-auto justify-center">
+                  <span className="font-mono truncate">{userData.shortAddress || walletAddress}</span>
+                </div>
+              </>
+            )}
           </div>
         </motion.div>
 

@@ -19,10 +19,6 @@ function isValidAddr(a: string | null | undefined): a is string {
   return /^0x[a-fA-F0-9]{40}$/i.test(s);
 }
 
-function shortAddr(a: string) {
-  return `${a.slice(0, 6)}…${a.slice(-4)}`;
-}
-
 export type PrivyWalletProfilePromptProps = {
   guestId: number;
   guestUsername: string;
@@ -192,9 +188,7 @@ export default function PrivyWalletProfilePrompt({
             Different wallet connected
           </h2>
           <p className="text-sm text-white/80 leading-relaxed mb-1">
-            You’re signed in as <span className="text-cyan-300 font-medium">{guestUsername}</span>. Your Tycoon account is linked to{" "}
-            <span className="font-mono text-cyan-200/90">{shortAddr(linkedWalletAddress!)}</span>, but your app wallet is{" "}
-            <span className="font-mono text-cyan-200/90">{shortAddr(connectedAddress)}</span>.
+            You’re signed in as <span className="text-cyan-300 font-medium">{guestUsername}</span>. Your Tycoon account is linked to a different wallet than the one currently connected in this app.
           </p>
           <p className="text-sm text-white/70 mb-5">
             You can keep viewing your Tycoon account here (stats, perks, smart wallet), or replace your linked wallet with the one you have connected now. Replacing unlinks the old address and links this one—you’ll sign a message to confirm.
@@ -233,7 +227,7 @@ export default function PrivyWalletProfilePrompt({
             Link this wallet?
           </h2>
           <p className="text-sm text-white/80 leading-relaxed mb-5">
-            Connect wallet <span className="font-mono text-cyan-200/90">{shortAddr(connectedAddress)}</span> to your Tycoon account so the same progress and stats load when you use this wallet in the app.
+            Connect your current wallet to your Tycoon account so the same progress and stats load when you use this wallet in the app.
           </p>
           <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
             <button
