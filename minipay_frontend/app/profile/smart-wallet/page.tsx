@@ -10,7 +10,7 @@ import { USDC_TOKEN_ADDRESS, NAIRA_VAULT_ADDRESSES, SMART_WALLET_OPERATOR_ADDRES
 import { parseEther, formatUnits, type Address } from "viem";
 import { toast } from "react-toastify";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
-import { Copy, Wallet, Coins, Loader2, Send, ArrowRightLeft, Banknote } from "lucide-react";
+import { Wallet, Coins, Loader2, Send, ArrowRightLeft, Banknote } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
 import { MIN_FLUTTERWAVE_CHECKOUT_NGN } from "@/lib/constants/ngnPayments";
@@ -467,14 +467,6 @@ export default function ManageSmartWalletPage() {
           </h2>
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-sm text-cyan-200 break-all">{smartWalletAddress}</span>
-            <button
-              type="button"
-              onClick={() => { navigator.clipboard.writeText(smartWalletAddress!); toast.success("Copied"); }}
-              className="p-2 rounded-lg bg-white/10 hover:bg-cyan-500/20 text-cyan-300"
-              aria-label="Copy"
-            >
-              <Copy className="w-4 h-4" />
-            </button>
           </div>
           {!isConnected && (
             <p className="text-xs text-white/50 mt-2">You can withdraw CELO/USDT below without connecting (if you’ve enabled managed withdrawals).</p>
