@@ -83,7 +83,7 @@ export default function AccountLinkWallet() {
           {guestUser.linked_wallet_address ? (
             <div className="flex flex-wrap items-center gap-3">
               <p className="text-sm text-white/80">
-                Wallet linked: {guestUser.linked_wallet_address.slice(0, 6)}...{guestUser.linked_wallet_address.slice(-4)}
+                Wallet linked to your account.
               </p>
               <button
                 type="button"

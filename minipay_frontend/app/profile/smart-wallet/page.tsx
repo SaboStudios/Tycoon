@@ -14,6 +14,7 @@ import { Wallet, Coins, Loader2, Send, ArrowRightLeft, Banknote } from "lucide-r
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
 import { MIN_FLUTTERWAVE_CHECKOUT_NGN } from "@/lib/constants/ngnPayments";
+import { HIDE_WALLET_ADDRESS_UI } from "@/lib/miniappUi";
 
 const UserWalletABI = [
   { inputs: [], name: "balanceNative", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" },
@@ -463,11 +464,15 @@ export default function ManageSmartWalletPage() {
       <main className="container mx-auto px-4 py-8 max-w-2xl space-y-6">
         <section className="rounded-2xl border border-cyan-500/20 bg-[#011112]/80 p-5">
           <h2 className="text-base font-semibold text-cyan-400 mb-3 flex items-center gap-2">
-            <Wallet className="w-4 h-4" /> Smart wallet address
+            <Wallet className="w-4 h-4" /> Smart wallet
           </h2>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-sm text-cyan-200 break-all">{smartWalletAddress}</span>
-          </div>
+          {HIDE_WALLET_ADDRESS_UI ? (
+            <p className="text-sm text-cyan-200/80">Your Tycoon smart wallet is active. Use the options below to manage balances and withdrawals.</p>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-mono text-sm text-cyan-200 break-all">{smartWalletAddress}</span>
+            </div>
+          )}
           {!isConnected && (
             <p className="text-xs text-white/50 mt-2">You can withdraw CELO/USDT below without connecting (if you’ve enabled managed withdrawals).</p>
           )}
