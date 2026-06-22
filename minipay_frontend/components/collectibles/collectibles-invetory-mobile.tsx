@@ -2,21 +2,16 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   useAccount,
   useChainId,
-  useReadContract,
   useReadContracts,
-  useWriteContract,
-  useWaitForTransactionReceipt,
-  useBalance,
-  usePublicClient,
 } from "wagmi";
-import { formatUnits, type Address, type Abi, erc20Abi } from "viem";
-import { ensureErc20Allowance, SHOP_APPROVAL_CAP, waitForTxConfirmed } from "@/lib/ensureErc20Allowance";
+import { type Address, type Abi } from "viem";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
-import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import Image from "next/image";
 
 import {
@@ -28,42 +23,25 @@ import {
   Shield,
   ShoppingBag,
   Loader2,
-  X,
-  Wallet,
-  Clock,
   Flame,
   Percent,
   CircleDollarSign,
   MapPin,
+  Clock,
 } from "lucide-react";
-import EmptyState from "@/components/ui/EmptyState";
-import { useFocusTrap } from "@/hooks/useFocusTrap";
 import RewardABI from "@/context/abi/rewardabi.json";
-import { REWARD_CONTRACT_ADDRESSES, USDC_TOKEN_ADDRESS } from "@/constants/contracts";
+import { REWARD_CONTRACT_ADDRESSES } from "@/constants/contracts";
 import { Game, GameProperty } from "@/types/game";
-import {
-  useRewardBurnCollectible,
-  useRewardBuyCollectible,
-  useRewardBuyCollectibleFrom,
-  useUserRegistryWallet,
-  useApprove,
-  useUserWalletApproveERC20,
-} from "@/context/ContractProvider";
-import { useGuestAuthOptional } from "@/context/GuestAuthContext";
-import Erc20Abi from "@/context/abi/ERC20abi.json";
+import { useRewardBurnCollectible } from "@/context/ContractProvider";
 import { apiClient } from "@/lib/api";
 import { refreshGameStateAfterPerk } from "@/lib/perks/refreshGameStateAfterPerk";
-import { MIN_FLUTTERWAVE_CHECKOUT_NGN } from "@/lib/constants/ngnPayments";
-import { getNairaEligibility, nairaBlockedMessage } from "@/lib/shop/nairaPayment";
 import { ApiResponse } from "@/types/api";
 import {
-  buildTokenOfOwnerByIndexSlotCalls,
   buildMergedHolderSlotCalls,
   mergeSlotScanResultsForHolders,
   REWARD_OWNED_SLOT_SCAN_CAP,
-  takeTokenIdsUntilFirstFailure,
 } from "@/lib/rewardOwnedEnumerable";
-import { getPerkShopAsset, isShopPerkHidden } from "@/lib/perkShopAssets";
+import { getPerkShopAsset } from "@/lib/perkShopAssets";
 
 /** Full-viewport overlays must portal out of board modals (transform/overflow break `position: fixed` on many mobile WebViews). */
 function getOverlayPortalTarget(): HTMLElement | null {
@@ -136,31 +114,23 @@ export default function CollectibleInventoryBar({
   onPerkApplied,
 }: CollectibleInventoryBarProps) {
   const { address: wagmiAddress, isConnected } = useAccount();
-  const guestAuth = useGuestAuthOptional();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const chainId = useChainId();
-  const publicClient = usePublicClient();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
-  const usdcToken = USDC_TOKEN_ADDRESS[chainId as keyof typeof USDC_TOKEN_ADDRESS] as Address | undefined;
 
-  // Smart wallet support
-  const guestSmartWallet = guestAuth?.guestUser?.smart_wallet_address ?? undefined;
-  const { data: registrySmartWallet } = useUserRegistryWallet(wagmiAddress);
-  const smartWalletAddress = registrySmartWallet || (guestSmartWallet as Address | undefined);
-
-  const isValidWallet = (a: string | undefined): a is Address =>
-    !!a && a !== '0x0000000000000000000000000000000000000000' && a.toLowerCase() !== '0x0000000000000000000000000000000000000000'.toLowerCase();
+  const perkShopHref = useMemo(() => {
+    const path = pathname ?? "";
+    const qs = searchParams?.toString();
+    const returnTo = path + (qs ? `?${qs}` : "");
+    return `/game-shop?returnTo=${encodeURIComponent(returnTo)}`;
+  }, [pathname, searchParams]);
 
   // Use provided wallet addresses, or fall back to single userAddress, or wagmi address
   const addressesToCheck = userWalletAddresses?.length ? userWalletAddresses : (userAddress ? [userAddress] : (wagmiAddress ? [wagmiAddress] : []));
   const address = addressesToCheck[0] as Address | undefined;
 
-  const [showMiniShop, setShowMiniShop] = useState(false);
-  const [payWith, setPayWith] = useState<'connected' | 'smart_wallet'>('connected');
-  const [useUsdc, setUseUsdc] = useState(true);
-  const miniShopSheetRef = useRef<HTMLDivElement>(null);
-  const buyPerksTriggerRef = useRef<HTMLButtonElement>(null);
   const [overlayPortalTarget, setOverlayPortalTarget] = useState<HTMLElement | null>(null);
-  useFocusTrap(miniShopSheetRef, showMiniShop, buyPerksTriggerRef);
 
   useEffect(() => {
     setOverlayPortalTarget(getOverlayPortalTarget());
@@ -168,100 +138,20 @@ export default function CollectibleInventoryBar({
     document.addEventListener("fullscreenchange", onFullscreenChange);
     return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
   }, []);
-  const [buyingId, setBuyingId] = useState<bigint | null>(null);
-  const [approvingId, setApprovingId] = useState<bigint | null>(null);
-  const [ngnLoadingTokenId, setNgnLoadingTokenId] = useState<string | null>(null);
-
-  const readAppSessionToken = (): string | null => {
-    if (typeof window === "undefined") return null;
-    try {
-      return window.localStorage?.getItem("token") ?? null;
-    } catch (_) {
-      return null;
-    }
-  };
-
-  // Auto-switch to smart wallet if guest has one but not connected via wagmi
-  useEffect(() => {
-    if (smartWalletAddress && isValidWallet(smartWalletAddress) && !isConnected) {
-      setPayWith('smart_wallet');
-    }
-  }, [smartWalletAddress, isConnected]);
-
-  // Determine payer address based on payment selection
-  const payerAddress = payWith === 'smart_wallet' && isValidWallet(smartWalletAddress) ? smartWalletAddress : address;
 
   const [pendingPerk, setPendingPerk] = useState<{
     tokenId: bigint;
     perkId: number;
     name: string;
     strength?: number;
+
   } | null>(null);
-
-  // Naira conversion (1 USDT = 1400 NGN)
-  const USDC_TO_NGN_RATE = 1400;
-  const MIN_NGN_PURCHASE = 1000;
-
-  const calculateNgnPrice = (ngnBasePrice: number): number => {
-    if (ngnBasePrice < MIN_NGN_PURCHASE) return MIN_NGN_PURCHASE;
-    if (ngnBasePrice > 1000) return Math.round(ngnBasePrice * 0.8); // 20% discount
-    return ngnBasePrice;
-  };
-
-  // Buy hooks
-  const {
-    buy,
-    isPending: buyingPending,
-    isConfirming: buyingConfirming,
-    isSuccess: buySuccess,
-    reset: resetBuy,
-  } = useRewardBuyCollectible();
-
-  const {
-    buyFrom,
-    isPending: buyFromPending,
-    isConfirming: buyFromConfirming,
-    isSuccess: buyFromSuccess,
-    reset: resetBuyFrom,
-  } = useRewardBuyCollectibleFrom();
-
-  const {
-    approve,
-    isPending: approvePending,
-    isConfirming: approveConfirming,
-    reset: resetApprove,
-  } = useApprove();
-
-  const { approveERC20: smartWalletApprove, isPending: smartWalletApprovePending } = useUserWalletApproveERC20(smartWalletAddress);
 
   const [selectedPositionIndex, setSelectedPositionIndex] = useState<number | null>(null);
   const [selectedRollTotal, setSelectedRollTotal] = useState<number | null>(null);
 
-  const selectedToken = usdcToken;
-  const selectedDecimals = 6;
-
-  const { data: usdcBal } = useBalance({ address: payerAddress, token: usdcToken });
-
-  const { refetch: refetchAllowance } = useReadContract({
-    address: selectedToken,
-    abi: erc20Abi,
-    functionName: "allowance",
-    args: payerAddress && contractAddress ? [payerAddress, contractAddress] : undefined,
-    query: { enabled: !!payerAddress && !!contractAddress && !!selectedToken },
-  });
-
   const { burn: burnCollectible, isPending: isBurning, isSuccess: burnSuccess, reset: resetBurn } = useRewardBurnCollectible();
   const burnConfirmedRef = useRef(false);
-  const shopTxBusy =
-    buyingPending ||
-    buyingConfirming ||
-    buyFromPending ||
-    buyFromConfirming ||
-    approvePending ||
-    approveConfirming ||
-    smartWalletApprovePending ||
-    approvingId !== null ||
-    buyingId !== null;
 
   const currentPlayer = useMemo(() => {
     if (!address || !game?.players) return null;
@@ -427,261 +317,6 @@ export default function CollectibleInventoryBar({
 
   const totalOwned = ownedCollectiblesRaw.length;
 
-  // === SHOP ITEMS ===
-  const shopTokenCalls = useMemo(() => {
-    if (!contractAddress) return [];
-    return buildTokenOfOwnerByIndexSlotCalls(contractAddress, RewardABI as Abi, contractAddress, chainId, REWARD_OWNED_SLOT_SCAN_CAP);
-  }, [contractAddress, chainId]);
-
-  const { data: shopTokenResults } = useReadContracts({
-    contracts: shopTokenCalls,
-    query: { enabled: !!contractAddress },
-  });
-
-  const shopTokenIds = useMemo(() => {
-    const scanned = takeTokenIdsUntilFirstFailure(shopTokenResults);
-    return scanned.filter((id) => id >= BigInt(COLLECTIBLE_ID_START));
-  }, [shopTokenResults]);
-
-  const shopInfoCalls = useMemo(() => 
-    shopTokenIds.map(id => ({
-      address: contractAddress!,
-      abi: RewardABI as Abi,
-      functionName: "getCollectibleInfo" as const,
-      args: [id],
-    })),
-    [contractAddress, shopTokenIds]
-  );
-
-  const { data: shopInfoResults } = useReadContracts({
-    contracts: shopInfoCalls,
-    query: { enabled: shopTokenIds.length > 0 },
-  });
-
-  const shopItems = useMemo(() => {
-    if (!shopInfoResults) return [];
-
-    return shopInfoResults
-      .map((res, i) => {
-        if (res?.status !== "success") return null;
-        const [perkBig, , tycPriceBig, usdcPriceBig, stockBig] = res.result as [bigint, bigint, bigint, bigint, bigint];
-        const perk = Number(perkBig);
-        const stock = Number(stockBig);
-        if (stock === 0 || isShopPerkHidden(perk)) return null;
-
-        const meta = perkMetadata[perk] ?? perkMetadata[10];
-        const shopAsset = getPerkShopAsset(perk);
-        const usdcPriceStr = formatUnits(usdcPriceBig, 6);
-        const baseNgnPrice = Math.round(Number(usdcPriceStr) * USDC_TO_NGN_RATE);
-        const ngnPrice = calculateNgnPrice(baseNgnPrice);
-
-        return {
-          tokenId: shopTokenIds[i],
-          perk,
-          tycPrice: formatUnits(tycPriceBig, 18),
-          usdcPrice: usdcPriceStr,
-          ngnPrice,
-          stock,
-          name: meta.name,
-          icon: meta.icon,
-          gradient: meta.gradient,
-          image: shopAsset?.image ?? "/game/shop/placeholder.jpg",
-        };
-      })
-      .filter((item): item is NonNullable<typeof item> => item !== null);
-  }, [shopInfoResults, shopTokenIds]);
-
-  // === BUY LOGIC ===
-  const handleBuyWithUsdc = async (item: typeof shopItems[number]) => {
-    if (!contractAddress) {
-      toast.error("Contract not supported on this network");
-      return;
-    }
-
-    const hasPaymentMethod = (isConnected && address) || smartWalletAddress;
-    if (!hasPaymentMethod) {
-      toast.error("Please connect your wallet or register to use your smart wallet");
-      return;
-    }
-
-    const price = BigInt(Math.round(Number(item.usdcPrice) * 1e6));
-
-    if (!usdcToken) {
-      toast.error("USDT not supported on this network");
-      return;
-    }
-
-    // Check balance
-    if (Number(usdcBal?.formatted ?? 0) < Number(item.usdcPrice)) {
-      toast.error("Insufficient USDT balance");
-      return;
-    }
-
-    try {
-      if (!publicClient) {
-        toast.error("Network client not ready. Try again.");
-        return;
-      }
-      if (payWith === 'smart_wallet' && smartWalletAddress) {
-        // Smart wallet payment
-        const session = readAppSessionToken();
-        if (session) {
-          // Use API endpoint with PIN for registered smart wallet
-          const pin = typeof window !== "undefined" ? window.prompt("Enter your withdrawal PIN to pay from your smart wallet")?.trim() : "";
-          if (!pin) {
-            toast.error("PIN is required");
-            return;
-          }
-          setApprovingId(item.tokenId);
-          toast.loading("Processing smart wallet payment...", { id: "approve-sw" });
-          const res = await apiClient.post<{ success?: boolean; message?: string }>(
-            "auth/smart-wallet/buy-collectible",
-            {
-              tokenId: item.tokenId.toString(),
-              useUsdc: true,
-              maxPrice: price.toString(),
-              pin,
-            }
-          );
-          if (!res?.success && !res?.data?.success) {
-            throw new Error(res?.data?.message || "Purchase failed");
-          }
-          toast.dismiss("approve-sw");
-          toast.success("Purchase successful! 🎉");
-          setApprovingId(null);
-        } else {
-          setApprovingId(item.tokenId);
-          toast.loading("Approving USDT from smart wallet...", { id: "approve-sw" });
-          await ensureErc20Allowance({
-            publicClient,
-            token: usdcToken,
-            owner: smartWalletAddress,
-            spender: contractAddress,
-            requiredAmount: price,
-            approve: smartWalletApprove,
-            approvalCap: SHOP_APPROVAL_CAP,
-          });
-          toast.dismiss("approve-sw");
-          setBuyingId(item.tokenId);
-          toast.loading("Purchasing...", { id: "buy" });
-          const buyHash = await buyFrom(smartWalletAddress, item.tokenId, 3);
-          if (buyHash) await waitForTxConfirmed(publicClient, buyHash);
-        }
-      } else {
-        if (!payerAddress) {
-          toast.error("Wallet not connected");
-          return;
-        }
-        setApprovingId(item.tokenId);
-        toast.loading("Checking USDT approval...", { id: "approve" });
-        await ensureErc20Allowance({
-          publicClient,
-          token: usdcToken,
-          owner: payerAddress,
-          spender: contractAddress,
-          requiredAmount: price,
-          approve,
-          approvalCap: SHOP_APPROVAL_CAP,
-        });
-        toast.dismiss("approve");
-        setApprovingId(null);
-        setBuyingId(item.tokenId);
-        toast.loading("Purchasing...", { id: "buy" });
-        const buyHash = await buy(item.tokenId, 3);
-        if (buyHash) await waitForTxConfirmed(publicClient, buyHash);
-        void refetchAllowance();
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Transaction failed";
-      toast.error(msg);
-      setApprovingId(null);
-      setBuyingId(null);
-    }
-  };
-
-  const handlePayPerkWithNaira = async (item: typeof shopItems[number]) => {
-    if (ngnLoadingTokenId != null) return;
-
-    const payerForNaira = String(address ?? wagmiAddress ?? "").trim();
-    const elig = getNairaEligibility(guestAuth?.guestUser ?? null, readAppSessionToken(), payerForNaira);
-    if (!elig.ok) {
-      toast.error(nairaBlockedMessage(elig.reason));
-      return;
-    }
-
-    const tokenIdStr = item.tokenId.toString();
-    setNgnLoadingTokenId(tokenIdStr);
-
-    try {
-      const amountNgn = Math.max(
-        MIN_FLUTTERWAVE_CHECKOUT_NGN,
-        Math.ceil(Number(item.usdcPrice) * USDC_TO_NGN_RATE)
-      );
-      const base = typeof window !== "undefined" ? window.location.origin : "";
-      const callbackUrl = `${base}/board-3d-multi-mobile`;
-
-      const res = await apiClient.post<{
-        success?: boolean;
-        link?: string;
-        reference?: string;
-        message?: string;
-      }>("shop/flutterwave/initialize-perk", {
-        token_id: tokenIdStr,
-        amount_ngn: amountNgn,
-        callback_url: callbackUrl,
-        ...(payerForNaira && /^0x[a-fA-F0-9]{40}$/.test(payerForNaira) ? { address: payerForNaira, chain: "CELO" } : {}),
-      });
-
-      if (res?.data?.link) {
-        window.location.href = res.data.link;
-        return;
-      }
-
-      toast.error(res?.data?.message ?? "Could not start Naira payment");
-    } catch (e: unknown) {
-      const status = (e as { status?: number; response?: { status?: number } })
-        ?.status ?? (e as { response?: { status?: number } })?.response?.status;
-      if (status === 401) {
-        toast.error(nairaBlockedMessage("session_expired"));
-      } else {
-        toast.error(getContractErrorMessage(e, "Failed to start Naira payment"));
-      }
-    } finally {
-      setNgnLoadingTokenId(null);
-    }
-  };
-
-  const handleBuy = async (item: typeof shopItems[number]) => {
-    if (useUsdc) {
-      await handleBuyWithUsdc(item);
-    } else {
-      await handlePayPerkWithNaira(item);
-    }
-  };
-
-  // Handle buy success (approval + purchase now run sequentially in handleBuyWithUsdc)
-  useEffect(() => {
-    if (buySuccess && buyingId !== null) {
-      toast.dismiss("buy");
-      toast.success("Purchase complete! 🎉");
-      setBuyingId(null);
-      void refetchAllowance();
-      resetBuy();
-    }
-  }, [buySuccess, buyingId, refetchAllowance, resetBuy]);
-
-  // Handle buyFrom success
-  useEffect(() => {
-    if (buyFromSuccess && buyingId !== null) {
-      toast.dismiss("buy");
-      toast.success("Purchase complete! 🎉");
-      setBuyingId(null);
-      void refetchAllowance();
-      resetBuyFrom();
-    }
-  }, [buyFromSuccess, buyingId, refetchAllowance, resetBuyFrom]);
-
-  // === PERK ACTIVATION ===
   const handleUsePerk = (
     tokenId: bigint,
     perkId: number,
@@ -707,8 +342,8 @@ export default function CollectibleInventoryBar({
       return;
     }
 
-    if (shopTxBusy) {
-      toast("Wait for your purchase to finish...", { icon: "⏳" });
+    if (isBurning) {
+      toast("Wait for your perk to finish...", { icon: "⏳" });
       return;
     }
 
@@ -874,8 +509,7 @@ export default function CollectibleInventoryBar({
 
   const handleConfirmBurnAndActivate = async () => {
     if (!pendingPerk) return;
-    if (shopTxBusy) {
-      toast("Wait for your purchase to finish...", { icon: "⏳" });
+    if (isBurning) {
       return;
     }
 
@@ -895,172 +529,6 @@ export default function CollectibleInventoryBar({
   };
 
   if (!isConnected && validAddresses.length === 0) return null;
-
-  const miniShopOverlay = (
-    <AnimatePresence>
-      {showMiniShop && (
-        <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setShowMiniShop(false)}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[10050]"
-          />
-
-          <motion.div
-            ref={miniShopSheetRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="perk-shop-sheet-title"
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
-            transition={{ type: "spring", damping: 25, stiffness: 280 }}
-            className="
-                fixed inset-x-0 bottom-0
-                z-[10051]
-                max-h-[85dvh] sm:max-h-[90dvh]
-                bg-gradient-to-b from-[#0A1418] to-[#061015]
-                rounded-t-3xl
-                border-t border-cyan-600/30
-                flex flex-col
-                shadow-2xl shadow-black/50
-                overflow-hidden
-              "
-            style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
-          >
-            <div className="flex items-center justify-center pt-3 pb-1 shrink-0 bg-[#0A1418]/95" aria-hidden>
-              <div className="w-10 h-1 rounded-full bg-slate-500/60" title="Swipe down to close" />
-            </div>
-            <div className="sticky top-0 z-10 bg-[#0A1418]/95 backdrop-blur-md border-b border-cyan-900/30 px-5 py-4 flex items-center gap-3">
-              <button onClick={() => setShowMiniShop(false)} className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full hover:bg-white/5 transition shrink-0" aria-label="Close Perk Shop">
-                <X className="w-6 h-6 text-gray-300" />
-              </button>
-              <h2 id="perk-shop-sheet-title" className="text-2xl font-bold flex items-center gap-3 text-cyan-300">
-                <ShoppingBag className="w-6 h-6" />
-                Perk Shop
-              </h2>
-            </div>
-
-            <div className="p-5 space-y-3 border-b border-cyan-900/30">
-              <div className="flex items-center gap-2 bg-gray-800/50 px-3 py-2 rounded-lg text-sm">
-                <Wallet className="w-4 h-4 text-cyan-400" />
-                <span className="text-white">USDT: {usdcBal ? Number(usdcBal.formatted).toFixed(2) : "0.00"}</span>
-              </div>
-
-              {(isConnected || smartWalletAddress) && (
-                <div className="flex gap-2">
-                  {isConnected && (
-                    <button
-                      onClick={() => setPayWith('connected')}
-                      className={`flex-1 py-2 rounded-lg border text-xs font-semibold transition ${
-                        payWith === 'connected'
-                          ? "bg-blue-950/80 border-blue-600 text-blue-300"
-                          : "bg-gray-800/50 border-gray-700 text-gray-400 hover:bg-gray-700/50"
-                      }`}
-                    >
-                      Connected Wallet
-                    </button>
-                  )}
-                  {smartWalletAddress && (
-                    <button
-                      onClick={() => setPayWith('smart_wallet')}
-                      className={`flex-1 py-2 rounded-lg border text-xs font-semibold transition ${
-                        payWith === 'smart_wallet'
-                          ? "bg-purple-950/80 border-purple-600 text-purple-300"
-                          : "bg-gray-800/50 border-gray-700 text-gray-400 hover:bg-gray-700/50"
-                      }`}
-                    >
-                      Smart Wallet
-                    </button>
-                  )}
-                </div>
-              )}
-
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setUseUsdc(true)}
-                  className={`flex-1 py-3 rounded-xl border text-sm font-semibold transition ${
-                    useUsdc
-                      ? "bg-cyan-950/80 border-cyan-600 text-cyan-300"
-                      : "bg-gray-800/50 border-gray-700 text-gray-400 hover:bg-gray-700/50"
-                  }`}
-                >
-                  USDT
-                </button>
-                <button
-                  onClick={() => setUseUsdc(false)}
-                  className={`flex-1 py-3 rounded-xl border text-sm font-semibold transition ${
-                    !useUsdc
-                      ? "bg-cyan-950/80 border-cyan-600 text-cyan-300"
-                      : "bg-gray-800/50 border-gray-700 text-gray-400 hover:bg-gray-700/50"
-                  }`}
-                >
-                  Naira
-                </button>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto px-5 pb-8">
-              {shopItems.length === 0 ? (
-                <div className="py-4">
-                  <EmptyState
-                    icon={<ShoppingBag className="w-14 h-14 text-cyan-500/70" />}
-                    title="No perks in stock right now"
-                    description="New perks are added regularly. Check back later or use your existing perks from My Perks."
-                    compact
-                    className="border-cyan-500/20 bg-[#0E1415]/60"
-                  />
-                </div>
-              ) : (
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                  {shopItems.map((item) => (
-                    <motion.button
-                      key={item.tokenId.toString()}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.3 }}
-                      onClick={() => handleBuy(item)}
-                      disabled={buyingId === item.tokenId || approvingId === item.tokenId || ngnLoadingTokenId === item.tokenId.toString()}
-                      className={`flex flex-col items-center gap-1.5 text-center transition-all
-                          ${buyingId === item.tokenId || approvingId === item.tokenId || ngnLoadingTokenId === item.tokenId.toString()
-                            ? "opacity-60 cursor-not-allowed"
-                            : "hover:opacity-90 active:scale-[0.98]"}
-                        `}
-                    >
-                      <div className="relative w-16 h-16 sm:w-20 sm:h-20 overflow-hidden rounded-lg border border-white/20 bg-black/30">
-                        <Image
-                          src={item.image || "/game/shop/placeholder.jpg"}
-                          alt={item.name}
-                          fill
-                          className="object-cover"
-                          sizes="(max-width: 640px) 80px, 100px"
-                        />
-                      </div>
-
-                      <div className="flex flex-col gap-0.5 w-full">
-                        <p className="font-semibold text-white text-[10px] sm:text-xs leading-tight line-clamp-2">{item.name}</p>
-                        <p className="text-[9px] text-cyan-400 font-medium">
-                          {useUsdc ? `$${Number(item.usdcPrice).toFixed(2)}` : `₦${item.ngnPrice.toFixed(0)}`}
-                        </p>
-                        <p className="text-[8px] text-white/60">Stock: {item.stock}</p>
-                        {(buyingId === item.tokenId || approvingId === item.tokenId || ngnLoadingTokenId === item.tokenId.toString()) && (
-                          <span className="text-[9px] text-cyan-400 flex items-center justify-center gap-1 mt-0.5">
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                          </span>
-                        )}
-                      </div>
-                    </motion.button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
-  );
 
   const burnConfirmOverlay = (
     <AnimatePresence>
@@ -1203,20 +671,17 @@ export default function CollectibleInventoryBar({
           <span className="inline-flex items-center justify-center min-w-[2rem] h-7 px-2 rounded-full bg-[#00F0FF]/20 text-[#00F0FF] text-sm font-bold">
             {totalOwned}
           </span>
-          <button
-            ref={buyPerksTriggerRef}
-            onClick={() => setShowMiniShop(true)}
+          <Link
+            href={perkShopHref}
             className="flex items-center justify-center gap-1.5 px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl bg-[#003B3E] border border-[#00F0FF]/30 text-[#00F0FF] text-sm font-semibold hover:bg-[#00F0FF]/10 hover:border-[#00F0FF]/50 transition active:scale-[0.98]"
-            aria-haspopup="dialog"
-            aria-expanded={showMiniShop}
           >
             <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5" />
-            Buy more
-          </button>
+            Perk Shop
+          </Link>
         </div>
 
         {totalOwned === 0 && (
-          <p className="text-slate-400 text-sm py-3">No perks yet. Tap &quot;Buy more&quot; to get some.</p>
+          <p className="text-slate-400 text-sm py-3">No perks yet. Open the Perk Shop to get some.</p>
         )}
 
         <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-3">
@@ -1265,9 +730,6 @@ export default function CollectibleInventoryBar({
         </div>
       </div>
 
-      {overlayPortalTarget
-        ? createPortal(miniShopOverlay, overlayPortalTarget)
-        : miniShopOverlay}
       {overlayPortalTarget
         ? createPortal(burnConfirmOverlay, overlayPortalTarget)
         : burnConfirmOverlay}
