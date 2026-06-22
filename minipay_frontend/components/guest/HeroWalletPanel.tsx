@@ -17,6 +17,10 @@ import {
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { toast } from "react-toastify";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
+import {
+  isRegistrationConflictError,
+  resolveRegistrationConflict,
+} from "@/lib/utils/registrationErrors";
 import { apiClient } from "@/lib/api";
 import { getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
 import { User as UserType } from "@/lib/types/users";
@@ -325,10 +329,7 @@ const HeroWalletPanel: React.FC<HeroWalletPanelProps> = ({ onReturningPlayerChan
         return;
       }
 
-      const isAlreadyExists =
-        e?.status === 409 ||
-        e?.response?.status === 409 ||
-        /already exists|already registered|username.*taken|user.*exists/i.test(e?.message ?? "");
+      const isAlreadyExists = isRegistrationConflictError(err);
 
       if (isAlreadyExists && isUserRegistered === true) {
         try {
@@ -347,7 +348,19 @@ const HeroWalletPanel: React.FC<HeroWalletPanelProps> = ({ onReturningPlayerChan
       }
 
       if (isAlreadyExists && isUserRegistered !== true) {
-        toast.info("Sign the registration transaction in your wallet to finish on-chain setup.");
+        const conflict = await resolveRegistrationConflict(
+          address,
+          finalUsername,
+          err,
+          user
+        );
+        if (conflict.kind === "username-taken") {
+          toast.error(conflict.message);
+        } else if (conflict.kind === "finish-on-chain") {
+          toast.info(conflict.message);
+        } else {
+          toast.error(conflict.message);
+        }
         return;
       }
 

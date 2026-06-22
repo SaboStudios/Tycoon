@@ -7,6 +7,13 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 import { apiClient } from "@/lib/api";
+import {
+  getPerkActivationError,
+  getPerkApiMessage,
+  getPerkFailureFallback,
+  getPerkPreBurnBlockMessage,
+  perkApiSucceeded,
+} from "@/lib/perks/perkActivationErrors";
 import { normalizeAiTip, AI_TIP_FALLBACK } from "@/lib/simplifyAiTip";
 import { socketService } from "@/lib/socket";
 import { ApiResponse } from "@/types/api";
@@ -68,8 +75,6 @@ const BoardScene = dynamic(
 );
 
 const PERK_CASH_TIERS = [0, 100, 250, 500, 700, 1000];
-const PERK_REFUND_TIERS = [0, 60, 150, 300, 420, 600];
-const PERK_DISCOUNT_TIERS = [0, 100, 200, 300, 400, 500];
 
 function useBoardProperties(boardId?: string | null, catalogEnabled = true) {
   const effectiveBoard = (boardId?.trim() || "default").toLowerCase();
@@ -1221,14 +1226,25 @@ function Board3DMobileContent() {
   const handleUsePerkFromBar = useCallback(
     (tokenId: bigint, perk: number, _strength: number, name: string) => {
       if (perk === 6 || perk === 10) {
-        setShowPerksModal(true);
+        if (!showPerksModal) setShowPerksModal(true);
         return;
       }
+      const blockMsg = getPerkPreBurnBlockMessage({
+        perkId: perk,
+        isMyTurn,
+        playerCanRoll,
+        inJail: meInJail,
+      });
+      if (blockMsg) {
+        toast.error(blockMsg);
+        return;
+      }
+      setShowPerksModal(false);
       burnConfirmedRef.current = false;
       resetBurn();
       setPendingBarPerk({ tokenId, perk, strength: _strength, name });
     },
-    [resetBurn]
+    [resetBurn, showPerksModal, isMyTurn, playerCanRoll, meInJail]
   );
 
   useEffect(() => {
@@ -1240,92 +1256,87 @@ function Board3DMobileContent() {
     (async () => {
       try {
         let success = false;
+        let failureMessage: string | null = null;
         switch (perk) {
           case 1:
             if (playerCanRoll) {
               toast.success("Extra Turn! Roll again.", { id: toastId });
               handleRollForLive();
               success = true;
+            } else {
+              failureMessage =
+                getPerkPreBurnBlockMessage({
+                  perkId: 1,
+                  isMyTurn,
+                  playerCanRoll: false,
+                  inJail: meInJail,
+                }) ?? getPerkFailureFallback(1);
             }
             break;
           case 2: {
-            const res = await apiClient.post<{ success?: boolean }>("/perks/use-jail-free", {
+            const res = await apiClient.post<{ success?: boolean; message?: string }>("/perks/use-jail-free", {
               game_id: game.id,
               from_collectible: true,
               ...(me?.address ? { address: me.address } : {}),
             });
-            success = res?.data?.success ?? false;
-            if (success) toast.success("Escaped jail!", { id: toastId });
+            success = perkApiSucceeded(res);
+            if (success) {
+              toast.success("Escaped jail!", { id: toastId });
+            } else {
+              failureMessage = getPerkApiMessage(res, getPerkFailureFallback(2));
+            }
             break;
           }
           case 3:
           case 4:
           case 7:
+          case 8:
+          case 9:
           case 11:
           case 12:
           case 13:
           case 14: {
-            const res = await apiClient.post<{ success?: boolean }>("/perks/activate", {
+            const res = await apiClient.post<{ success?: boolean; message?: string }>("/perks/activate", {
               game_id: game.id,
               perk_id: perk,
               ...(me?.address ? { address: me.address } : {}),
             });
-            success = res?.data?.success ?? false;
-            if (success) toast.success(`${name} activated for next use!`, { id: toastId });
+            success = perkApiSucceeded(res);
+            if (success) {
+              toast.success(`${name} activated for next use!`, { id: toastId });
+            } else {
+              failureMessage = getPerkApiMessage(res, getPerkFailureFallback(perk));
+            }
             break;
           }
           case 5: {
             const amount = PERK_CASH_TIERS[Math.min(strength, PERK_CASH_TIERS.length - 1)];
-            const res = await apiClient.post<{ success?: boolean; reward?: number }>("/perks/burn-cash", {
+            const res = await apiClient.post<{ success?: boolean; reward?: number; message?: string }>("/perks/burn-cash", {
               game_id: game.id,
               from_collectible: true,
               amount,
               ...(me?.address ? { address: me.address } : {}),
             });
-            success = res?.data?.success ?? false;
+            success = perkApiSucceeded(res);
             const reward = res?.data?.reward ?? amount;
-            if (success) toast.success(`+$${reward} Instant Cash!`, { id: toastId });
-            break;
-          }
-          case 8: {
-            const discount = PERK_DISCOUNT_TIERS[Math.min(strength, PERK_DISCOUNT_TIERS.length - 1)];
-            if (discount > 0) {
-              const res = await apiClient.post<{ success?: boolean }>("/perks/apply-cash", {
-                game_id: game.id,
-                perk_id: 8,
-                amount: discount,
-                from_collectible: true,
-              });
-              success = res?.data?.success ?? false;
-              if (success) toast.success(`+$${discount} Property Discount!`, { id: toastId });
-            }
-            break;
-          }
-          case 9: {
-            const refund = PERK_REFUND_TIERS[Math.min(strength, PERK_REFUND_TIERS.length - 1)];
-            if (refund > 0) {
-              const res = await apiClient.post<{ success?: boolean }>("/perks/apply-cash", {
-                game_id: game.id,
-                perk_id: 9,
-                amount: refund,
-                from_collectible: true,
-              });
-              success = res?.data?.success ?? false;
-              if (success) toast.success(`+$${refund} Tax Refund!`, { id: toastId });
+            if (success) {
+              toast.success(`+$${reward} Instant Cash!`, { id: toastId });
+            } else {
+              failureMessage = getPerkApiMessage(res, getPerkFailureFallback(5));
             }
             break;
           }
           default:
             break;
         }
-        if (success || perk === 1) {
+        if (success) {
           toast.success("Perk used & collectible burned!", { id: toastId });
+          await refetchGame();
         } else if (perk !== 6 && perk !== 10) {
-          toast.error("Effect failed", { id: toastId });
+          toast.error(failureMessage ?? getPerkFailureFallback(perk), { id: toastId });
         }
-        await refetchGame();
-      } catch {
-        toast.error("Activation failed", { id: toastId });
+      } catch (err) {
+        toast.error(getPerkActivationError(err, "Activation failed"), { id: toastId });
       } finally {
         burnConfirmedRef.current = false;
         resetBurn();
@@ -1341,6 +1352,8 @@ function Board3DMobileContent() {
     handleRollForLive,
     refetchGame,
     resetBurn,
+    meInJail,
+    isMyTurn,
   ]);
 
   const handleDiceCompleteForLive = useCallback(async () => {
@@ -2826,6 +2839,7 @@ function Board3DMobileContent() {
         triggerSpecialLanding={triggerLandingLogic}
         endTurnAfterSpecial={endTurnAfterSpecialMove}
         onPerkApplied={refetchGame}
+        playerCanRoll={playerCanRoll}
       />
 
       {/* End game by net worth — confirm modal */}
