@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   useAccount,
   useChainId,
@@ -62,7 +63,13 @@ import {
   REWARD_OWNED_SLOT_SCAN_CAP,
   takeTokenIdsUntilFirstFailure,
 } from "@/lib/rewardOwnedEnumerable";
-import { getPerkShopAsset } from "@/lib/perkShopAssets";
+import { getPerkShopAsset, isShopPerkHidden } from "@/lib/perkShopAssets";
+
+/** Full-viewport overlays must portal out of board modals (transform/overflow break `position: fixed` on many mobile WebViews). */
+function getOverlayPortalTarget(): HTMLElement | null {
+  if (typeof document === "undefined") return null;
+  return (document.fullscreenElement as HTMLElement | null) ?? document.body;
+}
 
 const COLLECTIBLE_ID_START = 2_000_000_000;
 
@@ -152,7 +159,15 @@ export default function CollectibleInventoryBar({
   const [useUsdc, setUseUsdc] = useState(true);
   const miniShopSheetRef = useRef<HTMLDivElement>(null);
   const buyPerksTriggerRef = useRef<HTMLButtonElement>(null);
+  const [overlayPortalTarget, setOverlayPortalTarget] = useState<HTMLElement | null>(null);
   useFocusTrap(miniShopSheetRef, showMiniShop, buyPerksTriggerRef);
+
+  useEffect(() => {
+    setOverlayPortalTarget(getOverlayPortalTarget());
+    const onFullscreenChange = () => setOverlayPortalTarget(getOverlayPortalTarget());
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
   const [buyingId, setBuyingId] = useState<bigint | null>(null);
   const [approvingId, setApprovingId] = useState<bigint | null>(null);
   const [ngnLoadingTokenId, setNgnLoadingTokenId] = useState<string | null>(null);
@@ -452,7 +467,7 @@ export default function CollectibleInventoryBar({
         const [perkBig, , tycPriceBig, usdcPriceBig, stockBig] = res.result as [bigint, bigint, bigint, bigint, bigint];
         const perk = Number(perkBig);
         const stock = Number(stockBig);
-        if (stock === 0) return null;
+        if (stock === 0 || isShopPerkHidden(perk)) return null;
 
         const meta = perkMetadata[perk] ?? perkMetadata[10];
         const shopAsset = getPerkShopAsset(perk);
@@ -881,6 +896,305 @@ export default function CollectibleInventoryBar({
 
   if (!isConnected && validAddresses.length === 0) return null;
 
+  const miniShopOverlay = (
+    <AnimatePresence>
+      {showMiniShop && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowMiniShop(false)}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[10050]"
+          />
+
+          <motion.div
+            ref={miniShopSheetRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="perk-shop-sheet-title"
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            transition={{ type: "spring", damping: 25, stiffness: 280 }}
+            className="
+                fixed inset-x-0 bottom-0
+                z-[10051]
+                max-h-[85dvh] sm:max-h-[90dvh]
+                bg-gradient-to-b from-[#0A1418] to-[#061015]
+                rounded-t-3xl
+                border-t border-cyan-600/30
+                flex flex-col
+                shadow-2xl shadow-black/50
+                overflow-hidden
+              "
+            style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+          >
+            <div className="flex items-center justify-center pt-3 pb-1 shrink-0 bg-[#0A1418]/95" aria-hidden>
+              <div className="w-10 h-1 rounded-full bg-slate-500/60" title="Swipe down to close" />
+            </div>
+            <div className="sticky top-0 z-10 bg-[#0A1418]/95 backdrop-blur-md border-b border-cyan-900/30 px-5 py-4 flex items-center gap-3">
+              <button onClick={() => setShowMiniShop(false)} className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full hover:bg-white/5 transition shrink-0" aria-label="Close Perk Shop">
+                <X className="w-6 h-6 text-gray-300" />
+              </button>
+              <h2 id="perk-shop-sheet-title" className="text-2xl font-bold flex items-center gap-3 text-cyan-300">
+                <ShoppingBag className="w-6 h-6" />
+                Perk Shop
+              </h2>
+            </div>
+
+            <div className="p-5 space-y-3 border-b border-cyan-900/30">
+              <div className="flex items-center gap-2 bg-gray-800/50 px-3 py-2 rounded-lg text-sm">
+                <Wallet className="w-4 h-4 text-cyan-400" />
+                <span className="text-white">USDT: {usdcBal ? Number(usdcBal.formatted).toFixed(2) : "0.00"}</span>
+              </div>
+
+              {(isConnected || smartWalletAddress) && (
+                <div className="flex gap-2">
+                  {isConnected && (
+                    <button
+                      onClick={() => setPayWith('connected')}
+                      className={`flex-1 py-2 rounded-lg border text-xs font-semibold transition ${
+                        payWith === 'connected'
+                          ? "bg-blue-950/80 border-blue-600 text-blue-300"
+                          : "bg-gray-800/50 border-gray-700 text-gray-400 hover:bg-gray-700/50"
+                      }`}
+                    >
+                      Connected Wallet
+                    </button>
+                  )}
+                  {smartWalletAddress && (
+                    <button
+                      onClick={() => setPayWith('smart_wallet')}
+                      className={`flex-1 py-2 rounded-lg border text-xs font-semibold transition ${
+                        payWith === 'smart_wallet'
+                          ? "bg-purple-950/80 border-purple-600 text-purple-300"
+                          : "bg-gray-800/50 border-gray-700 text-gray-400 hover:bg-gray-700/50"
+                      }`}
+                    >
+                      Smart Wallet
+                    </button>
+                  )}
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setUseUsdc(true)}
+                  className={`flex-1 py-3 rounded-xl border text-sm font-semibold transition ${
+                    useUsdc
+                      ? "bg-cyan-950/80 border-cyan-600 text-cyan-300"
+                      : "bg-gray-800/50 border-gray-700 text-gray-400 hover:bg-gray-700/50"
+                  }`}
+                >
+                  USDT
+                </button>
+                <button
+                  onClick={() => setUseUsdc(false)}
+                  className={`flex-1 py-3 rounded-xl border text-sm font-semibold transition ${
+                    !useUsdc
+                      ? "bg-cyan-950/80 border-cyan-600 text-cyan-300"
+                      : "bg-gray-800/50 border-gray-700 text-gray-400 hover:bg-gray-700/50"
+                  }`}
+                >
+                  Naira
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-5 pb-8">
+              {shopItems.length === 0 ? (
+                <div className="py-4">
+                  <EmptyState
+                    icon={<ShoppingBag className="w-14 h-14 text-cyan-500/70" />}
+                    title="No perks in stock right now"
+                    description="New perks are added regularly. Check back later or use your existing perks from My Perks."
+                    compact
+                    className="border-cyan-500/20 bg-[#0E1415]/60"
+                  />
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                  {shopItems.map((item) => (
+                    <motion.button
+                      key={item.tokenId.toString()}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3 }}
+                      onClick={() => handleBuy(item)}
+                      disabled={buyingId === item.tokenId || approvingId === item.tokenId || ngnLoadingTokenId === item.tokenId.toString()}
+                      className={`flex flex-col items-center gap-1.5 text-center transition-all
+                          ${buyingId === item.tokenId || approvingId === item.tokenId || ngnLoadingTokenId === item.tokenId.toString()
+                            ? "opacity-60 cursor-not-allowed"
+                            : "hover:opacity-90 active:scale-[0.98]"}
+                        `}
+                    >
+                      <div className="relative w-16 h-16 sm:w-20 sm:h-20 overflow-hidden rounded-lg border border-white/20 bg-black/30">
+                        <Image
+                          src={item.image || "/game/shop/placeholder.jpg"}
+                          alt={item.name}
+                          fill
+                          className="object-cover"
+                          sizes="(max-width: 640px) 80px, 100px"
+                        />
+                      </div>
+
+                      <div className="flex flex-col gap-0.5 w-full">
+                        <p className="font-semibold text-white text-[10px] sm:text-xs leading-tight line-clamp-2">{item.name}</p>
+                        <p className="text-[9px] text-cyan-400 font-medium">
+                          {useUsdc ? `$${Number(item.usdcPrice).toFixed(2)}` : `₦${item.ngnPrice.toFixed(0)}`}
+                        </p>
+                        <p className="text-[8px] text-white/60">Stock: {item.stock}</p>
+                        {(buyingId === item.tokenId || approvingId === item.tokenId || ngnLoadingTokenId === item.tokenId.toString()) && (
+                          <span className="text-[9px] text-cyan-400 flex items-center justify-center gap-1 mt-0.5">
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          </span>
+                        )}
+                      </div>
+                    </motion.button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+
+  const burnConfirmOverlay = (
+    <AnimatePresence>
+      {pendingPerk && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 z-[10050]"
+            onClick={() => {
+              setPendingPerk(null);
+              setSelectedPositionIndex(null);
+              setSelectedRollTotal(null);
+            }}
+          />
+
+          <motion.div
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            transition={{ type: "spring", damping: 25, stiffness: 280 }}
+            className="
+                fixed inset-x-0 bottom-0
+                z-[10051]
+                max-h-[85dvh]
+                bg-[#0A1418]
+                rounded-t-3xl
+                border-t border-red-600/40
+                shadow-2xl shadow-black/50
+                overflow-y-auto
+              "
+            style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+          >
+            <div className="flex items-center justify-center pt-3 pb-1 shrink-0 bg-[#0A1418]" aria-hidden>
+              <div className="w-10 h-1 rounded-full bg-slate-500/60" />
+            </div>
+            <div className="p-6 text-center mb-15">
+              <Flame className="w-20 h-20 text-red-500 mx-auto mb-6 animate-pulse" />
+              <h2 className="text-3xl font-bold text-white mb-4">Burn Collectible?</h2>
+              <p className="text-2xl text-cyan-300 font-semibold mb-6">{pendingPerk.name}</p>
+
+              <p className="text-red-300 text-lg leading-relaxed mb-8">
+                This action is <strong>permanent</strong>.<br />
+                The collectible will be <strong>burned forever</strong>.
+              </p>
+
+              {(pendingPerk.perkId === 6 || pendingPerk.perkId === 10) && (
+                <div className="mb-10">
+                  <p className="text-xl text-white mb-6">
+                    {pendingPerk.perkId === 6 ? "Choose destination:" : "Choose exact roll:"}
+                  </p>
+
+                  {pendingPerk.perkId === 6 && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-80 overflow-y-auto">
+                      {BOARD_POSITIONS.map((name, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => setSelectedPositionIndex(i)}
+                          className={`py-3 px-4 rounded-xl text-sm font-medium transition-colors ${
+                            selectedPositionIndex === i
+                              ? "bg-cyan-600 text-white shadow-md"
+                              : "bg-gray-800 hover:bg-gray-700 text-gray-200"
+                          }`}
+                        >
+                          {i}. {name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {pendingPerk.perkId === 10 && (
+                    <div className="grid grid-cols-4 sm:grid-cols-6 gap-3">
+                      {[2,3,4,5,6,7,8,9,10,11,12].map((n) => (
+                        <button
+                          key={n}
+                          type="button"
+                          onClick={() => setSelectedRollTotal(n)}
+                          className={`py-6 rounded-xl text-2xl font-bold transition-all ${
+                            selectedRollTotal === n
+                              ? "bg-cyan-600 text-white shadow-md scale-105"
+                              : "bg-gray-800 hover:bg-gray-700 text-gray-200"
+                          }`}
+                        >
+                          {n}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4 mt-8">
+                <button
+                  onClick={() => {
+                    setPendingPerk(null);
+                    setSelectedPositionIndex(null);
+                    setSelectedRollTotal(null);
+                  }}
+                  className="py-5 rounded-2xl bg-gray-800 hover:bg-gray-700 text-white font-bold text-lg transition"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  onClick={handleConfirmBurnAndActivate}
+                  disabled={
+                    isBurning ||
+                    (pendingPerk.perkId === 6 && selectedPositionIndex === null) ||
+                    (pendingPerk.perkId === 10 && selectedRollTotal === null)
+                  }
+                  className="py-5 rounded-2xl bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 disabled:opacity-60 text-white font-bold text-lg flex items-center justify-center gap-3 transition shadow-md"
+                >
+                  {isBurning ? (
+                    <>
+                      <Loader2 className="w-7 h-7 animate-spin" />
+                      Burning...
+                    </>
+                  ) : (
+                    <>
+                      <Flame className="w-7 h-7" />
+                      Burn & Use
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+
   return (
     <>
       {/* PERKS LIST — mobile-optimized: compact header, 2-col grid, clear cards */}
@@ -951,304 +1265,12 @@ export default function CollectibleInventoryBar({
         </div>
       </div>
 
-      {/* MINI SHOP BOTTOM SHEET - Made more mobile-friendly with rounded corners, smoother animations, grid layout option, and better touch handling */}
-      <AnimatePresence>
-        {showMiniShop && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowMiniShop(false)}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9998]"
-            />
-
-            <motion.div
-              ref={miniShopSheetRef}
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="perk-shop-sheet-title"
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 280 }}
-              className="
-                fixed inset-x-0 bottom-0
-                z-[9999]
-                max-h-[85vh] sm:max-h-[90vh]
-                bg-gradient-to-b from-[#0A1418] to-[#061015]
-                rounded-t-3xl
-                border-t border-cyan-600/30
-                flex flex-col
-                shadow-2xl shadow-black/50
-                overflow-hidden
-              "
-              style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
-            >
-              <div className="flex items-center justify-center pt-3 pb-1 shrink-0 bg-[#0A1418]/95" aria-hidden>
-                <div className="w-10 h-1 rounded-full bg-slate-500/60" title="Swipe down to close" />
-              </div>
-              <div className="sticky top-0 z-10 bg-[#0A1418]/95 backdrop-blur-md border-b border-cyan-900/30 px-5 py-4 flex items-center gap-3">
-                <button onClick={() => setShowMiniShop(false)} className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full hover:bg-white/5 transition shrink-0" aria-label="Close Perk Shop">
-                  <X className="w-6 h-6 text-gray-300" />
-                </button>
-                <h2 id="perk-shop-sheet-title" className="text-2xl font-bold flex items-center gap-3 text-cyan-300">
-                  <ShoppingBag className="w-6 h-6" />
-                  Perk Shop
-                </h2>
-              </div>
-
-              <div className="p-5 space-y-3 border-b border-cyan-900/30">
-                <div className="flex items-center gap-2 bg-gray-800/50 px-3 py-2 rounded-lg text-sm">
-                  <Wallet className="w-4 h-4 text-cyan-400" />
-                  <span className="text-white">USDT: {usdcBal ? Number(usdcBal.formatted).toFixed(2) : "0.00"}</span>
-                </div>
-
-                {(isConnected || smartWalletAddress) && (
-                  <div className="flex gap-2">
-                    {isConnected && (
-                      <button
-                        onClick={() => setPayWith('connected')}
-                        className={`flex-1 py-2 rounded-lg border text-xs font-semibold transition ${
-                          payWith === 'connected'
-                            ? "bg-blue-950/80 border-blue-600 text-blue-300"
-                            : "bg-gray-800/50 border-gray-700 text-gray-400 hover:bg-gray-700/50"
-                        }`}
-                      >
-                        Connected Wallet
-                      </button>
-                    )}
-                    {smartWalletAddress && (
-                      <button
-                        onClick={() => setPayWith('smart_wallet')}
-                        className={`flex-1 py-2 rounded-lg border text-xs font-semibold transition ${
-                          payWith === 'smart_wallet'
-                            ? "bg-purple-950/80 border-purple-600 text-purple-300"
-                            : "bg-gray-800/50 border-gray-700 text-gray-400 hover:bg-gray-700/50"
-                        }`}
-                      >
-                        Smart Wallet
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setUseUsdc(true)}
-                    className={`flex-1 py-3 rounded-xl border text-sm font-semibold transition ${
-                      useUsdc
-                        ? "bg-cyan-950/80 border-cyan-600 text-cyan-300"
-                        : "bg-gray-800/50 border-gray-700 text-gray-400 hover:bg-gray-700/50"
-                    }`}
-                  >
-                    USDT
-                  </button>
-                  <button
-                    onClick={() => setUseUsdc(false)}
-                    className={`flex-1 py-3 rounded-xl border text-sm font-semibold transition ${
-                      !useUsdc
-                        ? "bg-cyan-950/80 border-cyan-600 text-cyan-300"
-                        : "bg-gray-800/50 border-gray-700 text-gray-400 hover:bg-gray-700/50"
-                    }`}
-                  >
-                    Naira
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex-1 overflow-y-auto px-5 pb-8">
-                {shopItems.length === 0 ? (
-                  <div className="py-4">
-                    <EmptyState
-                      icon={<ShoppingBag className="w-14 h-14 text-cyan-500/70" />}
-                      title="No perks in stock right now"
-                      description="New perks are added regularly. Check back later or use your existing perks from My Perks."
-                      compact
-                      className="border-cyan-500/20 bg-[#0E1415]/60"
-                    />
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                    {shopItems.map((item) => (
-                      <motion.button
-                        key={item.tokenId.toString()}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.3 }}
-                        onClick={() => handleBuy(item)}
-                        disabled={buyingId === item.tokenId || approvingId === item.tokenId || ngnLoadingTokenId === item.tokenId.toString()}
-                        className={`flex flex-col items-center gap-1.5 text-center transition-all
-                          ${buyingId === item.tokenId || approvingId === item.tokenId || ngnLoadingTokenId === item.tokenId.toString()
-                            ? "opacity-60 cursor-not-allowed"
-                            : "hover:opacity-90 active:scale-[0.98]"}
-                        `}
-                      >
-                        {/* Perk Image Container */}
-                        <div className="relative w-16 h-16 sm:w-20 sm:h-20 overflow-hidden rounded-lg border border-white/20 bg-black/30">
-                          <Image
-                            src={item.image || "/game/shop/placeholder.jpg"}
-                            alt={item.name}
-                            fill
-                            className="object-cover"
-                            sizes="(max-width: 640px) 80px, 100px"
-                          />
-                        </div>
-
-                        {/* Text Below Image */}
-                        <div className="flex flex-col gap-0.5 w-full">
-                          <p className="font-semibold text-white text-[10px] sm:text-xs leading-tight line-clamp-2">{item.name}</p>
-                          <p className="text-[9px] text-cyan-400 font-medium">
-                            {useUsdc ? `$${Number(item.usdcPrice).toFixed(2)}` : `₦${item.ngnPrice.toFixed(0)}`}
-                          </p>
-                          <p className="text-[8px] text-white/60">Stock: {item.stock}</p>
-                          {(buyingId === item.tokenId || approvingId === item.tokenId || ngnLoadingTokenId === item.tokenId.toString()) && (
-                            <span className="text-[9px] text-cyan-400 flex items-center justify-center gap-1 mt-0.5">
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            </span>
-                          )}
-                        </div>
-                      </motion.button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      {/* BURN CONFIRMATION SHEET - Improved with softer colors and better mobile layout */}
-      <AnimatePresence>
-        {pendingPerk && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/70 z-[9998]"
-              onClick={() => {
-                setPendingPerk(null);
-                setSelectedPositionIndex(null);
-                setSelectedRollTotal(null);
-              }}
-            />
-
-            <motion.div
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 280 }}
-              className="
-                fixed inset-x-0 bottom-0
-                z-[100000]
-                max-h-[85vh]
-                bg-[#0A1418]
-                rounded-t-3xl
-                border-t border-red-600/40
-                shadow-2xl shadow-black/50
-                overflow-y-auto
-              "
-              style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
-            >
-              <div className="flex items-center justify-center pt-3 pb-1 shrink-0 bg-[#0A1418]" aria-hidden>
-                <div className="w-10 h-1 rounded-full bg-slate-500/60" />
-              </div>
-              <div className="p-6 text-center mb-15">
-                <Flame className="w-20 h-20 text-red-500 mx-auto mb-6 animate-pulse" />
-                <h2 className="text-3xl font-bold text-white mb-4">Burn Collectible?</h2>
-                <p className="text-2xl text-cyan-300 font-semibold mb-6">{pendingPerk.name}</p>
-
-                <p className="text-red-300 text-lg leading-relaxed mb-8">
-                  This action is <strong>permanent</strong>.<br />
-                  The collectible will be <strong>burned forever</strong>.
-                </p>
-
-                {(pendingPerk.perkId === 6 || pendingPerk.perkId === 10) && (
-                  <div className="mb-10">
-                    <p className="text-xl text-white mb-6">
-                      {pendingPerk.perkId === 6 ? "Choose destination:" : "Choose exact roll:"}
-                    </p>
-
-                    {pendingPerk.perkId === 6 && (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-80 overflow-y-auto">
-                        {BOARD_POSITIONS.map((name, i) => (
-                          <button
-                            key={i}
-                            type="button"
-                            onClick={() => setSelectedPositionIndex(i)}
-                            className={`py-3 px-4 rounded-xl text-sm font-medium transition-colors ${
-                              selectedPositionIndex === i
-                                ? "bg-cyan-600 text-white shadow-md"
-                                : "bg-gray-800 hover:bg-gray-700 text-gray-200"
-                            }`}
-                          >
-                            {i}. {name}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-
-                    {pendingPerk.perkId === 10 && (
-                      <div className="grid grid-cols-4 sm:grid-cols-6 gap-3">
-                        {[2,3,4,5,6,7,8,9,10,11,12].map((n) => (
-                          <button
-                            key={n}
-                            type="button"
-                            onClick={() => setSelectedRollTotal(n)}
-                            className={`py-6 rounded-xl text-2xl font-bold transition-all ${
-                              selectedRollTotal === n
-                                ? "bg-cyan-600 text-white shadow-md scale-105"
-                                : "bg-gray-800 hover:bg-gray-700 text-gray-200"
-                            }`}
-                          >
-                            {n}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-4 mt-8">
-                  <button
-                    onClick={() => {
-                      setPendingPerk(null);
-                      setSelectedPositionIndex(null);
-                      setSelectedRollTotal(null);
-                    }}
-                    className="py-5 rounded-2xl bg-gray-800 hover:bg-gray-700 text-white font-bold text-lg transition"
-                  >
-                    Cancel
-                  </button>
-
-                  <button
-                    onClick={handleConfirmBurnAndActivate}
-                    disabled={
-                      isBurning ||
-                      (pendingPerk.perkId === 6 && selectedPositionIndex === null) ||
-                      (pendingPerk.perkId === 10 && selectedRollTotal === null)
-                    }
-                    className="py-5 rounded-2xl bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 disabled:opacity-60 text-white font-bold text-lg flex items-center justify-center gap-3 transition shadow-md"
-                  >
-                    {isBurning ? (
-                      <>
-                        <Loader2 className="w-7 h-7 animate-spin" />
-                        Burning...
-                      </>
-                    ) : (
-                      <>
-                        <Flame className="w-7 h-7" />
-                        Burn & Use
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      {overlayPortalTarget
+        ? createPortal(miniShopOverlay, overlayPortalTarget)
+        : miniShopOverlay}
+      {overlayPortalTarget
+        ? createPortal(burnConfirmOverlay, overlayPortalTarget)
+        : burnConfirmOverlay}
     </>
   );
 }
