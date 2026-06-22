@@ -49,7 +49,7 @@ const PERKS = [
   { id: 2, name: "Jail Free Card", desc: "Escape jail instantly!" },
   { id: 3, name: "Double Rent", desc: "Next rent doubled!" },
   { id: 4, name: "Roll Boost", desc: "Bonus to next roll!" },
-  { id: 5, name: "Instant Cash", desc: "Burn for tiered TYC!" },
+  { id: 5, name: "Instant Cash", desc: "Burn for tiered in-game cash ($100–$1000)!" },
   { id: 6, name: "Teleport", desc: "Move to any property!" },
   { id: 7, name: "Shield", desc: "Protect from rent/fees!" },
   { id: 8, name: "Property Discount", desc: "30-50% off next buy!" },

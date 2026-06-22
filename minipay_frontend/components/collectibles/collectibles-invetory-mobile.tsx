@@ -35,7 +35,15 @@ import { Game, GameProperty } from "@/types/game";
 import { useRewardBurnCollectible } from "@/context/ContractProvider";
 import { apiClient } from "@/lib/api";
 import { refreshGameStateAfterPerk } from "@/lib/perks/refreshGameStateAfterPerk";
+import {
+  getPerkActivationError,
+  getPerkApiMessage,
+  getPerkFailureFallback,
+  getPerkPreBurnBlockMessage,
+  perkApiSucceeded,
+} from "@/lib/perks/perkActivationErrors";
 import { ApiResponse } from "@/types/api";
+import { JAIL_POSITION } from "@/utils/constants/monopoly";
 import {
   buildMergedHolderSlotCalls,
   mergeSlotScanResultsForHolders,
@@ -63,8 +71,6 @@ const BOARD_POSITIONS = [
 ];
 
 const CASH_TIERS = [0, 100, 250, 500, 700, 1000];
-const REFUND_TIERS = [0, 60, 150, 300, 420, 600];
-const DISCOUNT_TIERS = [0, 100, 200, 300, 400, 500];
 
 const perkMetadata: Record<number, {
   name: string;
@@ -77,11 +83,11 @@ const perkMetadata: Record<number, {
   2: { name: "Jail Free Card", icon: <Crown className="w-10 h-10" />, gradient: "from-purple-600 to-pink-600", canBeActivated: true, fakeDescription: "Use when in Jail to get out without paying or rolling doubles." },
   3: { name: "Double Rent", icon: <Coins className="w-10 h-10" />, gradient: "from-green-600 to-emerald-600", canBeActivated: true, fakeDescription: "When someone lands on your property, charge double the normal rent once." },
   4: { name: "Roll Boost", icon: <Sparkles className="w-10 h-10" />, gradient: "from-blue-600 to-cyan-600", canBeActivated: true, fakeDescription: "Add +1 to your next dice roll (capped at 12)." },
-  5: { name: "Instant Cash", icon: <Gem className="w-10 h-10" />, gradient: "from-cyan-600 to-teal-600", canBeActivated: true, fakeDescription: "Burn to receive TYC based on tier (100–1000)." },
+  5: { name: "Instant Cash", icon: <Gem className="w-10 h-10" />, gradient: "from-cyan-600 to-teal-600", canBeActivated: true, fakeDescription: "Burn to receive in-game cash based on tier ($100–$1000) for rent and property buys." },
   6: { name: "Teleport", icon: <Zap className="w-10 h-10" />, gradient: "from-pink-600 to-rose-600", canBeActivated: true, fakeDescription: "Move your token to any property on the board." },
   7: { name: "Shield", icon: <Shield className="w-10 h-10" />, gradient: "from-indigo-600 to-blue-600", canBeActivated: true, fakeDescription: "Block the next rent or fee you would pay (one use)." },
   8: { name: "Property Discount", icon: <Coins className="w-10 h-10" />, gradient: "from-orange-600 to-red-600", canBeActivated: true, fakeDescription: "Get 30–50% off the next property you buy (tiered)." },
-  9: { name: "Tax Refund", icon: <Gem className="w-10 h-10" />, gradient: "from-teal-600 to-cyan-600", canBeActivated: true, fakeDescription: "Receive TYC back when you pay Income or Luxury Tax (tiered)." },
+  9: { name: "Tax Refund", icon: <Gem className="w-10 h-10" />, gradient: "from-teal-600 to-cyan-600", canBeActivated: true, fakeDescription: "Get in-game cash back when you pay Income or Luxury Tax (tiered)." },
   10: { name: "Exact Roll", icon: <Sparkles className="w-10 h-10" />, gradient: "from-amber-600 to-yellow-500", canBeActivated: true, fakeDescription: "Choose your next roll (2–12) instead of rolling the dice." },
   11: { name: "Rent Cashback", icon: <Percent className="w-10 h-10" />, gradient: "from-emerald-600 to-green-600", canBeActivated: true, fakeDescription: "Next rent you receive is +25% extra." },
   12: { name: "Interest", icon: <CircleDollarSign className="w-10 h-10" />, gradient: "from-lime-600 to-green-600", canBeActivated: true, fakeDescription: "At the start of your next turn, receive $200." },
@@ -103,6 +109,8 @@ interface CollectibleInventoryBarProps {
   onPerkApplied?: () => void | Promise<void>;
   /** Board chip bar path: simple confirm + burn on the board page (same as PerksBar). */
   onUsePerk?: (tokenId: bigint, perk: number, strength: number, name: string) => void;
+  /** When set, used for Extra Turn and other roll-gated perks in the My Perks sheet. */
+  playerCanRoll?: boolean;
 }
 
 export default function CollectibleInventoryBar({
@@ -115,6 +123,7 @@ export default function CollectibleInventoryBar({
   userWalletAddresses,
   onPerkApplied,
   onUsePerk,
+  playerCanRoll,
 }: CollectibleInventoryBarProps) {
   const { address: wagmiAddress, isConnected } = useAccount();
   const pathname = usePathname();
@@ -160,6 +169,10 @@ export default function CollectibleInventoryBar({
     if (!address || !game?.players) return null;
     return game.players.find(p => p.address?.toLowerCase() === address.toLowerCase()) || null;
   }, [address, game?.players]);
+
+  const playerInJail = !!(
+    currentPlayer?.in_jail && Number(currentPlayer?.position) === JAIL_POSITION
+  );
 
   const getRealPlayerId = (walletAddress: string | undefined): number | null => {
     if (!walletAddress) return null;
@@ -345,6 +358,17 @@ export default function CollectibleInventoryBar({
       return;
     }
 
+    const blockMsg = getPerkPreBurnBlockMessage({
+      perkId,
+      isMyTurn,
+      playerCanRoll,
+      inJail: playerInJail,
+    });
+    if (blockMsg) {
+      toast.error(blockMsg);
+      return;
+    }
+
     if (isBurning) {
       toast("Wait for your perk to finish...", { icon: "⏳" });
       return;
@@ -371,131 +395,123 @@ export default function CollectibleInventoryBar({
     (async () => {
       try {
         let success = false;
+        let failureMessage: string | null = null;
 
         switch (perkId) {
-          case 1: // Extra Turn
-            toast.success("Extra Turn activated! Roll again!", { id: toastId });
-            setTimeout(() => ROLL_DICE(), 800);
-            success = true;
-            break;
-          case 2: // Jail Free Card — unified perk API
-            try {
-              const res = await apiClient.post<{ success?: boolean }>("/perks/use-jail-free", {
-                game_id: game.id,
-                from_collectible: true,
-              });
-              success = res?.data?.success ?? false;
-              if (success) toast.success("Escaped jail! 🚔➡️🛤️", { id: toastId });
-            } catch {
-              toast.error("Failed to use Jail Free", { id: toastId });
+          case 1: {
+            const canRoll =
+              playerCanRoll ??
+              (isMyTurn && (currentPlayer?.balance ?? 0) > 0 && !playerInJail);
+            if (canRoll) {
+              toast.success("Extra Turn activated! Roll again!", { id: toastId });
+              setTimeout(() => ROLL_DICE(), 800);
+              success = true;
+            } else {
+              failureMessage =
+                getPerkPreBurnBlockMessage({
+                  perkId: 1,
+                  isMyTurn,
+                  playerCanRoll: false,
+                  inJail: playerInJail,
+                }) ?? getPerkFailureFallback(1);
             }
             break;
-          case 5: // Instant Cash — unified perk API
-            try {
-              const amount = CASH_TIERS[Math.min(strength, CASH_TIERS.length - 1)];
-              const res = await apiClient.post<{ success?: boolean; reward?: number }>("/perks/burn-cash", {
-                game_id: game.id,
-                from_collectible: true,
-                amount,
-              });
-              success = res?.data?.success ?? false;
-              const reward = res?.data?.reward ?? amount;
-              if (success) toast.success(`+$${reward} Instant Cash!`, { id: toastId });
-            } catch {
-              toast.error("Failed to use Instant Cash", { id: toastId });
+          }
+          case 2: {
+            const res = await apiClient.post<{ success?: boolean; message?: string }>("/perks/use-jail-free", {
+              game_id: game.id,
+              from_collectible: true,
+            });
+            success = perkApiSucceeded(res);
+            if (success) {
+              toast.success("Escaped jail! 🚔➡️🛤️", { id: toastId });
+            } else {
+              failureMessage = getPerkApiMessage(res, getPerkFailureFallback(2));
             }
             break;
-          case 8: // Property Discount — unified perk API
-            try {
-              const discount = DISCOUNT_TIERS[Math.min(strength, DISCOUNT_TIERS.length - 1)];
-              const res = await apiClient.post<{ success?: boolean }>("/perks/apply-cash", {
-                game_id: game.id,
-                perk_id: 8,
-                amount: discount,
-                from_collectible: true,
-              });
-              success = res?.data?.success ?? false;
-              if (success && discount > 0) toast.success(`+$${discount} Property Discount!`, { id: toastId });
-            } catch {
-              toast.error("Failed to use Property Discount", { id: toastId });
+          }
+          case 5: {
+            const amount = CASH_TIERS[Math.min(strength, CASH_TIERS.length - 1)];
+            const res = await apiClient.post<{ success?: boolean; reward?: number; message?: string }>("/perks/burn-cash", {
+              game_id: game.id,
+              from_collectible: true,
+              amount,
+            });
+            success = perkApiSucceeded(res);
+            const reward = res?.data?.reward ?? amount;
+            if (success) {
+              toast.success(`+$${reward} Instant Cash!`, { id: toastId });
+            } else {
+              failureMessage = getPerkApiMessage(res, getPerkFailureFallback(5));
             }
             break;
-          case 9: // Tax Refund — unified perk API
-            try {
-              const refund = REFUND_TIERS[Math.min(strength, REFUND_TIERS.length - 1)];
-              const res = await apiClient.post<{ success?: boolean }>("/perks/apply-cash", {
-                game_id: game.id,
-                perk_id: 9,
-                amount: refund,
-                from_collectible: true,
-              });
-              success = res?.data?.success ?? false;
-              if (success) toast.success(`+$${refund} Tax Refund!`, { id: toastId });
-            } catch {
-              toast.error("Failed to use Tax Refund", { id: toastId });
+          }
+          case 3:
+          case 4:
+          case 7:
+          case 8:
+          case 9:
+          case 11:
+          case 12:
+          case 13:
+          case 14: {
+            const res = await apiClient.post<{ success?: boolean; message?: string }>("/perks/activate", {
+              game_id: game.id,
+              perk_id: perkId,
+            });
+            success = perkApiSucceeded(res);
+            if (success) {
+              toast.success(perkId === 13 ? "Lucky 7! Next roll will be 7." : `${name} activated!`, { id: toastId });
+            } else {
+              failureMessage = getPerkApiMessage(res, getPerkFailureFallback(perkId));
             }
             break;
-          case 3: // Double Rent
-          case 4: // Roll Boost
-          case 7: // Shield
-          case 11: // Rent Cashback
-          case 12: // Interest
-          case 13: // Lucky 7
-          case 14: // Free Parking Bonus
-            try {
-              const res = await apiClient.post<{ success?: boolean }>("/perks/activate", {
-                game_id: game.id,
-                perk_id: perkId,
-              });
-              success = res?.data?.success ?? res?.success ?? false;
-              if (success) toast.success(perkId === 13 ? "Lucky 7! Next roll will be 7." : `${name} activated!`, { id: toastId });
-            } catch {
-              toast.error("Failed to activate perk", { id: toastId });
-            }
-            break;
-          case 6: // Teleport — unified perk API
+          }
+          case 6:
             if (selectedPositionIndex !== null) {
-              try {
-                const res = await apiClient.post<{ success?: boolean; data?: { new_position?: number } }>("/perks/teleport", {
-                  game_id: game.id,
-                  target_position: selectedPositionIndex,
-                  from_collectible: true,
-                });
-                success = res?.data?.success ?? false;
-                if (success) {
-                  if (triggerSpecialLanding) triggerSpecialLanding(selectedPositionIndex, true);
-                  toast.success(`${name} activated! Moved!`, { id: toastId });
-                }
-              } catch {
-                toast.error("Teleport failed", { id: toastId });
+              const res = await apiClient.post<{ success?: boolean; data?: { new_position?: number }; message?: string }>("/perks/teleport", {
+                game_id: game.id,
+                target_position: selectedPositionIndex,
+                from_collectible: true,
+              });
+              success = perkApiSucceeded(res);
+              if (success) {
+                if (triggerSpecialLanding) triggerSpecialLanding(selectedPositionIndex, true);
+                toast.success(`${name} activated! Moved!`, { id: toastId });
+              } else {
+                failureMessage = getPerkApiMessage(res, getPerkFailureFallback(6));
               }
+            } else {
+              failureMessage = "Select a destination on the board first.";
             }
             break;
-          case 10: // Exact Roll — unified perk API
+          case 10:
             if (selectedRollTotal != null && selectedRollTotal >= 2 && selectedRollTotal <= 12) {
-              try {
-                const res = await apiClient.post<{ success?: boolean }>("/perks/exact-roll", {
-                  game_id: game.id,
-                  chosen_total: selectedRollTotal,
-                  from_collectible: true,
-                });
-                success = res?.data?.success ?? false;
-                if (success) toast.success(`Next roll will be ${selectedRollTotal}!`, { id: toastId });
-              } catch {
-                toast.error("Exact Roll failed", { id: toastId });
+              const res = await apiClient.post<{ success?: boolean; message?: string }>("/perks/exact-roll", {
+                game_id: game.id,
+                chosen_total: selectedRollTotal,
+                from_collectible: true,
+              });
+              success = perkApiSucceeded(res);
+              if (success) {
+                toast.success(`Next roll will be ${selectedRollTotal}!`, { id: toastId });
+              } else {
+                failureMessage = getPerkApiMessage(res, getPerkFailureFallback(10));
               }
+            } else {
+              failureMessage = "Choose a roll total between 2 and 12.";
             }
             break;
         }
 
-        if (success || perkId === 1) {
+        if (success) {
           await refreshGameStateAfterPerk(onPerkApplied);
           toast.success(`${name} activated & collectible burned! 🔥`, { id: toastId });
         } else {
-          toast.error("Effect failed — contact support", { id: toastId });
+          toast.error(failureMessage ?? getPerkFailureFallback(perkId), { id: toastId });
         }
       } catch (err) {
-        toast.error("Activation failed", { id: toastId });
+        toast.error(getPerkActivationError(err, "Activation failed"), { id: toastId });
       } finally {
         burnConfirmedRef.current = false;
         resetBurn();
@@ -514,6 +530,9 @@ export default function CollectibleInventoryBar({
     selectedRollTotal,
     resetBurn,
     onPerkApplied,
+    playerCanRoll,
+    playerInJail,
+    isMyTurn,
   ]);
 
   const handleConfirmBurnAndActivate = async () => {

@@ -45,6 +45,8 @@ interface Mobile3DGameUIProps {
   onPlayersModalOpen?: () => void;
   /** Refetch game state after a perk updates server-side player data. */
   onPerkApplied?: () => void | Promise<void>;
+  /** When false, Extra Turn and other roll-gated perks show a specific error instead of burning. */
+  playerCanRoll?: boolean;
 }
 
 export default function Mobile3DGameUI({
@@ -75,6 +77,7 @@ export default function Mobile3DGameUI({
   chatUnreadCount = 0,
   onPlayersModalOpen,
   onPerkApplied,
+  playerCanRoll,
 }: Mobile3DGameUIProps) {
   const hasGame = !!game;
 
@@ -367,6 +370,7 @@ export default function Mobile3DGameUI({
                     userAddress={me?.address}
                     onPerkApplied={onPerkApplied}
                     onUsePerk={onUsePerk}
+                    playerCanRoll={playerCanRoll}
                   />
                 ) : (
                   <p className="text-slate-500 text-sm py-4">Join a game to see your perks.</p>
