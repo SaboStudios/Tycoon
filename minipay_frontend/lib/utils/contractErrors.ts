@@ -144,7 +144,8 @@ export function isBenignTradeTimingError(error: unknown): boolean {
     raw.includes("trade not available") ||
     raw.includes("already resolved") ||
     raw.includes("no longer pending") ||
-    raw.includes("already declined")
+    raw.includes("already declined") ||
+    raw.includes("trade not found")
   );
 }
 
@@ -192,6 +193,7 @@ export function getContractErrorMessage(
 
   // Stale turn / double-submit races — never show a toast (all board paths use this helper or should).
   if (isBenignTurnOrderError(error)) return "";
+  if (isSqlBackendError(error)) return "";
 
   // Insufficient funds for gas
   if (
@@ -310,17 +312,33 @@ const SQL_TOAST_PATTERNS = [
   /\bER_[A-Z0-9_]+\b/,
   /sql syntax/i,
   /you have an error in your sql/i,
+  /duplicate entry/i,
+  /column count/i,
+  /unknown column/i,
 ];
+
+/** Raw SQL / DB errors from the API — never show to players. */
+export function isSqlBackendError(error: unknown): boolean {
+  const hay = `${getApiErrorDetail(error)} ${collectErrorText(error)}`.trim();
+  if (!hay) return false;
+  return SQL_TOAST_PATTERNS.some((p) => p.test(hay));
+}
+
+/** Trade failures that should log only (races, stale state, internal DB noise). */
+export function shouldSuppressTradeError(error: unknown): boolean {
+  return (
+    isBenignTurnOrderError(error) ||
+    isBenignTradeTimingError(error) ||
+    isSqlBackendError(error)
+  );
+}
 
 /** Never show raw SQL / DB errors in toasts — log stays in console. */
 export function sanitizeApiErrorForToast(detail: string, fallback: string): string {
   const trimmed = detail.trim();
   if (!trimmed) return fallback;
   if (SQL_TOAST_PATTERNS.some((p) => p.test(trimmed))) {
-    if (/game_play(?:er)?_history/i.test(trimmed)) {
-      return "The trade could not be completed — please try again.";
-    }
-    return fallback;
+    return "";
   }
   if (trimmed.length > 120) return fallback;
   return trimmed;
@@ -350,30 +368,12 @@ export function getTradeErrorMessage(
   error: unknown,
   fallback = "Could not update this trade. Try refreshing the trade list."
 ): string {
+  if (shouldSuppressTradeError(error)) return "";
+
   const raw = getApiErrorDetail(error);
   if (!raw) return fallback;
   const lower = raw.toLowerCase();
 
-  if (
-    lower.includes("auto-declined") ||
-    lower.includes("rolled without") ||
-    lower.includes("finish your roll") ||
-    lower.includes("when you move") ||
-    lower.includes("when you rolled")
-  ) {
-    return raw.length <= 200 ? raw : "This trade expired — unanswered incoming offers are declined when you finish rolling and move.";
-  }
-  if (
-    lower.includes("trade not available") ||
-    lower.includes("already resolved") ||
-    lower.includes("no longer pending") ||
-    lower.includes("already declined")
-  ) {
-    return "This trade is no longer available. If you rolled first, incoming offers are auto-declined when your move completes.";
-  }
-  if (lower.includes("trade not found")) {
-    return "That trade no longer exists — refresh the trade list.";
-  }
   if (lower.includes("target player is in jail")) {
     return "You can't trade with a player who is in jail.";
   }

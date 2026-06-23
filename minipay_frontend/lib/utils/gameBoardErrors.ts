@@ -3,8 +3,9 @@ import { showBoardNotice, type BoardNoticeSeverity } from "@/lib/boardNotice";
 import {
   getContractErrorMessage,
   getTradeErrorMessage,
-  isBenignTradeTimingError,
   isBenignTurnOrderError,
+  isSqlBackendError,
+  shouldSuppressTradeError,
 } from "./contractErrors";
 
 export function isBoardGameRoute(): boolean {
@@ -22,7 +23,7 @@ function showOnBoard(message: string, severity: BoardNoticeSeverity = "error") {
 /** Error feedback on the live board: notice strip (no error toasts). */
 export function gameBoardToastError(message: string, options?: BoardErrorOptions): void {
   const msg = message.trim();
-  if (!msg || isBenignTurnOrderError({ message: msg })) return;
+  if (!msg || isBenignTurnOrderError({ message: msg }) || isSqlBackendError({ message: msg })) return;
   if (isBoardGameRoute()) {
     showOnBoard(msg, options?.severity ?? "error");
     return;
@@ -36,7 +37,7 @@ export function gameBoardContractError(
   fallback: string,
   options?: BoardErrorOptions
 ): void {
-  if (isBenignTurnOrderError(error)) return;
+  if (isBenignTurnOrderError(error) || isSqlBackendError(error)) return;
   const msg = getContractErrorMessage(error, fallback).trim();
   if (!msg) return;
   if (isBoardGameRoute()) {
@@ -49,7 +50,7 @@ export function gameBoardContractError(
 
 /** Trade errors on the live board: notice strip. */
 export function gameBoardTradeError(error: unknown, fallback: string): void {
-  if (isBenignTurnOrderError(error) || isBenignTradeTimingError(error)) {
+  if (shouldSuppressTradeError(error)) {
     console.warn("[board-game:trade]", error);
     return;
   }
