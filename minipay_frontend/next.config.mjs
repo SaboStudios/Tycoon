@@ -91,16 +91,22 @@ const nextConfig = {
   },
 };
 
+const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN;
+const disableSentrySourcemaps =
+  process.env.SENTRY_DISABLE_SOURCEMAP_UPLOAD === "1" || !sentryAuthToken;
+
 export default withSentryConfig(nextConfig, {
-  silent: !process.env.CI,
+  silent: true,
   org: process.env.SENTRY_ORG ?? undefined,
   project: process.env.SENTRY_PROJECT ?? undefined,
-  ...(process.env.SENTRY_DISABLE_SOURCEMAP_UPLOAD === "1"
+  ...(disableSentrySourcemaps
     ? {
         sourcemaps: {
           disable: true,
         },
       }
-    : {}),
+    : {
+        authToken: sentryAuthToken,
+      }),
 });
 

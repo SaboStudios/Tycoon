@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./tailwind-theme.css";
 
 /* Non-home routes + heavy UI — loaded after first paint (see DeferredUiStyles). */
 @source "../clients/**/*.{js,ts,jsx,tsx,mdx}";
