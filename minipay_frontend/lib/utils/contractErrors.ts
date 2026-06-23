@@ -19,6 +19,15 @@ const BENIGN_TURN_SUBSTRINGS = [
   "not your turn to roll",
   "cannot end another player",
   "failed to process property action",
+  "turn already ended",
+  "turn has already ended",
+  "turn has ended",
+  "already in jail",
+  "already sent to jail",
+  "three doubles",
+  "finish your roll",
+  "complete your roll",
+  "roll in progress",
 ];
 
 const USER_REJECTED_SUBSTRINGS = [
@@ -114,6 +123,29 @@ function hasRejectedCode(error: unknown): boolean {
 export function isBenignTurnOrderError(error: unknown): boolean {
   const hay = collectErrorText(error);
   return BENIGN_TURN_SUBSTRINGS.some((s) => hay.includes(s));
+}
+
+/** Stale roll / double-roll races: server thinks the player already moved this turn. */
+export function isAlreadyRolledError(error: unknown): boolean {
+  const hay = collectErrorText(error);
+  return hay.includes("already rolled") || hay.includes("you already rolled");
+}
+
+/** Trade declined because the player finished or is mid-roll — not worth surfacing on the board. */
+export function isBenignTradeTimingError(error: unknown): boolean {
+  const raw = getApiErrorDetail(error).toLowerCase();
+  if (!raw) return false;
+  return (
+    raw.includes("auto-declined") ||
+    raw.includes("rolled without") ||
+    raw.includes("finish your roll") ||
+    raw.includes("when you move") ||
+    raw.includes("when you rolled") ||
+    raw.includes("trade not available") ||
+    raw.includes("already resolved") ||
+    raw.includes("no longer pending") ||
+    raw.includes("already declined")
+  );
 }
 
 /** Wallet popup dismissed or user rejected signing (wagmi/viem / WalletConnect / MetaMask). */

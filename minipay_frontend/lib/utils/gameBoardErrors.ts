@@ -3,6 +3,7 @@ import { showBoardNotice, type BoardNoticeSeverity } from "@/lib/boardNotice";
 import {
   getContractErrorMessage,
   getTradeErrorMessage,
+  isBenignTradeTimingError,
   isBenignTurnOrderError,
 } from "./contractErrors";
 
@@ -48,7 +49,10 @@ export function gameBoardContractError(
 
 /** Trade errors on the live board: notice strip. */
 export function gameBoardTradeError(error: unknown, fallback: string): void {
-  if (isBenignTurnOrderError(error)) return;
+  if (isBenignTurnOrderError(error) || isBenignTradeTimingError(error)) {
+    console.warn("[board-game:trade]", error);
+    return;
+  }
   const msg = getTradeErrorMessage(error, fallback).trim();
   if (!msg) return;
   if (isBoardGameRoute()) {

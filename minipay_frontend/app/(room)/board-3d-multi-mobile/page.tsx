@@ -31,6 +31,7 @@ import { JAIL_POSITION, MOVE_ANIMATION_MS_PER_SQUARE } from "@/components/game/c
 import { hotToastContractError } from "@/lib/utils/contractErrorHotToast";
 import { isBenignTurnOrderError, getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { gameBoardToastError } from "@/lib/utils/gameBoardErrors";
+import { recoverFromDoublesJailError, recoverFromRollPositionError } from "@/lib/game/recoverFromRollError";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
 import { useGameTrades } from "@/hooks/useGameTrades";
@@ -1138,7 +1139,7 @@ function Board3DMobilePageContent() {
           toast.success("Three doubles! Go to jail.");
           await refetchGame();
         } catch (err) {
-          hotToastContractError(err as Error, "Failed to process three doubles");
+          await recoverFromDoublesJailError(err, refetchGame);
         } finally {
           doublesCountRef.current = 0;
           runningTotalRef.current = 0;
@@ -1250,43 +1251,19 @@ function Board3DMobilePageContent() {
         }
       }
     } catch (err) {
-      try {
-        setLiveMovementOverride((prev) => {
-          const next = { ...prev };
-          if (me?.user_id != null) delete next[me.user_id];
-          return next;
-        });
-        const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "";
-        if (msg.includes("You already rolled this round") && me?.user_id != null && game?.id != null) {
-          try {
-            const endRes = await apiClient.post<{ data?: { success?: boolean; message?: string }; success?: boolean; message?: string }>(
-              "/game-players/end-turn",
-              { user_id: me.user_id, game_id: game.id }
-            );
-            const ok = (endRes?.data as { success?: boolean })?.success ?? (endRes as { success?: boolean })?.success;
-            const endMsg = (endRes?.data as { message?: string })?.message ?? (endRes as { message?: string })?.message ?? "";
-            if (ok || (typeof endMsg === "string" && endMsg.includes("cannot end another player"))) {
-              toast.success("Turn passed to next player.");
-              await refetchGame();
-            } else if (!ok && endMsg) {
-              if (isBenignTurnOrderError({ message: String(endMsg) })) {
-                await refetchGame();
-              } else {
-                gameBoardToastError(endMsg);
-                await refetchGame();
-              }
-            } else {
-              await refetchGame();
-            }
-          } catch (e) {
-            hotToastContractError(e, "Failed to pass turn. Try again or refresh the game if the board looks stuck.");
-            await refetchGame();
-          }
-        } else {
-          hotToastContractError(err, "Roll failed. Try again or refresh if it persists.");
-        }
-      } catch (toastErr) {
-        hotToastContractError(toastErr as unknown, "Roll failed. Check your connection and try again.");
+      setLiveMovementOverride((prev) => {
+        const next = { ...prev };
+        if (me?.user_id != null) delete next[me.user_id];
+        return next;
+      });
+      if (me?.user_id != null && game?.id != null) {
+        await recoverFromRollPositionError(
+          err,
+          { userId: me.user_id, gameId: game.id, refetchGame },
+          "Roll failed. Try again or refresh if it persists."
+        );
+      } else {
+        hotToastContractError(err, "Roll failed. Check your connection and try again.");
       }
     } finally {
       doublesCountRef.current = 0;
