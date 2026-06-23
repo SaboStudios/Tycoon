@@ -5,7 +5,7 @@
 
 import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api";
-import { explainGamePlayerHistoryError, getApiErrorDetail } from "@/lib/utils/contractErrors";
+import { getApiErrorDetail, sanitizeApiErrorForToast } from "@/lib/utils/contractErrors";
 import type { Game, Player, Property, GameProperty } from "@/types/game";
 import type { ApiResponse } from "@/types/api";
 import {
@@ -77,9 +77,8 @@ export async function instantAiRespondWhenTargetIsAi(params: {
 
   function tradeErrorToast(error: unknown, fallback: string) {
     const detail = getApiErrorDetail(error);
-    const message = detail ? explainGamePlayerHistoryError(detail) : fallback;
     console.error("[instantAiRespondWhenTargetIsAi]", { decision, tradeId: sentTrade.id, detail, error });
-    toast.error(message, { duration: 8000 });
+    toast.error(sanitizeApiErrorForToast(detail, fallback));
   }
 
   try {

@@ -203,7 +203,7 @@ export function getContractErrorMessage(
     const msgClient = e?.response?.data?.message ?? e?.data?.message;
     if (msgClient && typeof msgClient === "string") {
       if (isBenignTurnOrderError({ response: { data: { message: msgClient } } })) return "";
-      return msgClient;
+      return sanitizeApiErrorForToast(msgClient, defaultMessage);
     }
   }
 
@@ -246,7 +246,7 @@ export function getContractErrorMessage(
   if (backendMsg && typeof backendMsg === "string") {
     const slice = backendMsg.slice(0, 140);
     if (isBenignTurnOrderError({ message: slice })) return "";
-    return slice;
+    return sanitizeApiErrorForToast(slice, defaultMessage);
   }
 
   // Use explicit message if available (truncate long messages)
@@ -264,13 +264,37 @@ export function getContractErrorMessage(
     ) {
       return defaultMessage;
     }
-    return trimmed;
+    return sanitizeApiErrorForToast(trimmed, defaultMessage);
   }
 
   return defaultMessage;
 }
 
-/** Full backend error text for debugging toasts (ApiError.message or response body). */
+const SQL_TOAST_PATTERNS = [
+  /insert\s+into/i,
+  /update\s+`/i,
+  /delete\s+from/i,
+  /game_play(?:er)?_history/i,
+  /\bER_[A-Z0-9_]+\b/,
+  /sql syntax/i,
+  /you have an error in your sql/i,
+];
+
+/** Never show raw SQL / DB errors in toasts — log stays in console. */
+export function sanitizeApiErrorForToast(detail: string, fallback: string): string {
+  const trimmed = detail.trim();
+  if (!trimmed) return fallback;
+  if (SQL_TOAST_PATTERNS.some((p) => p.test(trimmed))) {
+    if (/game_play(?:er)?_history/i.test(trimmed)) {
+      return "The trade could not be completed — please try again.";
+    }
+    return fallback;
+  }
+  if (trimmed.length > 120) return fallback;
+  return trimmed;
+}
+
+/** Full backend error text for console debugging (not for toasts). */
 export function getApiErrorDetail(error: unknown, maxLen = 320): string {
   const e = error as {
     message?: string;
@@ -287,22 +311,4 @@ export function getApiErrorDetail(error: unknown, maxLen = 320): string {
   if (typeof raw !== "string" || !raw.trim()) return "";
   const trimmed = raw.trim();
   return trimmed.length > maxLen ? `${trimmed.slice(0, maxLen)}…` : trimmed;
-}
-
-/** Shorter user-facing hint when the backend leaks a game_play_history INSERT failure. */
-export function explainGamePlayerHistoryError(detail: string): string {
-  const lower = detail.toLowerCase();
-  if (!lower.includes("game_play_history") && !lower.includes("game_player_history")) {
-    return detail;
-  }
-
-  const afterSql =
-    detail.match(/game_play(?:er)?_history[^]*?-\s*(.+)$/i)?.[1]?.trim() ??
-    detail.match(/:\s*(Column .+)$/i)?.[1]?.trim() ??
-    detail.match(/:\s*(Cannot .+)$/i)?.[1]?.trim() ??
-    detail.match(/:\s*(Field .+)$/i)?.[1]?.trim() ??
-    detail.match(/:\s*(Data truncated .+)$/i)?.[1]?.trim();
-
-  const reason = afterSql && afterSql.length < 200 ? afterSql : detail.slice(0, 200);
-  return `Server could not save the game action log (game_play_history). If this happens on trade accept, the database may be missing the trade_accept action enum — ask ops to run backend migrations. ${reason}`;
 }

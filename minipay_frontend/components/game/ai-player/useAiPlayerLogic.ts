@@ -180,7 +180,7 @@ export function useAiPlayerLogic({
         }
       }
     } catch (error: unknown) {
-      toast.error(getContractErrorMessage(error, "Failed to create trade"), { duration: 8000 });
+      toast.error(getContractErrorMessage(error, "Failed to create trade"));
     }
   }, [
     me,
