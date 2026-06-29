@@ -1,5 +1,7 @@
 import { showBoardNotice, type BoardNoticeSeverity } from "@/lib/boardNotice";
-import { getContractErrorMessage } from "./contractErrors";
+import { getContractErrorMessage, isUserRejectedTransaction } from "./contractErrors";
+
+export const CANCELLED_TX_NOTICE = "You cancelled the transaction.";
 
 type PageNoticeOptions = { severity?: BoardNoticeSeverity };
 
@@ -31,4 +33,18 @@ export function pageContractError(error: unknown, fallback: string): void {
   if (!msg) return;
   console.warn("[page-notice]", error);
   showPageNotice(msg, "error");
+}
+
+/** Wallet cancel → info notice; real failures → error notice. */
+export function pageTransactionOutcome(error: unknown, fallback: string): void {
+  if (isUserRejectedTransaction(error)) {
+    pageToastInfo(CANCELLED_TX_NOTICE);
+    return;
+  }
+  const msg = getContractErrorMessage(error, fallback).trim();
+  if (msg === CANCELLED_TX_NOTICE) {
+    pageToastInfo(CANCELLED_TX_NOTICE);
+    return;
+  }
+  pageContractError(error, fallback);
 }

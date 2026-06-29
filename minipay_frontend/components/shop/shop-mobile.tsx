@@ -6,6 +6,12 @@ import { useAccount, useBalance, usePublicClient, useReadContract, useReadContra
 import { formatUnits, parseUnits, isAddress, type Address, type Abi } from 'viem';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-toastify';
+import {
+  pageContractError,
+  pageToastError,
+  pageToastInfo,
+  pageTransactionOutcome,
+} from '@/lib/utils/pageNoticeErrors';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import EmptyState from '@/components/ui/EmptyState';
@@ -74,7 +80,6 @@ import {
 import { shopRegistryOwnerAddress, shopSmartWalletAddress } from '@/lib/shopWalletIdentity';
 import { ApiError } from '@/lib/api';
 import { getNairaEligibility, nairaBlockedMessage } from '@/lib/shop/nairaPayment';
-import { toastContractError, toastTransactionOutcome } from '@/lib/utils/contractErrorToast';
 
 const VOUCHER_ID_START = 1_000_000_000;
 const COLLECTIBLE_ID_START = 2_000_000_000;
@@ -267,9 +272,9 @@ export default function GameShopMobile() {
         if (data?.found && data?.fulfilled) {
           toast.success('Perk bought successfully! Your bundle will be available in-game.');
         } else if (data?.found && data?.status === 'failed') {
-          toast.error('Payment failed or was not completed.');
+          pageToastError('Payment failed or was not completed.');
         } else if (data?.found && data?.status === 'pending') {
-          toast.info('Payment was cancelled or not completed.');
+          pageToastInfo('Payment was cancelled or not completed.');
         }
         router.replace('/game-shop', { scroll: false });
       })
@@ -281,7 +286,7 @@ export default function GameShopMobile() {
   const handlePayWithNgn = async (bundleId: number) => {
     if (!bundleId || ngnLoadingBundleId != null) return;
     if (!nairaEligibility.ok) {
-      toast.info(nairaBlockedMessage(nairaEligibility.reason));
+      pageToastInfo(nairaBlockedMessage(nairaEligibility.reason));
       return;
     }
     setNgnLoadingBundleId(bundleId);
@@ -297,14 +302,14 @@ export default function GameShopMobile() {
         window.location.href = res.data.link;
         return;
       }
-      toast.error((res?.data as { message?: string })?.message || 'Could not start payment');
+      pageToastError((res?.data as { message?: string })?.message || 'Could not start payment');
     } catch (e: unknown) {
       const status = e instanceof ApiError ? e.status : (e as { status?: number; response?: { status?: number } })?.status ?? (e as { response?: { status?: number } })?.response?.status;
       if (status === 401) {
         auth?.refetchGuest?.();
-        toast.info(nairaBlockedMessage('session_expired'));
+        pageToastInfo(nairaBlockedMessage('session_expired'));
       } else {
-        toastContractError(e, 'Failed to initialize NGN payment');
+        pageContractError(e, 'Failed to initialize NGN payment');
       }
     } finally {
       setNgnLoadingBundleId(null);
@@ -393,7 +398,7 @@ export default function GameShopMobile() {
         : String(error);
     if (shopTxToastKeyRef.current === key) return;
     shopTxToastKeyRef.current = key;
-    toastTransactionOutcome(error, fallback);
+    pageTransactionOutcome(error, fallback);
     window.setTimeout(() => {
       if (shopTxToastKeyRef.current === key) shopTxToastKeyRef.current = null;
     }, 4000);
@@ -676,33 +681,33 @@ export default function GameShopMobile() {
   // Handlers
   const handleBuy = async (item: typeof shopItems[0]) => {
     if (!item.tokenId || item.stock <= 0) {
-      toast.info(item.catalogOnly ? 'This perk is not stocked yet. Check back soon.' : 'Sold out — more stock coming soon.');
+      pageToastInfo(item.catalogOnly ? 'This perk is not stocked yet. Check back soon.' : 'Sold out — more stock coming soon.');
       return;
     }
     // Allow if wallet is connected OR smart wallet is available
     const hasPaymentMethod = (isConnected && address) || smartWalletAddress;
     if (!hasPaymentMethod) {
-      toast.error('Please connect your wallet or register to use your smart wallet');
+      pageToastError('Please connect your wallet or register to use your smart wallet');
       return;
     }
     if (!preferredStable.tokenAddress || !contractAddress) {
-      toast.error(`${activeStableLabel} not supported on this network`);
+      pageToastError(`${activeStableLabel} not supported on this network`);
       return;
     }
     const priceWei = item.usdtPurchase.purchasePriceWei;
     if (!priceWei || priceWei <= 0n) {
-      toast.error(item.usdtPurchase.blockReason ?? 'USDT price is not set on-chain for this perk yet.');
+      pageToastError(item.usdtPurchase.blockReason ?? 'USDT price is not set on-chain for this perk yet.');
       return;
     }
     const priceNum = item.usdtPurchase.displayPrice;
     if (activeStableBalance < priceNum) {
-      toast.error(`Insufficient ${activeStableLabel} balance`);
+      pageToastError(`Insufficient ${activeStableLabel} balance`);
       return;
     }
     const paymentToken = preferredStable.paymentToken;
     const paymentTokenAddress = preferredStable.tokenAddress;
     if (!paymentTokenAddress || !contractAddress) {
-      toast.error(`${activeStableLabel} not supported on this network`);
+      pageToastError(`${activeStableLabel} not supported on this network`);
       return;
     }
     try {
@@ -714,7 +719,7 @@ export default function GameShopMobile() {
         if (session && preferredStable.symbol === 'USDT') {
           const pin = typeof window !== 'undefined' ? window.prompt('Enter your withdrawal PIN to pay from your smart wallet')?.trim() : '';
           if (!pin) {
-            toast.error('PIN is required');
+            pageToastError('PIN is required');
             return;
           }
           const res = await apiClient.post<{ success?: boolean; message?: string }>('auth/smart-wallet/buy-collectible', {
@@ -782,12 +787,12 @@ export default function GameShopMobile() {
 
   const handlePayPerkWithNaira = async (item: (typeof shopItems)[0]) => {
     if (!item.tokenId || item.stock <= 0) {
-      toast.info(item.catalogOnly ? 'This perk is not stocked yet.' : 'Sold out');
+      pageToastInfo(item.catalogOnly ? 'This perk is not stocked yet.' : 'Sold out');
       return;
     }
     if (ngnLoadingTokenId != null) return;
     if (!nairaEligibility.ok) {
-      toast.info(nairaBlockedMessage(nairaEligibility.reason));
+      pageToastInfo(nairaBlockedMessage(nairaEligibility.reason));
       return;
     }
     const tokenIdStr = item.tokenId.toString();
@@ -809,14 +814,14 @@ export default function GameShopMobile() {
         window.location.href = res.data.link;
         return;
       }
-      toast.error(res?.data?.message ?? 'Could not start Naira payment');
+      pageToastError(res?.data?.message ?? 'Could not start Naira payment');
     } catch (e: unknown) {
       const status = e instanceof ApiError ? e.status : (e as { status?: number; response?: { status?: number } })?.status ?? (e as { response?: { status?: number } })?.response?.status;
       if (status === 401) {
         auth?.refetchGuest?.();
-        toast.info(nairaBlockedMessage('session_expired'));
+        pageToastInfo(nairaBlockedMessage('session_expired'));
       } else {
-        toastContractError(e, 'Failed to start Naira payment');
+        pageContractError(e, 'Failed to start Naira payment');
       }
     } finally {
       setNgnLoadingTokenId(null);
@@ -869,25 +874,25 @@ export default function GameShopMobile() {
   const handleBuyBundleWithUsdc = async (bundleName: string) => {
     const hasPaymentMethod = (isConnected && address) || smartWalletAddress;
     if (!hasPaymentMethod) {
-      toast.error('Please connect your wallet or register to use your smart wallet');
+      pageToastError('Please connect your wallet or register to use your smart wallet');
       return;
     }
     if (payWith === 'smart_wallet' && !smartWalletAddress) {
-      toast.error('Smart wallet not available');
+      pageToastError('Smart wallet not available');
       return;
     }
     if (!contractAddress || !preferredStable.tokenAddress) {
-      toast.error(`${activeStableLabel} not supported on this network`);
+      pageToastError(`${activeStableLabel} not supported on this network`);
       return;
     }
     const bundleEntry = bundles.find((b) => b.name === bundleName);
     if (!bundleEntry || typeof bundleEntry.id !== 'number') {
-      toast.error('Bundle not found');
+      pageToastError('Bundle not found');
       return;
     }
     const def = BUNDLE_DEFS.find((b) => b.name === bundleName);
     if (!def || !canBuyBundle(def)) {
-      toast.error('Bundle items are not currently in stock');
+      pageToastError('Bundle items are not currently in stock');
       return;
     }
     if (bundleBuyingName || bundleTxBusy) return;
@@ -906,7 +911,7 @@ export default function GameShopMobile() {
         if (session) {
           const pin = typeof window !== 'undefined' ? window.prompt('Enter your withdrawal PIN to buy bundle with smart wallet')?.trim() : '';
           if (!pin) {
-            toast.info('Purchase cancelled');
+            pageToastInfo('Purchase cancelled');
             return;
           }
           const res = await apiClient.post<{ success?: boolean; message?: string }>('auth/smart-wallet/buy-bundle', {
@@ -950,7 +955,7 @@ export default function GameShopMobile() {
   const handleRedeemVoucher = async (tokenId: bigint, voucherOwner: Address) => {
     if (!isConnected || !address) {
       connectWallet();
-      toast.info('Connect your wallet to redeem');
+      pageToastInfo('Connect your wallet to redeem');
       return;
     }
 
