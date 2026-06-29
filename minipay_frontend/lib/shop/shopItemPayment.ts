@@ -39,6 +39,6 @@ export function resolveShopUsdtPurchase(options: {
     purchasePriceWei: null,
     usdtPriceOnChain: false,
     blockReason:
-      'USDT price is not set on-chain for this perk yet. On tycoonworld.xyz/rewards, run “Sync USDT/cUSD prices from catalog”, then try again.',
+      'USDT price is not set on-chain yet. Open tycoonworld.xyz/rewards and tap “Sync USDT prices from catalog” at the top.',
   };
 }
