@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState, useMemo } from "react";
-import { Dices, Gamepad2 } from "lucide-react";
+import { Gamepad2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useAccount, useChainId, useConnect, useSignMessage, usePublicClient, useSwitchChain } from "wagmi";
@@ -17,6 +17,11 @@ import {
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { toast } from "react-toastify";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
+import {
+  heroContractError,
+  heroToastError,
+  heroToastInfo,
+} from "@/lib/utils/heroPageErrors";
 import {
   isRegistrationConflictError,
   resolveRegistrationConflict,
@@ -266,7 +271,7 @@ const HeroWalletPanel: React.FC<HeroWalletPanelProps> = ({ onReturningPlayerChan
   // Wallet on-chain registration (same path as createGame / shop). DB user via POST /users only.
   const handleRegister = async () => {
     if (!address) {
-      toast.error("Please connect your wallet");
+      heroToastError("Please connect your wallet");
       return;
     }
 
@@ -278,7 +283,7 @@ const HeroWalletPanel: React.FC<HeroWalletPanelProps> = ({ onReturningPlayerChan
     }
 
     if (!finalUsername) {
-      toast.info("Please enter a username");
+      heroToastInfo("Please enter a username");
       return;
     }
 
@@ -325,7 +330,7 @@ const HeroWalletPanel: React.FC<HeroWalletPanelProps> = ({ onReturningPlayerChan
         e?.message?.includes("User rejected") ||
         e?.message?.includes("User denied")
       ) {
-        toast.info("Transaction cancelled");
+        heroToastInfo("Transaction cancelled");
         return;
       }
 
@@ -355,16 +360,16 @@ const HeroWalletPanel: React.FC<HeroWalletPanelProps> = ({ onReturningPlayerChan
           user
         );
         if (conflict.kind === "username-taken") {
-          toast.error(conflict.message);
+          heroToastError(conflict.message);
         } else if (conflict.kind === "finish-on-chain") {
-          toast.info(conflict.message);
+          heroToastInfo(conflict.message);
         } else {
-          toast.error(conflict.message);
+          heroToastError(conflict.message);
         }
         return;
       }
 
-      toast.error(
+      heroToastError(
         e?.response?.data?.message ||
           e?.response?.data?.error ||
           getContractErrorMessage(err, "Registration failed. Try again.")
@@ -376,13 +381,13 @@ const HeroWalletPanel: React.FC<HeroWalletPanelProps> = ({ onReturningPlayerChan
 
   const handleRegisterOnChain = async () => {
     if (!address) {
-      toast.error("Connect your wallet to register on-chain");
+      heroToastError("Connect your wallet to register on-chain");
       return;
     }
     const playUsername =
       (guestUser?.username ?? user?.username ?? inputUsername.trim()) || "";
     if (!playUsername) {
-      toast.info("Enter a username first");
+      heroToastInfo("Enter a username first");
       return;
     }
     setRegisterOnChainLoading(true);
@@ -398,7 +403,7 @@ const HeroWalletPanel: React.FC<HeroWalletPanelProps> = ({ onReturningPlayerChan
       toast.success("Registered on-chain. You can play now.");
     } catch (err: unknown) {
       toast.dismiss(toastId);
-      toast.error(getContractErrorMessage(err, "Registration failed"));
+      heroContractError(err, "Registration failed");
     } finally {
       setRegisterOnChainLoading(false);
     }
@@ -408,9 +413,9 @@ const HeroWalletPanel: React.FC<HeroWalletPanelProps> = ({ onReturningPlayerChan
     if (!address) {
       try {
         connectWallet();
-        toast.info("Connect MiniPay, then tap Connect wallet again to link");
+        heroToastInfo("Connect MiniPay, then tap Connect wallet again to link");
       } catch {
-        toast.info("Connect your wallet from the button above, then try again");
+        heroToastInfo("Connect your wallet from the button above, then try again");
       }
       return;
     }
@@ -425,13 +430,13 @@ const HeroWalletPanel: React.FC<HeroWalletPanelProps> = ({ onReturningPlayerChan
         await guestAuth.refetchGuest();
         toast.success("Wallet linked. You can play now.");
       } else {
-        toast.error(res.message ?? "Link failed");
+        heroToastError(res.message ?? "Link failed");
       }
     } catch (err: any) {
       if (err?.code === 4001 || err?.message?.includes("User rejected")) {
-        toast.info("Signature cancelled");
+        heroToastInfo("Signature cancelled");
       } else {
-        toast.error((err as Error)?.message ?? "Link failed");
+        heroContractError(err, "Link failed");
       }
     } finally {
       setLinkWalletLoading(false);
@@ -667,7 +672,7 @@ const HeroWalletPanel: React.FC<HeroWalletPanelProps> = ({ onReturningPlayerChan
           {(registrationStatus === "privy" || (address && walletSessionReady && registrationStatus === "fully-registered" && !hasSmartWallet)) && !hasSmartWallet && (guestUser || walletSessionReady) && !loading && !isConnecting && !((address && registrationStatus === "fully-registered" && walletSessionReady) || (registrationStatus === "privy" && (guestUser || walletSessionReady))) && (
             <div className="flex flex-col items-center gap-4 mt-4">
               <p className="text-[#869298] text-sm text-center max-w-sm">
-                Register or link a wallet to unlock Challenge AI, Multiplayer, and Join Room.
+                Register or link a wallet to unlock Challenge AI.
               </p>
               <div className="flex flex-wrap justify-center gap-3">
                 {canRegisterOnChain && (
@@ -692,7 +697,7 @@ const HeroWalletPanel: React.FC<HeroWalletPanelProps> = ({ onReturningPlayerChan
                 )}
                 <button
                   type="button"
-                  onClick={needsTransferToLink ? () => { router.push("/profile"); toast.info("Use Transfer profile to address with your current wallet, then come back and Link."); } : handleLinkWallet}
+                  onClick={needsTransferToLink ? () => { router.push("/profile"); heroToastInfo("Use Transfer profile to address with your current wallet, then come back and Link."); } : handleLinkWallet}
                   disabled={linkWalletLoading}
                   className="relative group w-[200px] h-[44px] bg-transparent border-none p-0 overflow-hidden cursor-pointer disabled:opacity-60"
                 >
@@ -748,60 +753,6 @@ const HeroWalletPanel: React.FC<HeroWalletPanelProps> = ({ onReturningPlayerChan
                   </span>
                 </motion.button>
               )}
-
-              {/* Play with Friends */}
-              <button
-                onClick={() => router.push("/game-settings-3d")}
-                className="relative group w-[130px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
-              >
-                <svg
-                  width="130"
-                  height="40"
-                  viewBox="0 0 130 40"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="absolute top-0 left-0 w-full h-full"
-                >
-                  <path
-                    d="M6 1H124C128.373 1 130.996 5.85486 128.601 9.5127L110.167 37.5127C109.151 39.0646 107.42 40 105.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
-                    fill="#003B3E"
-                    stroke="#003B3E"
-                    strokeWidth={1}
-                    className="group-hover:stroke-[#00F0FF] transition-all duration-300"
-                  />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-2">
-                  <Gamepad2 className="mr-1.5 w-[16px] h-[16px]" />
-                  Multiplayer
-                </span>
-              </button>
-
-              {/* Join Room */}
-              <button
-                onClick={() => router.push("/join-room-3d")}
-                className="relative group w-[130px] h-[40px] bg-transparent border-none p-0 overflow-hidden cursor-pointer"
-              >
-                <svg
-                  width="130"
-                  height="40"
-                  viewBox="0 0 130 40"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="absolute top-0 left-0 w-full h-full"
-                >
-                  <path
-                    d="M6 1H124C128.373 1 130.996 5.85486 128.601 9.5127L110.167 37.5127C109.151 39.0646 107.42 40 105.565 40H6C2.96244 40 0.5 37.5376 0.5 34.5V6.5C0.5 3.46243 2.96243 1 6 1Z"
-                    fill="#003B3E"
-                    stroke="#003B3E"
-                    strokeWidth={1}
-                    className="group-hover:stroke-[#00F0FF] transition-all duration-300"
-                  />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[#00F0FF] capitalize text-[12px] font-dmSans font-medium z-2">
-                  <Dices className="mr-1.5 w-[16px] h-[16px]" />
-                  Join Room
-                </span>
-              </button>
 
               {/* Challenge AI */}
               <motion.button

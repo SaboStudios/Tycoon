@@ -72,9 +72,8 @@ export default function HeroMarketingContent({
           aria-hidden={!showDescription}
         >
           Step into Tycoon — the Web3 twist on the classic game of strategy,
-          ownership, and fortune. Play solo against AI, compete in multiplayer
-          rooms, collect tokens, complete quests, and become the ultimate
-          blockchain tycoon.
+          ownership, and fortune. Play solo against AI, collect tokens, complete
+          quests, and become the ultimate blockchain tycoon.
         </p>
       </div>
     </>

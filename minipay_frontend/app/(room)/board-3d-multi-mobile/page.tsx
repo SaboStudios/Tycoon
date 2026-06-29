@@ -30,6 +30,8 @@ import { getDiceValues } from "@/components/game/constants";
 import { JAIL_POSITION, MOVE_ANIMATION_MS_PER_SQUARE } from "@/components/game/constants";
 import { hotToastContractError } from "@/lib/utils/contractErrorHotToast";
 import { isBenignTurnOrderError, getContractErrorMessage } from "@/lib/utils/contractErrors";
+import { gameBoardToastError } from "@/lib/utils/gameBoardErrors";
+import { recoverFromDoublesJailError, recoverFromRollPositionError } from "@/lib/game/recoverFromRollError";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
 import { useGameTrades } from "@/hooks/useGameTrades";
@@ -418,7 +420,7 @@ function Board3DMobilePageContent() {
       if (data?.message) toast.success(data.message);
     } catch (e: unknown) {
       const err = e as { response?: { data?: { message?: string } }; message?: string };
-      toast.error(err?.response?.data?.message || getContractErrorMessage(err, "Failed to request start"));
+      gameBoardToastError(err?.response?.data?.message || getContractErrorMessage(err, "Failed to request start"));
     } finally {
       setRequestStartLoading(false);
     }
@@ -496,6 +498,7 @@ function Board3DMobilePageContent() {
   const hasScheduledTurnEndRef = useRef(false);
   const turnEndInProgressRef = useRef(false);
   const lastTopHistoryIdRef = useRef<number | null>(null);
+  const wasMyTurnRef = useRef(false);
   const timeLeftFrozenAtRollRef = useRef<number | null>(null);
   const recordTimeoutCalledForTurnRef = useRef<number | null>(null);
 
@@ -671,7 +674,7 @@ function Board3DMobilePageContent() {
   const showToast = useCallback((message: string, type?: "success" | "error" | "default") => {
     if (type === "error" && isBenignTurnOrderError({ message })) return;
     if (type === "success") toast.success(message);
-    else if (type === "error") toast.error(message);
+    else if (type === "error") gameBoardToastError(message);
     else toast(message);
   }, []);
 
@@ -976,11 +979,37 @@ function Board3DMobilePageContent() {
   }, [rollingDice, game, me]);
 
   useEffect(() => {
-    if (!isMyTurn) {
+    const turnJustStarted = isMyTurn && !wasMyTurnRef.current;
+    const turnJustEnded = !isMyTurn && wasMyTurnRef.current;
+    wasMyTurnRef.current = isMyTurn;
+
+    if (turnJustEnded) {
       doublesCountRef.current = 0;
       runningTotalRef.current = 0;
+      hasScheduledTurnEndRef.current = false;
+      setTurnEndScheduled(false);
+      return;
     }
+    if (!turnJustStarted) return;
+
+    setTurnEndScheduled(false);
+    setLastRollResultLive(null);
+    setBuyPrompted(false);
+    setLandedPositionForBuy(null);
+    setJailChoiceRequired(false);
+    landedPositionThisTurnRef.current = null;
+    pendingBuyPromptRef.current = false;
+    expectingDoublesRollAgainRef.current = false;
+    hasScheduledTurnEndRef.current = false;
+    rollingForPlayerIdRef.current = null;
   }, [isMyTurn]);
+
+  useEffect(() => {
+    if (!buyPrompted || justLandedProperty) return;
+    setBuyPrompted(false);
+    setLandedPositionForBuy(null);
+    pendingBuyPromptRef.current = false;
+  }, [buyPrompted, justLandedProperty]);
 
   const handleUsePerkFromBar = useCallback(
     (tokenId: bigint, perk: number, _strength: number, name: string) => {
@@ -995,7 +1024,7 @@ function Board3DMobilePageContent() {
         inJail: meInJail,
       });
       if (blockMsg) {
-        toast.error(blockMsg);
+        gameBoardToastError(blockMsg, { severity: "warning" });
         return;
       }
       setShowPerksModal(false);
@@ -1090,10 +1119,10 @@ function Board3DMobilePageContent() {
           toast.success("Perk used & collectible burned!", { id: toastId });
           await refetchGame();
         } else if (perk !== 6 && perk !== 10) {
-          toast.error(failureMessage ?? getPerkFailureFallback(perk), { id: toastId });
+          gameBoardToastError(failureMessage ?? getPerkFailureFallback(perk), { id: toastId });
         }
       } catch (err) {
-        toast.error(getPerkActivationError(err, "Activation failed"), { id: toastId });
+        gameBoardToastError(getPerkActivationError(err, "Activation failed"), { id: toastId });
       } finally {
         burnConfirmedRef.current = false;
         resetBurn();
@@ -1137,7 +1166,7 @@ function Board3DMobilePageContent() {
           toast.success("Three doubles! Go to jail.");
           await refetchGame();
         } catch (err) {
-          hotToastContractError(err as Error, "Failed to process three doubles");
+          await recoverFromDoublesJailError(err, refetchGame);
         } finally {
           doublesCountRef.current = 0;
           runningTotalRef.current = 0;
@@ -1249,43 +1278,19 @@ function Board3DMobilePageContent() {
         }
       }
     } catch (err) {
-      try {
-        setLiveMovementOverride((prev) => {
-          const next = { ...prev };
-          if (me?.user_id != null) delete next[me.user_id];
-          return next;
-        });
-        const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "";
-        if (msg.includes("You already rolled this round") && me?.user_id != null && game?.id != null) {
-          try {
-            const endRes = await apiClient.post<{ data?: { success?: boolean; message?: string }; success?: boolean; message?: string }>(
-              "/game-players/end-turn",
-              { user_id: me.user_id, game_id: game.id }
-            );
-            const ok = (endRes?.data as { success?: boolean })?.success ?? (endRes as { success?: boolean })?.success;
-            const endMsg = (endRes?.data as { message?: string })?.message ?? (endRes as { message?: string })?.message ?? "";
-            if (ok || (typeof endMsg === "string" && endMsg.includes("cannot end another player"))) {
-              toast.success("Turn passed to next player.");
-              await refetchGame();
-            } else if (!ok && endMsg) {
-              if (isBenignTurnOrderError({ message: String(endMsg) })) {
-                await refetchGame();
-              } else {
-                toast.error(endMsg);
-                await refetchGame();
-              }
-            } else {
-              await refetchGame();
-            }
-          } catch (e) {
-            hotToastContractError(e, "Failed to pass turn. Try again or refresh the game if the board looks stuck.");
-            await refetchGame();
-          }
-        } else {
-          hotToastContractError(err, "Roll failed. Try again or refresh if it persists.");
-        }
-      } catch (toastErr) {
-        hotToastContractError(toastErr as unknown, "Roll failed. Check your connection and try again.");
+      setLiveMovementOverride((prev) => {
+        const next = { ...prev };
+        if (me?.user_id != null) delete next[me.user_id];
+        return next;
+      });
+      if (me?.user_id != null && game?.id != null) {
+        await recoverFromRollPositionError(
+          err,
+          { userId: me.user_id, gameId: game.id, refetchGame },
+          "Roll failed. Try again or refresh if it persists."
+        );
+      } else {
+        hotToastContractError(err, "Roll failed. Check your connection and try again.");
       }
     } finally {
       doublesCountRef.current = 0;
@@ -1873,7 +1878,7 @@ function Board3DMobilePageContent() {
     if (!game?.id || !me?.user_id || !activeAuction?.id || auctionSubmitting) return;
     const amount = auctionBidAmount.trim() ? parseInt(auctionBidAmount, 10) : null;
     if (amount != null && (isNaN(amount) || amount <= (activeAuction.current_high ?? 0))) {
-      toast.error("Enter a bid higher than current high");
+      gameBoardToastError("Enter a bid higher than current high", { severity: "warning" });
       return;
     }
     setAuctionSubmitting(true);
@@ -2038,6 +2043,7 @@ function Board3DMobilePageContent() {
     return () => {
       clearTimeout(timer);
       hasScheduledTurnEndRef.current = false;
+      setTurnEndScheduled(false);
     };
   }, [isLiveGame, isMyTurn, lastRollResultLive, buyPrompted, jailChoiceRequired, rollingDice, END_TURN]);
 
@@ -2245,7 +2251,7 @@ function Board3DMobilePageContent() {
       });
       setHasLeftGame(true);
       await refetchGame();
-      toast.error("Game over! You have declared bankruptcy.");
+      gameBoardToastError("Game over! You have declared bankruptcy.");
       setShowBankruptcyModal(true);
     } catch (err) {
       hotToastContractError(err, "Failed to end game");
@@ -2699,7 +2705,7 @@ function Board3DMobilePageContent() {
                     } catch (e) {
                       burnConfirmedRef.current = false;
                       resetBurn();
-                      toast.error(getContractErrorMessage(e, "Burn failed"));
+                      gameBoardToastError(getContractErrorMessage(e, "Burn failed"));
                       setPendingBarPerk(null);
                     }
                   }}
@@ -2823,8 +2829,7 @@ function Board3DMobilePageContent() {
         isMyTurn &&
         meInJail &&
         !jailChoiceRequired &&
-        !rollingDice &&
-        !lastRollResultLive && (
+        !rollingDice && (
           <div
             className="fixed inset-0 flex items-center justify-center bg-black/60 p-4 z-[2147483647]"
           >

@@ -1,4 +1,4 @@
-export type MinipayStableSymbol = 'CUSDC' | 'USDT';
+export type MinipayStableSymbol = 'USDT';
 
 export type MinipayStableOption = {
   symbol: MinipayStableSymbol;
@@ -14,11 +14,14 @@ const USDT_FALLBACK: MinipayStableOption = {
   balance: 0,
 };
 
-/** Minipay in-app shop defaults to USDT when the token is configured on the chain. */
+/** MiniPay game shop is USDT-only — no cUSD/USDC toggle in the UI. */
+export function getMinipayShopStable(usdt?: MinipayStableOption): MinipayStableOption {
+  if (usdt?.tokenAddress) return usdt;
+  return USDT_FALLBACK;
+}
+
+/** @deprecated Use getMinipayShopStable — kept for any legacy callers. */
 export function pickMinipayPreferredStable(options: MinipayStableOption[]): MinipayStableOption {
-  const available = options.filter((s) => !!s.tokenAddress);
-  if (available.length === 0) return USDT_FALLBACK;
-  const usdt = available.find((s) => s.symbol === 'USDT');
-  if (usdt) return usdt;
-  return [...available].sort((a, b) => b.balance - a.balance)[0];
+  const usdt = options.find((s) => s.symbol === 'USDT' && s.tokenAddress);
+  return getMinipayShopStable(usdt);
 }
