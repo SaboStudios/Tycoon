@@ -57,9 +57,6 @@ import {
   useApprove,
   useRewardTokenAddresses,
   useUserRegistryWallet,
-  useRewardStockBundle,
-  useRewardStockShop,
-  useRewardRestockCollectible,
   useReadChainIdOrCelo,
   useUserWalletApproveERC20,
 } from '@/context/ContractProvider';
@@ -180,9 +177,6 @@ export default function GameShopMobile() {
   }, [wagmiAddress]);
   const chainId = useReadChainIdOrCelo();
   const auth = useGuestAuthOptional();
-  const stockBundleHook = useRewardStockBundle();
-  const stockShopHook = useRewardStockShop();
-  const restockCollectibleHook = useRewardRestockCollectible();
 
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
   const { usdcAddress: usdcTokenAddress, cusdcAddress, usdtAddress } = useRewardTokenAddresses();
@@ -233,16 +227,6 @@ export default function GameShopMobile() {
   const [ngnLoadingBundleId, setNgnLoadingBundleId] = useState<number | null>(null);
   const [ngnLoadingTokenId, setNgnLoadingTokenId] = useState<string | null>(null);
   const [bundleBuyingName, setBundleBuyingName] = useState<string | null>(null);
-  const [stockAllBundlesProgress, setStockAllBundlesProgress] = useState<{ active: boolean; current: number; total: number }>({
-    active: false,
-    current: 0,
-    total: 0,
-  });
-  const [stockPerksProgress, setStockPerksProgress] = useState<{ active: boolean; current: number; total: number }>({
-    active: false,
-    current: 0,
-    total: 0,
-  });
 
   const USDC_TO_NGN_RATE = 1600;
 
@@ -616,30 +600,6 @@ export default function GameShopMobile() {
     }).catch(() => {});
   }, [computedBundles]);
 
-  const allCollectiblesByPerkStrength = useMemo(() => {
-    const map = new Map<string, { tokenId: bigint; perk: number; strength: number; stock: number }>();
-    for (const [key, row] of onChainShopByKey) {
-      map.set(key, { tokenId: row.tokenId, perk: row.perk, strength: row.strength, stock: Number(row.stock) });
-    }
-    return map;
-  }, [onChainShopByKey]);
-
-  const { data: rewardOwner } = useReadContract({
-    address: contractAddress,
-    abi: RewardABI,
-    functionName: 'owner',
-    query: { enabled: !!contractAddress },
-  });
-
-  const isAdmin = useMemo(() => {
-    if (!address || !rewardOwner) return false;
-    try {
-      return String(address).toLowerCase() === String(rewardOwner).toLowerCase();
-    } catch {
-      return false;
-    }
-  }, [address, rewardOwner]);
-
   // User vouchers: union of connected wallet + smart wallet (readable without signing)
   const voucherOwners = useMemo((): Address[] => {
     const list: Address[] = [];
@@ -971,134 +931,6 @@ export default function GameShopMobile() {
     }
   };
 
-  const handleStockMissingPerks = async () => {
-    if (!isConnected || !address) {
-      toast.error('Please connect your wallet');
-      return;
-    }
-    if (!isAdmin) {
-      toast.error('Admin only');
-      return;
-    }
-    if (!contractAddress || !publicClient) {
-      toast.error('Reward contract not configured on this chain');
-      return;
-    }
-    if (stockPerksProgress.active || stockShopHook.isPending) return;
-
-    const missing = INITIAL_COLLECTIBLES.filter((item) => {
-      if (isShopPerkHidden(item.perk)) return false;
-      return !allCollectiblesByPerkStrength.has(`${item.perk}:${item.strength}`);
-    });
-
-    if (missing.length === 0) {
-      toast.success('All catalog perks already exist on-chain. Use restock for sold-out rows.');
-      return;
-    }
-
-    setStockPerksProgress({ active: true, current: 0, total: missing.length });
-    try {
-      for (let i = 0; i < missing.length; i++) {
-        const item = missing[i]!;
-        setStockPerksProgress((p) => ({ ...p, current: i + 1 }));
-        const hash = await stockShopHook.stock(
-          50,
-          item.perk,
-          item.strength,
-          parseUnits(item.tycPrice, 18),
-          parseUnits(item.usdcPrice, 6)
-        );
-        if (hash) await publicClient.waitForTransactionReceipt({ hash });
-      }
-      toast.success(`Stocked ${missing.length} missing perk(s).`);
-    } catch (e: unknown) {
-      toastContractError(e, 'Failed to stock perks');
-    } finally {
-      setStockPerksProgress({ active: false, current: 0, total: 0 });
-    }
-  };
-
-  const handleRestockSoldOutPerks = async () => {
-    if (!isConnected || !address) {
-      toast.error('Please connect your wallet');
-      return;
-    }
-    if (!isAdmin) {
-      toast.error('Admin only');
-      return;
-    }
-    if (!publicClient) {
-      toast.error('Reward contract not configured on this chain');
-      return;
-    }
-    if (stockPerksProgress.active || restockCollectibleHook.isPending) return;
-
-    const soldOut = shopItems.filter((item) => item.tokenId && item.stock <= 0);
-    if (soldOut.length === 0) {
-      toast.info('No sold-out perks to restock.');
-      return;
-    }
-
-    setStockPerksProgress({ active: true, current: 0, total: soldOut.length });
-    try {
-      for (let i = 0; i < soldOut.length; i++) {
-        const item = soldOut[i]!;
-        setStockPerksProgress((p) => ({ ...p, current: i + 1 }));
-        const hash = await restockCollectibleHook.restock(item.tokenId!, BigInt(50));
-        if (hash) await publicClient.waitForTransactionReceipt({ hash });
-      }
-      toast.success(`Restocked ${soldOut.length} sold-out perk(s).`);
-    } catch (e: unknown) {
-      toastContractError(e, 'Failed to restock perks');
-    } finally {
-      setStockPerksProgress({ active: false, current: 0, total: 0 });
-    }
-  };
-
-  const handleStockAllBundles = async () => {
-    if (!isConnected || !address) {
-      toast.error('Please connect your wallet');
-      return;
-    }
-    if (!isAdmin) {
-      toast.error('Admin only');
-      return;
-    }
-    if (!contractAddress) {
-      toast.error('Reward contract not configured on this chain');
-      return;
-    }
-    if (stockAllBundlesProgress.active) return;
-    setStockAllBundlesProgress({ active: true, current: 0, total: BUNDLE_DEFS_FOR_STOCK.length });
-    try {
-      for (let i = 0; i < BUNDLE_DEFS_FOR_STOCK.length; i++) {
-        const def = BUNDLE_DEFS_FOR_STOCK[i];
-        setStockAllBundlesProgress((p) => ({ ...p, current: i + 1 }));
-        const tokenIds: bigint[] = [];
-        const amounts: bigint[] = [];
-        for (const li of def.items) {
-          const key = `${li.perk}:${li.strength}`;
-          const match = allCollectiblesByPerkStrength.get(key);
-          if (!match) {
-            throw new Error(`Bundle "${def.name}": perk ${li.perk} (tier ${li.strength}) missing. Stock perks first.`);
-          }
-          for (let q = 0; q < li.quantity; q++) {
-            tokenIds.push(match.tokenId);
-            amounts.push(BigInt(1));
-          }
-        }
-        const tycPrice = parseUnits(def.price_tyc, 18);
-        const usdcPrice = parseUnits(def.price_usdc, 6);
-        await stockBundleHook.stockBundle(tokenIds, amounts, tycPrice, usdcPrice);
-      }
-      toast.success('All bundles stocked');
-    } catch (e: unknown) {
-      toastContractError(e, 'Failed to stock bundles');
-    } finally {
-      setStockAllBundlesProgress({ active: false, current: 0, total: 0 });
-    }
-  };
-
   const handleRedeemVoucher = async (tokenId: bigint, voucherOwner: Address) => {
     if (!isConnected || !address) {
       connectWallet();
@@ -1346,40 +1178,6 @@ export default function GameShopMobile() {
                 <p className="text-slate-400 text-sm">No bundles available yet. Check back soon.</p>
               </div>
             )}
-          </div>
-        )}
-
-        {shopTab === 'perks' && isAdmin && (
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
-            <p className="text-[10px] uppercase tracking-wider text-amber-300/80 font-semibold">Shop admin</p>
-            <div className="flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={() => void handleStockMissingPerks()}
-                disabled={stockPerksProgress.active || stockShopHook.isPending}
-                className="w-full py-2.5 rounded-lg bg-amber-500/20 border border-amber-400/40 text-amber-100 text-xs font-semibold disabled:opacity-50"
-              >
-                {stockPerksProgress.active ? `Stocking perks ${stockPerksProgress.current}/${stockPerksProgress.total}…` : 'Stock missing perks (incl. Instant Cash T1/T2)'}
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleRestockSoldOutPerks()}
-                disabled={stockPerksProgress.active || restockCollectibleHook.isPending}
-                className="w-full py-2.5 rounded-lg bg-amber-500/10 border border-amber-400/25 text-amber-200/90 text-xs font-semibold disabled:opacity-50"
-              >
-                Restock sold-out perks (+50 each)
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleStockAllBundles()}
-                disabled={stockAllBundlesProgress.active || stockBundleHook.isPending}
-                className="w-full py-2.5 rounded-lg bg-amber-500/10 border border-amber-400/25 text-amber-200/90 text-xs font-semibold disabled:opacity-50"
-              >
-                {stockAllBundlesProgress.active
-                  ? `Stocking bundles ${stockAllBundlesProgress.current}/${stockAllBundlesProgress.total}…`
-                  : 'Stock all bundles'}
-              </button>
-            </div>
           </div>
         )}
 
