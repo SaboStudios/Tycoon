@@ -39,6 +39,12 @@ import { shopPerkRow } from '@/lib/shopPerkRow';
 import { isShopPerkHidden } from '@/lib/perkShopAssets';
 import { pickMinipayPreferredStable, type MinipayStableOption } from '@/lib/shop/preferredStable';
 import { ensureErc20Allowance, SHOP_APPROVAL_CAP, waitForTxConfirmed } from '@/lib/ensureErc20Allowance';
+import {
+  instantCashShopDescription,
+  instantCashShopName,
+  instantCashTierBadge,
+  INSTANT_CASH_SHOP_SUMMARY,
+} from '@/lib/perks/instantCash';
 
 import {
   useRewardBuyCollectible,
@@ -138,7 +144,7 @@ const BUNDLE_DEFS: BundleDef[] = [
   { name: "Lucky Bundle", description: "Jail Free, Teleport, and Lucky 7. Get out of tight spots.", items: [{ perk: 2, strength: 1, quantity: 1 }, { perk: 6, strength: 1, quantity: 1 }, { perk: 13, strength: 1, quantity: 1 }] },
   { name: "Defender Pack", description: "Shield, Jail Free, and Roll Boost. Stay in the game when the board turns against you.", items: [{ perk: 7, strength: 1, quantity: 1 }, { perk: 2, strength: 1, quantity: 1 }, { perk: 4, strength: 1, quantity: 1 }] },
   { name: "High Roller", description: "Double Rent, Roll Boost, and Exact Roll. Maximize income and land where it hurts.", items: [{ perk: 3, strength: 1, quantity: 1 }, { perk: 4, strength: 1, quantity: 1 }, { perk: 10, strength: 1, quantity: 1 }] },
-  { name: "Cash Flow", description: "Instant Cash, Property Discount, and Tax Refund (tiered). Keep your balance healthy.", items: [{ perk: 5, strength: 1, quantity: 1 }, { perk: 8, strength: 1, quantity: 1 }, { perk: 9, strength: 1, quantity: 1 }] },
+  { name: "Cash Flow", description: "Instant Cash ($100 tier), Property Discount, and Tax Refund — stay liquid and cut costs.", items: [{ perk: 5, strength: 1, quantity: 1 }, { perk: 8, strength: 1, quantity: 1 }, { perk: 9, strength: 1, quantity: 1 }] },
   { name: "Chaos Bundle", description: "Teleport, Exact Roll, and Lucky 7. Control the board and bend the dice.", items: [{ perk: 6, strength: 1, quantity: 1 }, { perk: 10, strength: 1, quantity: 1 }, { perk: 13, strength: 1, quantity: 1 }] },
   { name: "Landlord's Choice", description: "Rent Cashback, Interest, and Free Parking Bonus. Rewards for property owners and patient play.", items: [{ perk: 11, strength: 1, quantity: 1 }, { perk: 12, strength: 1, quantity: 1 }, { perk: 14, strength: 1, quantity: 1 }] },
   { name: "Ultimate Pack", description: "A bit of everything to dominate the board.", items: [{ perk: 1, strength: 1, quantity: 1 }, { perk: 3, strength: 1, quantity: 1 }, { perk: 7, strength: 1, quantity: 1 }, { perk: 13, strength: 1, quantity: 1 }] },
@@ -149,7 +155,7 @@ const perkMetadata = [
   shopPerkRow(2, "Use when in Jail to get out without paying or rolling doubles.", <Crown />),
   shopPerkRow(3, "When someone lands on your property, charge double the normal rent once.", <Coins />),
   shopPerkRow(4, "Add +1 to your next dice roll (capped at 12).", <Sparkles />),
-  shopPerkRow(5, "Burn to receive in-game cash based on tier ($100–$1000) for rent and property buys.", <Gem />),
+  shopPerkRow(5, INSTANT_CASH_SHOP_SUMMARY, <Gem />),
   shopPerkRow(6, "Move your token to any property on the board.", <Zap />),
   shopPerkRow(7, "Block the next rent or fee you would pay (one use).", <Shield />),
   shopPerkRow(8, "Get 30–50% off the next property you buy (tiered).", <Coins />),
@@ -459,12 +465,16 @@ export default function GameShopMobile() {
         if (isShopPerkHidden(Number(perk))) return null;
 
         const tokenId = shopTokenIds[index];
+        const strengthNum = Number(strength);
         const meta = perkMetadata.find((m) => m.perk === perk) || {
           name: `Perk #${perk}`,
           desc: 'Use during a game for a strategic advantage.',
           icon: <Gem className="w-12 h-12 text-gray-400" />,
           image: '/game/shop/placeholder.jpg',
         };
+
+        const displayName = Number(perk) === 5 ? instantCashShopName(strengthNum) : meta.name;
+        const displayDesc = Number(perk) === 5 ? instantCashShopDescription(strengthNum) : meta.desc;
 
         const usdcPriceStr = formatUnits(usdcPrice, 6);
         const baseNgnPrice = Math.round(Number(usdcPriceStr) * USDC_TO_NGN_RATE);
@@ -482,6 +492,8 @@ export default function GameShopMobile() {
           stock: Number(stock),
           comingSoon: false as const,
           ...meta,
+          name: displayName,
+          desc: displayDesc,
         };
       })
       .filter((item): item is NonNullable<typeof item> => item !== null);
@@ -1222,7 +1234,7 @@ export default function GameShopMobile() {
                   <div className="flex flex-wrap items-center justify-end gap-1.5 px-3 pt-2 pb-0 border-t border-white/5 bg-[#0E1415]/40">
                     {TIERED_PERKS.has(item.perk) && (
                       <span className="px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-400/30 text-[9px] font-semibold text-amber-300 uppercase">
-                        T{item.strength}
+                        {item.perk === 5 ? instantCashTierBadge(item.strength) : `T${item.strength}`}
                       </span>
                     )}
                     <span className="px-2 py-0.5 rounded-md bg-black/40 text-[10px] font-medium text-slate-300 border border-white/10">
@@ -1232,7 +1244,7 @@ export default function GameShopMobile() {
 
                   <div className="p-3 flex flex-col flex-1 min-h-0 pt-2">
                     <p className="font-bold text-base leading-tight text-white mb-1">{item.name}</p>
-                    <p className="text-[11px] text-slate-500 mb-2 line-clamp-2 flex-shrink-0">{item.desc}</p>
+                    <p className="text-[11px] text-slate-500 mb-2 line-clamp-3 flex-shrink-0">{item.desc}</p>
 
                     <div className="flex justify-between items-end mb-3 mt-auto">
                       <div>

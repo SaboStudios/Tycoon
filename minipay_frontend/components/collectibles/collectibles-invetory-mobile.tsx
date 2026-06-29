@@ -50,6 +50,7 @@ import {
   REWARD_OWNED_SLOT_SCAN_CAP,
 } from "@/lib/rewardOwnedEnumerable";
 import { getPerkShopAsset } from "@/lib/perkShopAssets";
+import { getInstantCashAmount, instantCashShopName } from "@/lib/perks/instantCash";
 
 /** Full-viewport overlays must portal out of board modals (transform/overflow break `position: fixed` on many mobile WebViews). */
 function getOverlayPortalTarget(): HTMLElement | null {
@@ -70,8 +71,6 @@ const BOARD_POSITIONS = [
   "Cartridge Railroad", "Chance", "Solana Avenue", "Luxury Tax", "Ethereum Avenue"
 ];
 
-const CASH_TIERS = [0, 100, 250, 500, 700, 1000];
-
 const perkMetadata: Record<number, {
   name: string;
   icon: React.ReactNode;
@@ -83,7 +82,7 @@ const perkMetadata: Record<number, {
   2: { name: "Jail Free Card", icon: <Crown className="w-10 h-10" />, gradient: "from-purple-600 to-pink-600", canBeActivated: true, fakeDescription: "Use when in Jail to get out without paying or rolling doubles." },
   3: { name: "Double Rent", icon: <Coins className="w-10 h-10" />, gradient: "from-green-600 to-emerald-600", canBeActivated: true, fakeDescription: "When someone lands on your property, charge double the normal rent once." },
   4: { name: "Roll Boost", icon: <Sparkles className="w-10 h-10" />, gradient: "from-blue-600 to-cyan-600", canBeActivated: true, fakeDescription: "Add +1 to your next dice roll (capped at 12)." },
-  5: { name: "Instant Cash", icon: <Gem className="w-10 h-10" />, gradient: "from-cyan-600 to-teal-600", canBeActivated: true, fakeDescription: "Burn to receive in-game cash based on tier ($100–$1000) for rent and property buys." },
+  5: { name: "Instant Cash", icon: <Gem className="w-10 h-10" />, gradient: "from-cyan-600 to-teal-600", canBeActivated: true, fakeDescription: "Use on your turn to add cash to your balance. Amount depends on tier ($100–$1,000)." },
   6: { name: "Teleport", icon: <Zap className="w-10 h-10" />, gradient: "from-pink-600 to-rose-600", canBeActivated: true, fakeDescription: "Move your token to any property on the board." },
   7: { name: "Shield", icon: <Shield className="w-10 h-10" />, gradient: "from-indigo-600 to-blue-600", canBeActivated: true, fakeDescription: "Block the next rent or fee you would pay (one use)." },
   8: { name: "Property Discount", icon: <Coins className="w-10 h-10" />, gradient: "from-orange-600 to-red-600", canBeActivated: true, fakeDescription: "Get 30–50% off the next property you buy (tiered)." },
@@ -291,9 +290,11 @@ export default function CollectibleInventoryBar({
         const strength = Number(strengthBig);
         const meta = perkMetadata[perk] ?? perkMetadata[10];
 
-        const displayName = (perk === 5 || perk === 8 || perk === 9)
-          ? `${meta.name} (Tier ${strength})`
-          : meta.name;
+        const displayName = perk === 5
+          ? instantCashShopName(strength)
+          : (perk === 8 || perk === 9)
+            ? `${meta.name} (Tier ${strength})`
+            : meta.name;
 
         const shopAsset = getPerkShopAsset(perk);
 
@@ -431,7 +432,7 @@ export default function CollectibleInventoryBar({
             break;
           }
           case 5: {
-            const amount = CASH_TIERS[Math.min(strength, CASH_TIERS.length - 1)];
+            const amount = getInstantCashAmount(strength);
             const res = await apiClient.post<{ success?: boolean; reward?: number; message?: string }>("/perks/burn-cash", {
               game_id: game.id,
               from_collectible: true,
