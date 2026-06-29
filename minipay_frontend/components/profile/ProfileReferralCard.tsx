@@ -138,8 +138,7 @@ export default function ProfileReferralCard({ enabled = true, className = "" }: 
           <div className="min-w-0 flex-1">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-cyan-400/90 mb-2 font-orbitron">Invite Friends</p>
             <p className="text-xs text-cyan-300/70 mb-3">
-              Generate your unique referral code and start earning{" "}
-              <span className="font-semibold text-amber-400">$0.10 USDT</span> for every friend who joins!
+              Generate your unique referral code and share your invite link with friends.
             </p>
             <button
               type="button"
@@ -165,6 +164,8 @@ export default function ProfileReferralCard({ enabled = true, className = "" }: 
     );
   }
 
+  const referralCount = data?.directReferralsCount ?? 0;
+
   return (
     <div
       className={`rounded-2xl border border-cyan-500/30 bg-slate-800/60 p-4 sm:p-5 shadow-lg shadow-cyan-500/5 ${className}`}
@@ -175,8 +176,8 @@ export default function ProfileReferralCard({ enabled = true, className = "" }: 
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-cyan-400/90 mb-1 font-orbitron">Invite Friends</p>
-          <p className="text-xs text-cyan-300/70 mb-1">
-            Earn <span className="font-semibold text-amber-400">$0.10 USDT</span> for every friend who signs up with your code
+          <p className="text-xs text-cyan-300/70 mb-3">
+            Share your code or invite link so friends can join Tycoon.
           </p>
           <div className="flex flex-wrap items-center gap-2 mb-3">
             <span className="font-mono text-sm text-cyan-300 bg-[#0A1A1B] px-3 py-1.5 rounded-lg border border-cyan-500/40 truncate max-w-full">
@@ -201,21 +202,10 @@ export default function ProfileReferralCard({ enabled = true, className = "" }: 
               Copy Invite Link
             </button>
           ) : null}
-          {(() => {
-            const referralCount = data?.directReferralsCount ?? 0;
-            const earnedAmount = (referralCount * 0.1).toFixed(2);
-            return (
-              <div className="mt-3 pt-3 border-t border-cyan-500/20 space-y-1">
-                <p className="text-[11px] text-cyan-300/70">
-                  Friends invited:{" "}
-                  <span className="font-semibold text-cyan-300 tabular-nums">{referralCount}</span>
-                  {" · "}
-                  Total earned:{" "}
-                  <span className="font-bold text-amber-400 tabular-nums">${earnedAmount} USDT</span>
-                </p>
-              </div>
-            );
-          })()}
+          <p className="mt-3 pt-3 border-t border-cyan-500/20 text-[11px] text-cyan-300/70">
+            Friends invited:{" "}
+            <span className="font-semibold text-cyan-300 tabular-nums">{referralCount}</span>
+          </p>
           {data?.referredByUserId != null && (
             <p className="text-[11px] text-white/40 mt-1">
               You were referred by{" "}
