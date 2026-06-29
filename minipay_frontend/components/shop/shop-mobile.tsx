@@ -38,7 +38,7 @@ import { MIN_FLUTTERWAVE_CHECKOUT_NGN } from '@/lib/constants/ngnPayments';
 import { shopPerkRow } from '@/lib/shopPerkRow';
 import { isShopPerkHidden } from '@/lib/perkShopAssets';
 import { getMinipayShopStable, type MinipayStableOption } from '@/lib/shop/preferredStable';
-import { shopPriceForStable } from '@/lib/shop/stablePrices';
+import { resolveShopUsdtPurchase } from '@/lib/shop/shopItemPayment';
 import { ensureErc20Allowance, SHOP_APPROVAL_CAP, waitForTxConfirmed } from '@/lib/ensureErc20Allowance';
 import {
   instantCashShopDescription,
@@ -341,11 +341,6 @@ export default function GameShopMobile() {
     [usdtAddress, usdtBalanceData?.formatted]
   );
 
-  const itemStablePrice = useCallback(
-    (item: { usdcPrice: string; cusdcPrice: string; usdtPrice: string }) => shopPriceForStable(item, 'USDT'),
-    []
-  );
-
   const activeStableLabel = 'USDT';
   const activeStableBalance = Number.isFinite(preferredStable.balance) ? preferredStable.balance : 0;
   const stableLoading = usdtLoading;
@@ -523,6 +518,12 @@ export default function GameShopMobile() {
       const baseNgnPrice = Math.round(Number(usdcPriceStr) * USDC_TO_NGN_RATE);
       const ngnPrice = calculateNgnPrice(baseNgnPrice);
 
+      const usdtPurchase = resolveShopUsdtPurchase({
+        onChainUsdtPriceWei: onChain?.usdtPrice ?? 0n,
+        onChainUsdcPriceWei: onChain?.usdcPrice ?? 0n,
+        catalogUsdc,
+      });
+
       return {
         tokenId: onChain?.tokenId ?? null,
         perk,
@@ -531,6 +532,7 @@ export default function GameShopMobile() {
         usdcPrice: usdcPriceStr,
         cusdcPrice: cusdcPriceStr,
         usdtPrice: usdtPriceStr,
+        usdtPurchase,
         ngnPrice,
         stock: onChain ? Number(onChain.stock) : 0,
         catalogOnly: !onChain,
@@ -687,17 +689,16 @@ export default function GameShopMobile() {
       toast.error(`${activeStableLabel} not supported on this network`);
       return;
     }
-    const selectedPriceRaw = String(itemStablePrice(item));
-    const priceNum = Number(selectedPriceRaw || 0);
-    if (!Number.isFinite(priceNum) || priceNum <= 0) {
-      toast.error('This perk is not priced for USDT yet. Ask the team to sync shop prices on /rewards.');
+    const priceWei = item.usdtPurchase.purchasePriceWei;
+    if (!priceWei || priceWei <= 0n) {
+      toast.error(item.usdtPurchase.blockReason ?? 'USDT price is not set on-chain for this perk yet.');
       return;
     }
+    const priceNum = item.usdtPurchase.displayPrice;
     if (activeStableBalance < priceNum) {
       toast.error(`Insufficient ${activeStableLabel} balance`);
       return;
     }
-    const price = BigInt(Math.round(priceNum * 1e6));
     const paymentToken = preferredStable.paymentToken;
     const paymentTokenAddress = preferredStable.tokenAddress;
     if (!paymentTokenAddress || !contractAddress) {
@@ -719,7 +720,7 @@ export default function GameShopMobile() {
           const res = await apiClient.post<{ success?: boolean; message?: string }>('auth/smart-wallet/buy-collectible', {
             tokenId: item.tokenId.toString(),
             useUsdc: true,
-            maxPrice: price.toString(),
+            maxPrice: priceWei.toString(),
             pin,
           });
           if (!res?.success && !res?.data?.success) {
@@ -732,7 +733,7 @@ export default function GameShopMobile() {
             token: paymentTokenAddress,
             owner: smartWalletAddress,
             spender: contractAddress,
-            requiredAmount: price,
+            requiredAmount: priceWei,
             approve: smartWalletApprove,
             approvalCap: SHOP_APPROVAL_CAP,
           });
@@ -748,10 +749,27 @@ export default function GameShopMobile() {
           token: paymentTokenAddress,
           owner: payerAddress,
           spender: contractAddress,
-          requiredAmount: price,
+          requiredAmount: priceWei,
           approve,
           approvalCap: SHOP_APPROVAL_CAP,
         });
+        if (payerAddress) {
+          await publicClient.simulateContract({
+            account: payerAddress,
+            address: contractAddress,
+            abi: [
+              {
+                type: 'function',
+                name: 'buyCollectible',
+                stateMutability: 'nonpayable',
+                inputs: [{ type: 'uint256' }, { type: 'uint8' }],
+                outputs: [],
+              },
+            ] as const,
+            functionName: 'buyCollectible',
+            args: [item.tokenId, paymentToken],
+          });
+        }
         const buyHash = await buy(item.tokenId, paymentToken);
         if (buyHash) await waitForTxConfirmed(publicClient, buyHash);
         void refetchStableAllowance();
@@ -1199,6 +1217,8 @@ export default function GameShopMobile() {
           <div className="grid grid-cols-2 gap-x-3 gap-y-5">
             {shopItems.map((item, index) => {
               const soldOut = item.stock <= 0;
+              const usdtNotReady = !soldOut && !!item.tokenId && !item.usdtPurchase.usdtPriceOnChain;
+              const displayUsdt = item.usdtPurchase.displayPrice;
               return (
                 <motion.div
                   key={item.tokenId ? item.tokenId.toString() : `catalog-${item.perk}-${item.strength}`}
@@ -1236,8 +1256,11 @@ export default function GameShopMobile() {
                       <div>
                         <p className="text-[10px] text-slate-500 uppercase">Price</p>
                         <p className="text-base font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">
-                          {itemStablePrice(item).toFixed(2)} {activeStableLabel}
+                          {displayUsdt.toFixed(2)} {activeStableLabel}
                         </p>
+                        {usdtNotReady && (
+                          <p className="text-[9px] text-amber-400/90 mt-0.5 leading-tight">USDT price pending sync</p>
+                        )}
                       </div>
                     </div>
 
@@ -1247,6 +1270,7 @@ export default function GameShopMobile() {
                         disabled={
                           soldOut ||
                           !item.tokenId ||
+                          usdtNotReady ||
                           buyingPending ||
                           buyingConfirming ||
                           approvePending ||
@@ -1254,14 +1278,14 @@ export default function GameShopMobile() {
                           buyFromPending ||
                           buyFromConfirming ||
                           smartWalletApprovePending ||
-                          (hasPaymentMethod && activeStableBalance < itemStablePrice(item))
+                          (hasPaymentMethod && activeStableBalance < displayUsdt)
                         }
                         className={`w-full py-3 rounded-xl font-semibold text-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1415]
-                          ${soldOut || !item.tokenId
+                          ${soldOut || !item.tokenId || usdtNotReady
                             ? 'bg-slate-800/80 text-slate-500'
                             : !hasPaymentMethod
                             ? 'bg-gradient-to-r from-[#00F0FF]/30 to-[#0DD6E0]/25 text-[#00F0FF] border border-[#00F0FF]/40'
-                            : activeStableBalance < itemStablePrice(item)
+                            : activeStableBalance < displayUsdt
                             ? 'bg-slate-700/80 text-slate-400'
                             : (buyingPending || buyingConfirming || buyFromPending || buyFromConfirming || smartWalletApprovePending || approvePending || approveConfirming)
                             ? 'bg-amber-600/90 text-black'
@@ -1271,12 +1295,14 @@ export default function GameShopMobile() {
                           <Loader2 className="inline animate-spin mr-2" size={16} />
                         ) : soldOut || !item.tokenId ? (
                           'Sold out'
+                        ) : usdtNotReady ? (
+                          'USDT price not set'
                         ) : !hasPaymentMethod ? (
                           'Connect MiniPay wallet'
-                        ) : activeStableBalance < itemStablePrice(item) ? (
+                        ) : activeStableBalance < displayUsdt ? (
                           `Insufficient ${activeStableLabel}`
                         ) : (
-                          <> Pay with {activeStableLabel} — {itemStablePrice(item).toFixed(2)}</>
+                          <> Pay with {activeStableLabel} — {displayUsdt.toFixed(2)}</>
                         )}
                       </button>
                     </>
