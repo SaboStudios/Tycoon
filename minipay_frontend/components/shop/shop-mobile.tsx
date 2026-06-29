@@ -37,7 +37,8 @@ import { REWARD_CONTRACT_ADDRESSES } from '@/constants/contracts';
 import { MIN_FLUTTERWAVE_CHECKOUT_NGN } from '@/lib/constants/ngnPayments';
 import { shopPerkRow } from '@/lib/shopPerkRow';
 import { isShopPerkHidden } from '@/lib/perkShopAssets';
-import { pickMinipayPreferredStable, type MinipayStableOption } from '@/lib/shop/preferredStable';
+import { getMinipayShopStable, type MinipayStableOption } from '@/lib/shop/preferredStable';
+import { shopPriceForStable } from '@/lib/shop/stablePrices';
 import { ensureErc20Allowance, SHOP_APPROVAL_CAP, waitForTxConfirmed } from '@/lib/ensureErc20Allowance';
 import {
   instantCashShopDescription,
@@ -179,7 +180,7 @@ export default function GameShopMobile() {
   const auth = useGuestAuthOptional();
 
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
-  const { usdcAddress: usdcTokenAddress, cusdcAddress, usdtAddress } = useRewardTokenAddresses();
+  const { usdtAddress } = useRewardTokenAddresses();
 
   const guestUser = auth?.guestUser ?? null;
   const registryOwnerAddress = useMemo(
@@ -323,35 +324,31 @@ export default function GameShopMobile() {
   }, [isVoucherPanelOpen]);
 
   // Allowances (for selected payer)
-  const { data: usdcBalanceData, isLoading: usdcLoading, refetch: refetchUsdc } = useBalance({
-    address: payerAddress,
-    token: usdcTokenAddress,
-    query: { enabled: !!payerAddress && !!usdcTokenAddress },
-  });
-  const { data: cusdcBalanceData, isLoading: cusdcLoading, refetch: refetchCusdc } = useBalance({
-    address: payerAddress,
-    token: cusdcAddress,
-    query: { enabled: !!payerAddress && !!cusdcAddress },
-  });
   const { data: usdtBalanceData, isLoading: usdtLoading, refetch: refetchUsdt } = useBalance({
     address: payerAddress,
     token: usdtAddress,
     query: { enabled: !!payerAddress && !!usdtAddress },
   });
 
-  const stableOptions = useMemo<StableOption[]>(
-    () => [
-      { symbol: 'CUSDC', tokenAddress: cusdcAddress, paymentToken: 2, balance: Number(cusdcBalanceData?.formatted ?? 0) },
-      { symbol: 'USDT', tokenAddress: usdtAddress, paymentToken: 3, balance: Number(usdtBalanceData?.formatted ?? 0) },
-    ],
-    [usdcTokenAddress, cusdcAddress, usdtAddress, usdcBalanceData?.formatted, cusdcBalanceData?.formatted, usdtBalanceData?.formatted]
+  const preferredStable = useMemo<StableOption>(
+    () =>
+      getMinipayShopStable({
+        symbol: 'USDT',
+        tokenAddress: usdtAddress,
+        paymentToken: 3,
+        balance: Number(usdtBalanceData?.formatted ?? 0),
+      }),
+    [usdtAddress, usdtBalanceData?.formatted]
   );
 
-  const preferredStable = useMemo<StableOption>(() => pickMinipayPreferredStable(stableOptions), [stableOptions]);
+  const itemStablePrice = useCallback(
+    (item: { usdcPrice: string; cusdcPrice: string; usdtPrice: string }) => shopPriceForStable(item, 'USDT'),
+    []
+  );
 
-  const activeStableLabel = preferredStable.symbol === 'CUSDC' ? 'cUSD' : preferredStable.symbol;
+  const activeStableLabel = 'USDT';
   const activeStableBalance = Number.isFinite(preferredStable.balance) ? preferredStable.balance : 0;
-  const stableLoading = usdcLoading || cusdcLoading || usdtLoading;
+  const stableLoading = usdtLoading;
 
   const { refetch: refetchStableAllowance } = useReadContract({
     address: preferredStable.tokenAddress,
@@ -517,6 +514,12 @@ export default function GameShopMobile() {
       const displayName = perk === 5 ? instantCashShopName(strengthNum) : meta.name;
       const displayDesc = perk === 5 ? instantCashShopDescription(strengthNum) : meta.desc;
       const usdcPriceStr = onChain ? formatUnits(onChain.usdcPrice, 6) : (catalogUsdc ?? '0');
+      const cusdcPriceStr = onChain
+        ? (onChain.cusdcPrice > 0n ? formatUnits(onChain.cusdcPrice, 6) : usdcPriceStr)
+        : usdcPriceStr;
+      const usdtPriceStr = onChain
+        ? (onChain.usdtPrice > 0n ? formatUnits(onChain.usdtPrice, 6) : usdcPriceStr)
+        : usdcPriceStr;
       const baseNgnPrice = Math.round(Number(usdcPriceStr) * USDC_TO_NGN_RATE);
       const ngnPrice = calculateNgnPrice(baseNgnPrice);
 
@@ -526,8 +529,8 @@ export default function GameShopMobile() {
         strength: strengthNum,
         tycPrice: onChain ? formatUnits(onChain.tycPrice, 18) : (catalogTyc ?? '0'),
         usdcPrice: usdcPriceStr,
-        cusdcPrice: onChain ? formatUnits(onChain.cusdcPrice, 6) : usdcPriceStr,
-        usdtPrice: onChain ? formatUnits(onChain.usdtPrice, 6) : usdcPriceStr,
+        cusdcPrice: cusdcPriceStr,
+        usdtPrice: usdtPriceStr,
         ngnPrice,
         stock: onChain ? Number(onChain.stock) : 0,
         catalogOnly: !onChain,
@@ -684,13 +687,12 @@ export default function GameShopMobile() {
       toast.error(`${activeStableLabel} not supported on this network`);
       return;
     }
-    const selectedPriceRaw =
-      preferredStable.symbol === 'CUSDC'
-        ? item.cusdcPrice
-        : preferredStable.symbol === 'USDT'
-          ? item.usdtPrice
-          : item.usdcPrice;
+    const selectedPriceRaw = String(itemStablePrice(item));
     const priceNum = Number(selectedPriceRaw || 0);
+    if (!Number.isFinite(priceNum) || priceNum <= 0) {
+      toast.error('This perk is not priced for USDT yet. Ask the team to sync shop prices on /rewards.');
+      return;
+    }
     if (activeStableBalance < priceNum) {
       toast.error(`Insufficient ${activeStableLabel} balance`);
       return;
@@ -897,8 +899,6 @@ export default function GameShopMobile() {
           });
           if (!res?.success && !res?.data?.success) throw new Error(res?.data?.message || 'Bundle purchase failed');
           toast.success('Bundle purchase successful!');
-          refetchUsdc();
-          refetchCusdc();
           refetchUsdt();
           return;
         }
@@ -919,8 +919,6 @@ export default function GameShopMobile() {
         await waitForBundleTx(hash);
       }
       toast.success('Bundle purchase successful!');
-      refetchUsdc();
-      refetchCusdc();
       refetchUsdt();
     } catch (err: unknown) {
       notifyShopTxOutcome(err, 'Bundle purchase failed');
@@ -955,23 +953,19 @@ export default function GameShopMobile() {
   useEffect(() => {
     if (buySuccess) {
       toast.success('Purchase successful!');
-      refetchUsdc();
-      refetchCusdc();
       refetchUsdt();
       void refetchStableAllowance();
       resetBuy();
     }
-  }, [buySuccess, refetchUsdc, refetchCusdc, refetchUsdt, refetchStableAllowance, resetBuy]);
+  }, [buySuccess, refetchUsdt, refetchStableAllowance, resetBuy]);
   useEffect(() => {
     if (buyFromSuccess) {
       toast.success('Purchase successful!');
-      refetchUsdc();
-      refetchCusdc();
       refetchUsdt();
       void refetchStableAllowance();
       resetBuyFrom();
     }
-  }, [buyFromSuccess, refetchUsdc, refetchCusdc, refetchUsdt, refetchStableAllowance, resetBuyFrom]);
+  }, [buyFromSuccess, refetchUsdt, refetchStableAllowance, resetBuyFrom]);
 
   useEffect(() => {
     if (redeemSuccess) {
@@ -1049,13 +1043,13 @@ export default function GameShopMobile() {
           <div className="flex items-center gap-3">
             <CreditCard className="w-5 h-5 text-[#00F0FF]" />
             <div>
-              <p className="text-[10px] text-slate-500 uppercase tracking-wider">{activeStableLabel} (MiniPay wallet)</p>
+              <p className="text-[10px] text-slate-500 uppercase tracking-wider">USDT (MiniPay wallet)</p>
               <p className="text-lg font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">
                 {stableLoading ? <Loader2 className="inline animate-spin" size={18} /> : payerAddress ? `${activeStableBalance.toFixed(2)} ${activeStableLabel}` : '—'}
               </p>
             </div>
           </div>
-          <button onClick={() => { refetchUsdc(); refetchCusdc(); refetchUsdt(); }} className="text-xs text-[#00F0FF] flex items-center gap-1">
+          <button onClick={() => { refetchUsdt(); }} className="text-xs text-[#00F0FF] flex items-center gap-1">
             <RefreshCw size={12} /> Refresh
           </button>
         </motion.div>
@@ -1242,7 +1236,7 @@ export default function GameShopMobile() {
                       <div>
                         <p className="text-[10px] text-slate-500 uppercase">Price</p>
                         <p className="text-base font-bold text-[#00F0FF] font-[family-name:var(--font-orbitron-sans)]">
-                          {Number(preferredStable.symbol === 'CUSDC' ? item.cusdcPrice : preferredStable.symbol === 'USDT' ? item.usdtPrice : item.usdcPrice).toFixed(2)} {activeStableLabel}
+                          {itemStablePrice(item).toFixed(2)} {activeStableLabel}
                         </p>
                       </div>
                     </div>
@@ -1260,14 +1254,14 @@ export default function GameShopMobile() {
                           buyFromPending ||
                           buyFromConfirming ||
                           smartWalletApprovePending ||
-                          (hasPaymentMethod && activeStableBalance < Number(preferredStable.symbol === 'CUSDC' ? item.cusdcPrice : preferredStable.symbol === 'USDT' ? item.usdtPrice : item.usdcPrice))
+                          (hasPaymentMethod && activeStableBalance < itemStablePrice(item))
                         }
                         className={`w-full py-3 rounded-xl font-semibold text-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1415]
                           ${soldOut || !item.tokenId
                             ? 'bg-slate-800/80 text-slate-500'
                             : !hasPaymentMethod
                             ? 'bg-gradient-to-r from-[#00F0FF]/30 to-[#0DD6E0]/25 text-[#00F0FF] border border-[#00F0FF]/40'
-                            : activeStableBalance < Number(preferredStable.symbol === 'CUSDC' ? item.cusdcPrice : preferredStable.symbol === 'USDT' ? item.usdtPrice : item.usdcPrice)
+                            : activeStableBalance < itemStablePrice(item)
                             ? 'bg-slate-700/80 text-slate-400'
                             : (buyingPending || buyingConfirming || buyFromPending || buyFromConfirming || smartWalletApprovePending || approvePending || approveConfirming)
                             ? 'bg-amber-600/90 text-black'
@@ -1279,10 +1273,10 @@ export default function GameShopMobile() {
                           'Sold out'
                         ) : !hasPaymentMethod ? (
                           'Connect MiniPay wallet'
-                        ) : activeStableBalance < Number(preferredStable.symbol === 'CUSDC' ? item.cusdcPrice : preferredStable.symbol === 'USDT' ? item.usdtPrice : item.usdcPrice) ? (
+                        ) : activeStableBalance < itemStablePrice(item) ? (
                           `Insufficient ${activeStableLabel}`
                         ) : (
-                          <> Pay with {activeStableLabel} — {Number(preferredStable.symbol === 'CUSDC' ? item.cusdcPrice : preferredStable.symbol === 'USDT' ? item.usdtPrice : item.usdcPrice).toFixed(2)}</>
+                          <> Pay with {activeStableLabel} — {itemStablePrice(item).toFixed(2)}</>
                         )}
                       </button>
                     </>
