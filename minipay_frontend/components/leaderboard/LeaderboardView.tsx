@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { CalendarDays, ChevronLeft, Coins, Info, Loader2, Users, Zap } from 'lucide-react';
 import type { BountyRow, TimeScope } from './leaderboard-types';
-import { BOUNTY_WINNER_COUNT } from './leaderboard-types';
+import { BOUNTY_WINNER_COUNT, formatLeaderboardLastUpdated } from './leaderboard-types';
 
 function tabPillClass(active: boolean, bounty = false): string {
   const base =
@@ -130,6 +130,9 @@ function RankCard({
           >
             {row.username || '—'}
           </span>
+          <span className="text-[10px] sm:text-xs text-cyan-300/55 font-medium tabular-nums">
+            {row.games_played} finished {row.games_played === 1 ? 'game' : 'games'}
+          </span>
           {(badge || isMe) && (
             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5">
               {badge}
@@ -179,7 +182,7 @@ function renderRankCard(
   );
 }
 
-function MayBountyActiveCompletedPanel({ monthLabel }: { monthLabel: string }) {
+function FeaturedBountyPanel({ monthLabel, completed }: { monthLabel: string; completed: boolean }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -191,21 +194,31 @@ function MayBountyActiveCompletedPanel({ monthLabel }: { monthLabel: string }) {
         <h2 className="text-lg sm:text-xl font-black font-orbitron uppercase tracking-wide text-white text-center">
           🎯 {monthLabel.toUpperCase()} BOUNTY
         </h2>
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-emerald-400/60 bg-emerald-500/20 text-emerald-200 text-xs font-bold uppercase tracking-widest shadow-[0_0_12px_rgba(52,211,153,0.25)]">
-          ACTIVE
-        </span>
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-slate-400/50 bg-slate-500/20 text-slate-200 text-xs font-bold uppercase tracking-widest">
-          COMPLETED
-        </span>
+        {completed ? (
+          <>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-emerald-400/60 bg-emerald-500/20 text-emerald-200 text-xs font-bold uppercase tracking-widest">
+              ACTIVE
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-slate-400/50 bg-slate-500/20 text-slate-200 text-xs font-bold uppercase tracking-widest">
+              COMPLETED
+            </span>
+          </>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-emerald-400/60 bg-emerald-500/20 text-emerald-200 text-xs font-bold uppercase tracking-widest shadow-[0_0_12px_rgba(52,211,153,0.25)]">
+            DAILY
+          </span>
+        )}
       </div>
 
       <p className="text-center text-lg sm:text-2xl md:text-3xl font-black text-amber-300 mb-2 flex flex-wrap items-center justify-center gap-2 px-2">
         <Coins className="w-7 h-7 sm:w-8 sm:h-8 text-amber-400 shrink-0" />
-        TOP 10 PLAYERS WON 5 USDT EACH
+        {completed ? 'TOP 10 PLAYERS WON 5 USDT EACH' : 'TOP 10 PLAYERS WIN 5 USDT EACH'}
       </p>
 
       <p className="text-center text-sm text-white/55 max-w-xl mx-auto">
-        Final standings ranked by games played. All remaining players are listed below.
+        {completed
+          ? 'Final standings ranked by finished games played this month (UTC).'
+          : 'Ranked by finished human games this month (UTC). AI bots and short/abandoned games do not count toward prizes. Rankings refresh daily at 12:00 AM UTC.'}
       </p>
     </motion.div>
   );
@@ -227,7 +240,8 @@ export type LeaderboardViewProps = {
   onRetry: () => void;
   bountyMonthLabel: string;
   bountyCompleted: boolean;
-  isMayBountyView: boolean;
+  isFeaturedBountyView: boolean;
+  lastUpdatedAt: string | null;
 };
 
 export function LeaderboardView({
@@ -246,10 +260,12 @@ export function LeaderboardView({
   onRetry,
   bountyMonthLabel,
   bountyCompleted,
-  isMayBountyView,
+  isFeaturedBountyView,
+  lastUpdatedAt,
 }: LeaderboardViewProps) {
   const showRankPill = myLeaderboardUsernames.size > 0 && !loading;
-  const bountyMode = isMayBountyView;
+  const bountyMode = isFeaturedBountyView;
+  const lastUpdatedLabel = formatLeaderboardLastUpdated(lastUpdatedAt);
   const { eligibleRows, ineligibleRows } = useMemo(() => {
     const eligible = rows.filter((r) => r.leaderboard_eligible !== false);
     const ineligible = rows.filter((r) => r.leaderboard_eligible === false);
@@ -283,7 +299,7 @@ export function LeaderboardView({
           <h1 className="text-3xl font-black font-orbitron uppercase tracking-wider mb-2" style={{ textShadow: '0 0 24px rgba(0, 240, 255, 0.55), 0 0 48px rgba(0, 240, 255, 0.25)' }}>
             <span className="bg-gradient-to-r from-cyan-300 via-cyan-200 to-cyan-400 bg-clip-text text-transparent">🏆 HALL OF DOMINANCE</span>
           </h1>
-          <p className="text-cyan-300/65 font-dmSans text-xs sm:text-sm tracking-widest uppercase">Ranked by games played · {chainParam} Chain</p>
+          <p className="text-cyan-300/65 font-dmSans text-xs sm:text-sm tracking-widest uppercase">Ranked by finished games · {chainParam} Chain</p>
         </motion.div>
 
         {showRankPill && (
@@ -302,7 +318,8 @@ export function LeaderboardView({
         <div className="mb-6 -mx-1 px-1 overflow-x-auto scrollbar-none">
           <div className="flex flex-nowrap items-center justify-start sm:justify-center gap-2 min-w-min pb-1">
             <button type="button" onClick={() => setTimeScope('bounty')} className={tabPillClass(timeScope === 'bounty', true)}>
-              <span className={timeScope === 'bounty' ? 'animate-pulse' : ''}>💰</span> May Bounty
+              <span>💰</span>{' '}
+              {bountyMonthLabel.split(' ')[0]} Bounty
             </button>
             <button type="button" onClick={() => setTimeScope('month')} className={tabPillClass(timeScope === 'month')}>
               <CalendarDays className="h-4 w-4 opacity-90" /> Monthly
@@ -329,8 +346,14 @@ export function LeaderboardView({
           <span className="font-medium tracking-wide">{infoLabel}</span>
         </div>
 
-        {isMayBountyView && bountyCompleted && (
-          <MayBountyActiveCompletedPanel monthLabel={bountyMonthLabel} />
+        {lastUpdatedLabel && (
+          <p className="mb-6 -mt-3 text-center text-[11px] sm:text-xs text-white/40 tracking-wide">
+            Rankings refresh daily at 12:00 AM UTC · Last updated {lastUpdatedLabel}
+          </p>
+        )}
+
+        {isFeaturedBountyView && (
+          <FeaturedBountyPanel monthLabel={bountyMonthLabel} completed={bountyCompleted} />
         )}
 
         {loading ? (
