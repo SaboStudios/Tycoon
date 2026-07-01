@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { CalendarDays, ChevronLeft, Info, Loader2, Medal, Users, Zap } from 'lucide-react';
 import type { BountyRow, TimeScope } from './leaderboard-types';
-import { BOUNTY_WINNER_COUNT, formatLeaderboardLastUpdated } from './leaderboard-types';
+import { formatLeaderboardLastUpdated } from './leaderboard-types';
 import { JulyBogoPromoBanner } from '@/components/promos/JulyBogoPromoBanner';
 
 type TabId = TimeScope;
@@ -97,17 +97,19 @@ function RankCard({
   isMe,
   tier,
   bountyMode,
+  bountyWinnerCount,
 }: {
   row: BountyRow;
   rank: number;
   isMe: boolean;
   tier: RankCardTier;
   bountyMode: boolean;
+  bountyWinnerCount: number;
 }) {
   const isPodium = tier === 'podium' && rank >= 1 && rank <= 3;
   const podium = isPodium ? PODIUM_META[rank as 1 | 2 | 3] : null;
   const isDense = tier === 'rest' || tier === 'prize';
-  const inBountyPrize = bountyMode && rank <= BOUNTY_WINNER_COUNT;
+  const inBountyPrize = bountyMode && rank <= bountyWinnerCount;
 
   let shellClass = isDense
     ? 'border-white/[0.06] bg-[#061214]/75 opacity-90'
@@ -241,6 +243,7 @@ export type LeaderboardViewProps = {
   onRetry: () => void;
   bountyMonthLabel: string;
   bountyCompleted: boolean;
+  bountyWinnerCount: number;
   isFeaturedBountyView: boolean;
   lastUpdatedAt: string | null;
 };
@@ -260,6 +263,7 @@ export function LeaderboardView({
   myLeaderboardUsernames,
   onRetry,
   bountyMonthLabel,
+  bountyWinnerCount,
   isFeaturedBountyView,
   lastUpdatedAt,
 }: LeaderboardViewProps) {
@@ -282,13 +286,13 @@ export function LeaderboardView({
   function cardTier(rank: number, mode: boolean): RankCardTier {
     if (!mode) return rank <= 3 ? 'podium' : 'rest';
     if (rank <= 3) return 'podium';
-    if (rank <= BOUNTY_WINNER_COUNT) return 'prize';
+    if (rank <= bountyWinnerCount) return 'prize';
     return 'rest';
   }
 
   function renderList(mode: boolean) {
-    const prizeRows = mode ? eligibleRows.slice(0, BOUNTY_WINNER_COUNT) : eligibleRows;
-    const restRows = mode ? eligibleRows.slice(BOUNTY_WINNER_COUNT) : [];
+    const prizeRows = mode ? eligibleRows.slice(0, bountyWinnerCount) : eligibleRows;
+    const restRows = mode ? eligibleRows.slice(bountyWinnerCount) : [];
 
     return (
       <>
@@ -296,7 +300,7 @@ export function LeaderboardView({
           <div className="mb-2 flex items-center gap-2 px-1">
             <Medal className="h-3.5 w-3.5 text-amber-400/80" />
             <span className="text-[10px] font-orbitron font-bold uppercase tracking-[0.2em] text-amber-200/70">
-              Prize zone · top {BOUNTY_WINNER_COUNT}
+              Prize zone · top {bountyWinnerCount}
             </span>
           </div>
         )}
@@ -306,21 +310,45 @@ export function LeaderboardView({
             const rank = idx + 1;
             const isMe = Boolean(row.username && myLeaderboardUsernames.has(row.username));
             return (
-              <RankCard key={`${row.id}-${rank}`} row={row} rank={rank} isMe={isMe} tier={cardTier(rank, mode)} bountyMode={mode} />
+              <RankCard
+                key={`${row.id}-${rank}`}
+                row={row}
+                rank={rank}
+                isMe={isMe}
+                tier={cardTier(rank, mode)}
+                bountyMode={mode}
+                bountyWinnerCount={bountyWinnerCount}
+              />
             );
           })}
           {restRows.map((row, idx) => {
-            const rank = BOUNTY_WINNER_COUNT + idx + 1;
+            const rank = bountyWinnerCount + idx + 1;
             const isMe = Boolean(row.username && myLeaderboardUsernames.has(row.username));
             return (
-              <RankCard key={`${row.id}-${rank}`} row={row} rank={rank} isMe={isMe} tier="rest" bountyMode={mode} />
+              <RankCard
+                key={`${row.id}-${rank}`}
+                row={row}
+                rank={rank}
+                isMe={isMe}
+                tier="rest"
+                bountyMode={mode}
+                bountyWinnerCount={bountyWinnerCount}
+              />
             );
           })}
           {ineligibleRows.map((row, idx) => {
             const rank = eligibleRows.length + idx + 1;
             const isMe = Boolean(row.username && myLeaderboardUsernames.has(row.username));
             return (
-              <RankCard key={`${row.id}-${rank}`} row={row} rank={rank} isMe={isMe} tier="rest" bountyMode={mode} />
+              <RankCard
+                key={`${row.id}-${rank}`}
+                row={row}
+                rank={rank}
+                isMe={isMe}
+                tier="rest"
+                bountyMode={mode}
+                bountyWinnerCount={bountyWinnerCount}
+              />
             );
           })}
         </div>
