@@ -45,6 +45,7 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
   const { scrollY, scrollYProgress } = useScroll();
 
   const isGamePage = pathname?.includes('/board') || pathname?.includes('game-play') || pathname?.includes('ai-play');
+  const isLeaderboardPage = pathname === '/leaderboard';
   const shopHref = isGamePage && pathname
     ? `/game-shop?returnTo=${encodeURIComponent(pathname + (searchParams?.toString() ? `?${searchParams.toString()}` : ''))}`
     : '/game-shop';
@@ -55,15 +56,19 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
   const hasScrolled = useRef(false);
 
   useEffect(() => {
+    if (isLeaderboardPage) {
+      setNavVisible(true);
+      return;
+    }
     if (minimal) return;
     const y = typeof window !== 'undefined' ? window.scrollY ?? 0 : 0;
     lastScrollY.current = y;
     setNavVisible(y < SCROLL_TOP_THRESHOLD);
     hasScrolled.current = y > 0;
-  }, [minimal]);
+  }, [minimal, isLeaderboardPage]);
 
   useEffect(() => {
-    if (minimal) return;
+    if (minimal || isLeaderboardPage) return;
     const unsubscribe = scrollY.on('change', (latest) => {
       const diff = latest - lastScrollY.current;
       if (latest < SCROLL_TOP_THRESHOLD) {
@@ -76,7 +81,7 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
       lastScrollY.current = latest;
     });
     return () => unsubscribe();
-  }, [scrollY, minimal]);
+  }, [scrollY, minimal, isLeaderboardPage]);
 
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
@@ -203,7 +208,7 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
         <>
           <motion.header
             initial={false}
-            animate={{ y: navVisible ? 0 : -100 }}
+            animate={{ y: isLeaderboardPage || navVisible ? 0 : -100 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
             className="fixed top-0 left-0 right-0 h-[82px] pt-safe flex flex-col z-[1000]"
           >
@@ -234,6 +239,7 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
             </div>
           </motion.header>
 
+          {!isLeaderboardPage && (
           <motion.button
             initial={false}
             animate={{ opacity: navVisible ? 0 : 1, pointerEvents: navVisible ? 'none' : 'auto', scale: navVisible ? 0.9 : 1 }}
@@ -244,6 +250,7 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
           >
             <Menu size={22} strokeWidth={2.5} />
           </motion.button>
+          )}
         </>
       )}
 
