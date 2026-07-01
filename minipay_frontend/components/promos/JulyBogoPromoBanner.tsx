@@ -8,6 +8,7 @@ import {
   isMinipayJulyBogoPromoActive,
   MINIPAY_JULY_BOGO_CTA,
   MINIPAY_JULY_BOGO_DISMISS_KEY,
+  MINIPAY_JULY_BOGO_FOOTNOTE,
   MINIPAY_JULY_BOGO_HEADLINE,
   MINIPAY_JULY_BOGO_MESSAGE,
   MINIPAY_JULY_BOGO_SHOP_HREF,
@@ -123,7 +124,7 @@ export function JulyBogoPromoBanner({
               {MINIPAY_JULY_BOGO_MESSAGE}
             </p>
             <p className="text-xs text-white/55 mt-1 leading-relaxed">{MINIPAY_JULY_BOGO_SUBLINE}</p>
-            <p className="text-[10px] text-amber-200/60 mt-1.5">Your free copy is delivered automatically after payment.</p>
+            <p className="text-[10px] text-amber-200/60 mt-1.5">{MINIPAY_JULY_BOGO_FOOTNOTE}</p>
           </div>
           <Sparkles className="h-5 w-5 shrink-0 text-amber-400/60 mt-1" aria-hidden />
         </div>
