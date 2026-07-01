@@ -55,16 +55,12 @@ import { INITIAL_COLLECTIBLES } from '@/components/rewards/rewardsConstants';
 
 import {
   useRewardBuyCollectible,
-  useRewardBuyCollectibleFrom,
   useRewardBuyBundle,
-  useRewardBuyBundleFrom,
   useRewardRedeemVoucher,
   useRewardRedeemVoucherFor,
   useApprove,
   useRewardTokenAddresses,
-  useUserRegistryWallet,
   useReadChainIdOrCelo,
-  useUserWalletApproveERC20,
 } from '@/context/ContractProvider';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import { apiClient } from '@/lib/api';
@@ -76,7 +72,6 @@ import {
   REWARD_OWNED_SLOT_SCAN_CAP,
   takeTokenIdsUntilFirstFailure,
 } from '@/lib/rewardOwnedEnumerable';
-import { shopRegistryOwnerAddress, shopSmartWalletAddress } from '@/lib/shopWalletIdentity';
 import { ApiError } from '@/lib/api';
 import { getNairaEligibility, nairaBlockedMessage } from '@/lib/shop/nairaPayment';
 
@@ -187,19 +182,6 @@ export default function GameShopMobile() {
   const { usdtAddress } = useRewardTokenAddresses();
 
   const guestUser = auth?.guestUser ?? null;
-  const registryOwnerAddress = useMemo(
-    () => shopRegistryOwnerAddress({ guestUser, connectedAddress: address }),
-    [guestUser, address]
-  );
-  const { data: registrySmartWallet } = useUserRegistryWallet(registryOwnerAddress);
-  const smartWalletAddress = useMemo(
-    () =>
-      shopSmartWalletAddress({
-        guestUser,
-        registrySmartWallet: registrySmartWallet as string | undefined,
-      }),
-    [guestUser, registrySmartWallet]
-  );
 
   const readAppSessionToken = (): string | null => {
     try {
@@ -216,7 +198,6 @@ export default function GameShopMobile() {
 
   const [isVoucherPanelOpen, setIsVoucherPanelOpen] = useState(false);
   const [shopTab, setShopTab] = useState<'perks' | 'bundles'>('perks');
-  const [payWith, setPayWith] = useState<'connected' | 'smart_wallet'>('connected');
   const [bundles, setBundles] = useState<
     Array<{
       id: number;
@@ -359,17 +340,10 @@ export default function GameShopMobile() {
   });
   // Buy / Approve / Redeem hooks
   const { buy, isPending: buyingPending, isConfirming: buyingConfirming, isSuccess: buySuccess, error: buyError, reset: resetBuy } = useRewardBuyCollectible();
-  const { buyFrom, isPending: buyFromPending, isConfirming: buyFromConfirming, isSuccess: buyFromSuccess, error: buyFromError, reset: resetBuyFrom } = useRewardBuyCollectibleFrom();
   const publicClient = usePublicClient();
   const { buyBundle, isPending: buyBundlePending, isConfirming: buyBundleConfirming, reset: resetBuyBundle } = useRewardBuyBundle();
-  const { buyBundleFrom, isPending: buyBundleFromPending, isConfirming: buyBundleFromConfirming, reset: resetBuyBundleFrom } = useRewardBuyBundleFrom();
-  const bundleTxBusy = buyBundlePending || buyBundleConfirming || buyBundleFromPending || buyBundleFromConfirming;
+  const bundleTxBusy = buyBundlePending || buyBundleConfirming;
   const { approve, isPending: approvePending, isConfirming: approveConfirming, error: approveError, reset: resetApprove } = useApprove();
-  const {
-    approveERC20: smartWalletApprove,
-    isPending: smartWalletApprovePending,
-    reset: resetSmartWalletApprove,
-  } = useUserWalletApproveERC20(smartWalletAddress ?? undefined);
   const { redeem, isPending: redeemingPending, isConfirming: redeemingConfirming, isSuccess: redeemSuccess, error: redeemError, reset: resetRedeem } = useRewardRedeemVoucher();
   const {
     redeemFor,
@@ -384,12 +358,9 @@ export default function GameShopMobile() {
 
   const resetShopWrites = useCallback(() => {
     resetBuy();
-    resetBuyFrom();
     resetApprove();
     resetBuyBundle();
-    resetBuyBundleFrom();
-    resetSmartWalletApprove();
-  }, [resetBuy, resetBuyFrom, resetApprove, resetBuyBundle, resetBuyBundleFrom, resetSmartWalletApprove]);
+  }, [resetBuy, resetApprove, resetBuyBundle]);
 
   const notifyShopTxOutcome = useCallback((error: unknown, fallback: string) => {
     const key =
@@ -414,8 +385,6 @@ export default function GameShopMobile() {
     const t = window.setTimeout(() => setSuccessBanner(null), 4500);
     return () => window.clearTimeout(t);
   }, [successBanner]);
-
-  const payFromSmartWalletUnsupported = payWith === 'smart_wallet' && !smartWalletAddress;
 
   const hasPaymentMethod = Boolean(isConnected && address);
 
@@ -616,7 +585,7 @@ export default function GameShopMobile() {
     }).catch(() => {});
   }, [computedBundles]);
 
-  // User vouchers: union of connected wallet + smart wallet (readable without signing)
+  // User vouchers: connected wallet + linked/row wallet only. MiniPay shop avoids smart wallet delivery.
   const voucherOwners = useMemo((): Address[] => {
     const list: Address[] = [];
     const seen = new Set<string>();
@@ -627,10 +596,11 @@ export default function GameShopMobile() {
       seen.add(k);
       list.push(a);
     };
-    push(smartWalletAddress);
     push(address);
+    push(guestUser?.linked_wallet_address?.trim() as Address | undefined);
+    push(guestUser?.address?.trim() as Address | undefined);
     return list;
-  }, [smartWalletAddress, address]);
+  }, [address, guestUser?.linked_wallet_address, guestUser?.address]);
 
   const voucherSlotCalls = useMemo(() => {
     if (!contractAddress || voucherOwners.length === 0) return [];
@@ -693,9 +663,9 @@ export default function GameShopMobile() {
       return;
     }
     // Allow if wallet is connected OR smart wallet is available
-    const hasPaymentMethod = (isConnected && address) || smartWalletAddress;
+    const hasPaymentMethod = Boolean(isConnected && address);
     if (!hasPaymentMethod) {
-      pageToastError('Please connect your wallet or register to use your smart wallet');
+      pageToastError('Please connect your MiniPay wallet to buy perks');
       return;
     }
     if (!preferredStable.tokenAddress || !contractAddress) {
@@ -722,115 +692,57 @@ export default function GameShopMobile() {
       if (!publicClient) {
         throw new Error('Network client not ready. Try again.');
       }
-      if (payWith === 'smart_wallet' && smartWalletAddress) {
-        const session = readAppSessionToken();
-        if (session && preferredStable.symbol === 'USDT') {
-          const pin = typeof window !== 'undefined' ? window.prompt('Enter your withdrawal PIN to pay from your smart wallet')?.trim() : '';
-          if (!pin) {
-            pageToastError('PIN is required');
-            return;
-          }
-          const res = await apiClient.post<{ success?: boolean; message?: string }>('auth/smart-wallet/buy-collectible', {
+      if (!payerAddress) {
+        throw new Error('Wallet not connected');
+      }
+      await ensureErc20Allowance({
+        publicClient,
+        token: paymentTokenAddress,
+        owner: payerAddress,
+        spender: contractAddress,
+        requiredAmount: priceWei,
+        approve,
+        approvalCap: SHOP_APPROVAL_CAP,
+      });
+      await publicClient.simulateContract({
+        account: payerAddress,
+        address: contractAddress,
+        abi: [
+          {
+            type: 'function',
+            name: 'buyCollectible',
+            stateMutability: 'nonpayable',
+            inputs: [{ type: 'uint256' }, { type: 'uint8' }],
+            outputs: [],
+          },
+        ] as const,
+        functionName: 'buyCollectible',
+        args: [item.tokenId, paymentToken],
+      });
+      const buyHash = await buy(item.tokenId, paymentToken);
+      if (buyHash) await waitForTxConfirmed(publicClient, buyHash);
+      if (buyHash) {
+        let bonusApplied = false;
+        let bonusFailed = false;
+        try {
+          const promoRes = await apiClient.post<{ success?: boolean; message?: string }>('auth/minipay/claim-perk-bogo', {
+            txHash: buyHash,
             tokenId: item.tokenId.toString(),
-            useUsdc: true,
-            maxPrice: priceWei.toString(),
-            pin,
+            recipient: payerAddress,
+            chain: 'CELO',
             promoMode: MINIPAY_PROMO_MODE,
           });
-          if (!res?.success && !res?.data?.success) {
-            throw new Error(res?.data?.message || 'Purchase failed');
-          }
-          const bonusApplied = !!res?.data?.data?.bonus?.applied;
-          setSuccessBanner(bonusApplied ? 'Purchase successful! Bonus perk added.' : 'Purchase successful!');
-        } else {
-          await ensureErc20Allowance({
-            publicClient,
-            token: paymentTokenAddress,
-            owner: smartWalletAddress,
-            spender: contractAddress,
-            requiredAmount: priceWei,
-            approve: smartWalletApprove,
-            approvalCap: SHOP_APPROVAL_CAP,
-          });
-          const buyHash = await buyFrom(smartWalletAddress, item.tokenId, paymentToken);
-          if (buyHash) await waitForTxConfirmed(publicClient, buyHash);
-          if (buyHash) {
-            let bonusApplied = false;
-            let bonusFailed = false;
-            try {
-              const promoRes = await apiClient.post<{ success?: boolean; message?: string }>('auth/minipay/claim-perk-bogo', {
-                txHash: buyHash,
-                tokenId: item.tokenId.toString(),
-                recipient: smartWalletAddress,
-                chain: 'CELO',
-                promoMode: MINIPAY_PROMO_MODE,
-              });
-              bonusApplied = !!promoRes?.data?.data?.bonus?.applied;
-              bonusFailed = !bonusApplied;
-            } catch (_) {
-              bonusFailed = true;
-            }
-            setSuccessBanner(bonusApplied ? 'Purchase successful! Bonus perk added.' : 'Purchase successful!');
-            if (bonusFailed) {
-              pageToastError('Perk bought, but bonus copy was not added.');
-            }
-          }
+          bonusApplied = !!promoRes?.data?.data?.bonus?.applied;
+          bonusFailed = !bonusApplied;
+        } catch (_) {
+          bonusFailed = true;
         }
-      } else {
-        if (!payerAddress) {
-          throw new Error('Wallet not connected');
+        setSuccessBanner(bonusApplied ? 'Purchase successful! Bonus perk added.' : 'Purchase successful!');
+        if (bonusFailed) {
+          pageToastError('Perk bought, but bonus copy was not added.');
         }
-        await ensureErc20Allowance({
-          publicClient,
-          token: paymentTokenAddress,
-          owner: payerAddress,
-          spender: contractAddress,
-          requiredAmount: priceWei,
-          approve,
-          approvalCap: SHOP_APPROVAL_CAP,
-        });
-        if (payerAddress) {
-          await publicClient.simulateContract({
-            account: payerAddress,
-            address: contractAddress,
-            abi: [
-              {
-                type: 'function',
-                name: 'buyCollectible',
-                stateMutability: 'nonpayable',
-                inputs: [{ type: 'uint256' }, { type: 'uint8' }],
-                outputs: [],
-              },
-            ] as const,
-            functionName: 'buyCollectible',
-            args: [item.tokenId, paymentToken],
-          });
-        }
-        const buyHash = await buy(item.tokenId, paymentToken);
-        if (buyHash) await waitForTxConfirmed(publicClient, buyHash);
-        if (buyHash && payerAddress) {
-          let bonusApplied = false;
-          let bonusFailed = false;
-          try {
-            const promoRes = await apiClient.post<{ success?: boolean; message?: string }>('auth/minipay/claim-perk-bogo', {
-              txHash: buyHash,
-              tokenId: item.tokenId.toString(),
-              recipient: payerAddress,
-              chain: 'CELO',
-              promoMode: MINIPAY_PROMO_MODE,
-            });
-            bonusApplied = !!promoRes?.data?.data?.bonus?.applied;
-            bonusFailed = !bonusApplied;
-          } catch (_) {
-            bonusFailed = true;
-          }
-          setSuccessBanner(bonusApplied ? 'Purchase successful! Bonus perk added.' : 'Purchase successful!');
-          if (bonusFailed) {
-            pageToastError('Perk bought, but bonus copy was not added.');
-          }
-        }
-        void refetchStableAllowance();
       }
+      void refetchStableAllowance();
     } catch (err: unknown) {
       notifyShopTxOutcome(err, 'Purchase failed');
       resetShopWrites();
@@ -925,13 +837,9 @@ export default function GameShopMobile() {
   };
 
   const handleBuyBundleWithUsdc = async (bundleName: string) => {
-    const hasPaymentMethod = (isConnected && address) || smartWalletAddress;
+    const hasPaymentMethod = Boolean(isConnected && address);
     if (!hasPaymentMethod) {
-      pageToastError('Please connect your wallet or register to use your smart wallet');
-      return;
-    }
-    if (payWith === 'smart_wallet' && !smartWalletAddress) {
-      pageToastError('Smart wallet not available');
+      pageToastError('Please connect your MiniPay wallet to buy bundles');
       return;
     }
     if (!contractAddress || !preferredStable.tokenAddress) {
@@ -953,53 +861,19 @@ export default function GameShopMobile() {
     const priceWei = BigInt(Math.round(Number(bundleEntry.price_usdc) * 1e6));
     setBundleBuyingName(def.name);
     resetBuyBundle();
-    resetBuyBundleFrom();
 
     try {
       if (!publicClient) {
         throw new Error('Network client not ready. Try again.');
       }
-      if (payWith === 'smart_wallet') {
-        const session = readAppSessionToken();
-        if (session) {
-          const pin = typeof window !== 'undefined' ? window.prompt('Enter your withdrawal PIN to buy bundle with smart wallet')?.trim() : '';
-          if (!pin) {
-            pageToastInfo('Purchase cancelled');
-            return;
-          }
-          const res = await apiClient.post<{ success?: boolean; message?: string }>('auth/smart-wallet/buy-bundle', {
-            bundleId: String(bundleEntry.id),
-            useUsdc: true,
-            maxPrice: priceWei.toString(),
-            pin,
-          });
-          if (!res?.success && !res?.data?.success) throw new Error(res?.data?.message || 'Bundle purchase failed');
-          setSuccessBanner('Bundle purchase successful!');
-          refetchUsdt();
-          return;
-        }
-        await ensureErc20Allowance({
-          publicClient,
-          token: preferredStable.tokenAddress!,
-          owner: smartWalletAddress!,
-          spender: contractAddress,
-          requiredAmount: priceWei,
-          approve: smartWalletApprove,
-          approvalCap: SHOP_APPROVAL_CAP,
-        });
-        const fromHash = await buyBundleFrom(smartWalletAddress!, BigInt(bundleEntry.id), true);
-        await waitForBundleTx(fromHash);
-      } else {
-        await ensureBundleStableAllowance(priceWei);
-        const hash = await buyBundle(BigInt(bundleEntry.id), true);
-        await waitForBundleTx(hash);
-      }
+      await ensureBundleStableAllowance(priceWei);
+      const hash = await buyBundle(BigInt(bundleEntry.id), true);
+      await waitForBundleTx(hash);
       setSuccessBanner('Bundle purchase successful!');
       refetchUsdt();
     } catch (err: unknown) {
       notifyShopTxOutcome(err, 'Bundle purchase failed');
       resetBuyBundle();
-      resetBuyBundleFrom();
     } finally {
       setBundleBuyingName(null);
     }
@@ -1025,7 +899,7 @@ export default function GameShopMobile() {
     }
   };
 
-  // Success / Error toasts
+  // Success / Error handling
   useEffect(() => {
     if (buySuccess) {
       refetchUsdt();
@@ -1033,14 +907,6 @@ export default function GameShopMobile() {
       resetBuy();
     }
   }, [buySuccess, refetchUsdt, refetchStableAllowance, resetBuy]);
-  useEffect(() => {
-    if (buyFromSuccess) {
-      refetchUsdt();
-      void refetchStableAllowance();
-      resetBuyFrom();
-    }
-  }, [buyFromSuccess, refetchUsdt, refetchStableAllowance, resetBuyFrom]);
-
   useEffect(() => {
     if (redeemSuccess) {
       setSuccessBanner('Voucher redeemed successfully!');
@@ -1056,11 +922,11 @@ export default function GameShopMobile() {
   }, [redeemForSuccess, resetRedeemFor]);
 
   useEffect(() => {
-    const txError = buyError ?? buyFromError ?? approveError;
+    const txError = buyError ?? approveError;
     if (!txError) return;
     notifyShopTxOutcome(txError, 'Purchase failed');
     resetShopWrites();
-  }, [buyError, buyFromError, approveError, notifyShopTxOutcome, resetShopWrites]);
+  }, [buyError, approveError, notifyShopTxOutcome, resetShopWrites]);
 
   const handleBack = () => {
     const returnTo = searchParams.get('returnTo');
@@ -1349,9 +1215,6 @@ export default function GameShopMobile() {
                           buyingConfirming ||
                           approvePending ||
                           approveConfirming ||
-                          buyFromPending ||
-                          buyFromConfirming ||
-                          smartWalletApprovePending ||
                           (hasPaymentMethod && activeStableBalance < displayUsdt)
                         }
                         className={`w-full py-3 rounded-xl font-semibold text-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1415]
@@ -1361,11 +1224,11 @@ export default function GameShopMobile() {
                             ? 'bg-gradient-to-r from-[#00F0FF]/30 to-[#0DD6E0]/25 text-[#00F0FF] border border-[#00F0FF]/40'
                             : activeStableBalance < displayUsdt
                             ? 'bg-slate-700/80 text-slate-400'
-                            : (buyingPending || buyingConfirming || buyFromPending || buyFromConfirming || smartWalletApprovePending || approvePending || approveConfirming)
+                            : (buyingPending || buyingConfirming || approvePending || approveConfirming)
                             ? 'bg-amber-600/90 text-black'
                             : 'bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] text-black active:brightness-110'}`}
                       >
-                        {(buyingPending || buyingConfirming || buyFromPending || buyFromConfirming || smartWalletApprovePending || approvePending || approveConfirming) ? (
+                        {(buyingPending || buyingConfirming || approvePending || approveConfirming) ? (
                           <Loader2 className="inline animate-spin mr-2" size={16} />
                         ) : soldOut || !item.tokenId ? (
                           'Sold out'
