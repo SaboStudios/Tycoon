@@ -26,6 +26,7 @@ import { PROPERTY_ACTION } from "@/types/game";
 import { getSquareName } from "@/components/game/board3d/squareNames";
 import { getCornersPassed } from "@/components/game/board3d/positions";
 import { getBoardCenterImageUrl } from "@/lib/boardCenterImage";
+import { collectRewardHolderAddresses } from "@/lib/rewardOwnedEnumerable";
 import { getDiceValues } from "@/components/game/constants";
 import { JAIL_POSITION, MOVE_ANIMATION_MS_PER_SQUARE } from "@/components/game/constants";
 import { hotToastContractError } from "@/lib/utils/contractErrorHotToast";
@@ -284,6 +285,17 @@ function Board3DMobilePageContent() {
     if (!game?.players || lower.length === 0) return null;
     return game.players.find((p: Player) => p.address && lower.includes(p.address.toLowerCase())) ?? null;
   }, [game?.players, address, guestUser?.address, guestUser?.linked_wallet_address, guestUser?.smart_wallet_address]);
+
+  const userWalletAddresses = useMemo(
+    () =>
+      collectRewardHolderAddresses(
+        address,
+        guestUser?.address,
+        guestUser?.linked_wallet_address,
+        guestUser?.smart_wallet_address
+      ),
+    [address, guestUser?.address, guestUser?.linked_wallet_address, guestUser?.smart_wallet_address]
+  );
 
   const isSpectatorView = isSpectate && !me;
 
@@ -2605,6 +2617,7 @@ function Board3DMobilePageContent() {
           await refetchGameProperties();
         }}
         playerCanRoll={playerCanRoll}
+        userWalletAddresses={userWalletAddresses}
       />
 
       {/* End game by net worth — confirm modal */}

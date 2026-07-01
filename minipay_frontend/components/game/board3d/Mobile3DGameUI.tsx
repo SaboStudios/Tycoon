@@ -47,6 +47,8 @@ interface Mobile3DGameUIProps {
   onPerkApplied?: () => void | Promise<void>;
   /** When false, Extra Turn and other roll-gated perks show a specific error instead of burning. */
   playerCanRoll?: boolean;
+  /** Connected + guest + linked wallets that may hold perks on-chain. */
+  userWalletAddresses?: string[];
 }
 
 export default function Mobile3DGameUI({
@@ -78,6 +80,7 @@ export default function Mobile3DGameUI({
   onPlayersModalOpen,
   onPerkApplied,
   playerCanRoll,
+  userWalletAddresses,
 }: Mobile3DGameUIProps) {
   const hasGame = !!game;
 
@@ -108,6 +111,7 @@ export default function Mobile3DGameUI({
       {hasGame && game && (
         <PerksBar
           dockAboveNav
+          userWalletAddresses={userWalletAddresses}
           onOpenModal={() => setShowPerksModal(true)}
           onUsePerk={onUsePerk}
         />
@@ -368,6 +372,7 @@ export default function Mobile3DGameUI({
                     triggerSpecialLanding={triggerSpecialLanding}
                     endTurnAfterSpecial={endTurnAfterSpecial}
                     userAddress={me?.address}
+                    userWalletAddresses={userWalletAddresses}
                     onPerkApplied={onPerkApplied}
                     onUsePerk={onUsePerk}
                     playerCanRoll={playerCanRoll}

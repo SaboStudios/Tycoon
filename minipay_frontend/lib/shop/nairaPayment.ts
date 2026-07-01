@@ -24,8 +24,9 @@ export function getNairaEligibility(
   if (!guestUser) {
     return { ok: false, reason: "sign_in" };
   }
-  const sw = String(guestUser.smart_wallet_address ?? "").trim().toLowerCase();
-  if (!sw || sw === ZERO_ADDRESS) {
+  const linked = String(guestUser.linked_wallet_address ?? "").trim().toLowerCase();
+  const row = String(guestUser.address ?? "").trim().toLowerCase();
+  if ((!linked || linked === ZERO_ADDRESS) && (!row || row === ZERO_ADDRESS)) {
     return { ok: false, reason: "smart_wallet" };
   }
   return { ok: true };
@@ -36,7 +37,7 @@ export function nairaBlockedMessage(reason: NairaBlockReason): string {
     case "sign_in":
       return "Connect your wallet or open Profile to sign in before paying with Naira.";
     case "smart_wallet":
-      return "Create your smart wallet in Profile before paying with Naira.";
+      return "Add or connect your MiniPay wallet in Profile before paying with Naira.";
     case "session_expired":
       return "Your session expired. Sign in again from Profile.";
   }

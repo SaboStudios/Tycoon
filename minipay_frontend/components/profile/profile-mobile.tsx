@@ -30,6 +30,8 @@ import { SkeletonPerkGrid, SkeletonCard } from '@/components/ui/SkeletonCard';
 import EmptyState from '@/components/ui/EmptyState';
 import FirstTimeHint from '@/components/ui/FirstTimeHint';
 import { useMergedProfileRewardAssets } from '@/hooks/useMergedProfileRewardAssets';
+import { JulyBogoPromoBanner } from '@/components/promos/JulyBogoPromoBanner';
+import { collectRewardHolderAddresses } from '@/lib/rewardOwnedEnumerable';
 import { getPerkShopAsset } from '@/lib/perkShopAssets';
 import { ProfilePerkCardImage } from '@/components/profile/ProfilePerkCardImage';
 import ProfileReferralCard from '@/components/profile/ProfileReferralCard';
@@ -195,6 +197,7 @@ function GuestProfileViewMobile({
   /** Shown when the connected extension wallet is not registered for this account yet (prompt to link). Omitted when user already has smart/linked wallet — perks use those silently. */
   connectedWalletMismatchNotice?: string | null;
 }) {
+  const { address: connectedWalletAddress } = useAccount();
   const username = guestUser.username;
   // When wallet is not connected: use Wallet linked (Account & login) for on-chain stats when available.
   const linkedWalletAddress =
@@ -458,13 +461,25 @@ function GuestProfileViewMobile({
     return u || username;
   }, [statsForDisplay.username, username]);
 
+  const rewardHolderAddresses = useMemo(
+    () =>
+      collectRewardHolderAddresses(
+        connectedWalletAddress,
+        guestUser.address,
+        linkedWalletAddress,
+        smartWalletAddress
+      ),
+    [connectedWalletAddress, guestUser.address, linkedWalletAddress, smartWalletAddress]
+  );
+
   const {
     ownedCollectibles: mergedCollectibleRows,
+    totalCollectibleBalance,
     myVouchers,
     isLoadingPerks,
     isLoadingVouchers,
     refetchVouchers,
-  } = useMergedProfileRewardAssets(rewardAddress, CELO_CHAIN_ID, [linkedWalletAddress, smartWalletAddress]);
+  } = useMergedProfileRewardAssets(rewardAddress, CELO_CHAIN_ID, rewardHolderAddresses);
 
   const ownedCollectibles = useMemo(
     () =>
@@ -485,10 +500,11 @@ function GuestProfileViewMobile({
     for (const item of ownedCollectibles) {
       const key = `${item.perk}-${item.strength}-${item.heldBy.toLowerCase()}`;
       const existing = byKey.get(key);
+      const qty = item.balance ?? 1;
       if (existing) {
-        existing.count += 1;
+        existing.count += qty;
       } else {
-        byKey.set(key, { item, count: 1 });
+        byKey.set(key, { item, count: qty });
       }
     }
     return Array.from(byKey.values()).map(({ item, count }) => ({ ...item, count }));
@@ -623,8 +639,8 @@ function GuestProfileViewMobile({
             {[
               { id: 'stats' as const, label: 'Game stats', icon: BarChart2 },
               { id: 'about' as const, label: 'About you', icon: User },
-              { id: 'perks' as const, label: 'My Perks', icon: ShoppingBag, badge: ownedCollectibles.length },
-              { id: 'vouchers' as const, label: 'Reward Vouchers', icon: Ticket, badge: myVouchers.length },
+              { id: 'perks' as const, label: 'My Perks', icon: ShoppingBag, badge: totalCollectibleBalance },
+              { id: 'vouchers' as const, label: 'Reward Vouchers', icon: Ticket, badge: myVouchers.reduce((n, v) => n + (v.balance ?? 1), 0) },
             ].map(({ id, label, icon: Icon, badge }) => (
               <button
                 key={id}
@@ -639,7 +655,7 @@ function GuestProfileViewMobile({
                 <Icon className="w-3.5 h-3.5 shrink-0" />
                 <span className="flex items-center gap-1 min-w-0 justify-center flex-wrap text-center leading-tight">
                   <span className="break-words">{label}</span>
-                  {badge !== undefined && (
+                  {badge !== undefined && badge > 0 && (
                     <span className="shrink-0 min-w-[1rem] h-4 px-1 rounded text-[10px] flex items-center justify-center bg-white/10">{badge}</span>
                   )}
                 </span>
@@ -790,6 +806,7 @@ function GuestProfileViewMobile({
 
             {profileTab === 'perks' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4">
+                <JulyBogoPromoBanner variant="compact" className="mb-4" />
                 <p className="text-[10px] text-white/50 mb-3 text-center">Connect a wallet from the menu to transfer perks on-chain.</p>
                 {isLoadingPerks ? (
                   <>
@@ -1019,13 +1036,25 @@ export default function ProfilePageMobile() {
     enabled: !!backendStatsAddress,
   });
 
+  const rewardHolderAddresses = useMemo(
+    () =>
+      collectRewardHolderAddresses(
+        walletAddress,
+        guestUser?.address,
+        guestUser?.linked_wallet_address,
+        smartWallet
+      ),
+    [walletAddress, guestUser?.address, guestUser?.linked_wallet_address, smartWallet]
+  );
+
   const {
     ownedCollectibles: mergedCollectibleRows,
+    totalCollectibleBalance,
     myVouchers,
     isLoadingPerks,
     isLoadingVouchers,
     refetchVouchers,
-  } = useMergedProfileRewardAssets(rewardAddress, chainId, [walletAddress, smartWallet]);
+  } = useMergedProfileRewardAssets(rewardAddress, chainId, rewardHolderAddresses);
 
   const ownedCollectibles = useMemo(
     () =>
@@ -1046,10 +1075,11 @@ export default function ProfilePageMobile() {
     for (const item of ownedCollectibles) {
       const key = `${item.perk}-${item.strength}-${item.heldBy.toLowerCase()}`;
       const existing = byKey.get(key);
+      const qty = item.balance ?? 1;
       if (existing) {
-        existing.count += 1;
+        existing.count += qty;
       } else {
-        byKey.set(key, { item, count: 1 });
+        byKey.set(key, { item, count: qty });
       }
     }
     return Array.from(byKey.values()).map(({ item, count }) => ({ ...item, count }));
@@ -1465,8 +1495,8 @@ export default function ProfilePageMobile() {
             {[
               { id: 'stats' as const, label: 'Game stats', icon: BarChart2 },
               { id: 'about' as const, label: 'About you', icon: User },
-              { id: 'perks' as const, label: 'My Perks', icon: ShoppingBag, badge: ownedCollectibles.length },
-              { id: 'vouchers' as const, label: 'Reward Vouchers', icon: Ticket, badge: myVouchers.length },
+              { id: 'perks' as const, label: 'My Perks', icon: ShoppingBag, badge: totalCollectibleBalance },
+              { id: 'vouchers' as const, label: 'Reward Vouchers', icon: Ticket, badge: myVouchers.reduce((n, v) => n + (v.balance ?? 1), 0) },
             ].map(({ id, label, icon: Icon, badge }) => (
               <button
                 key={id}
@@ -1481,7 +1511,7 @@ export default function ProfilePageMobile() {
                 <Icon className="w-3.5 h-3.5 shrink-0" />
                 <span className="flex items-center gap-1 min-w-0 justify-center flex-wrap text-center leading-tight">
                   <span className="break-words">{label}</span>
-                  {badge !== undefined && (
+                  {badge !== undefined && badge > 0 && (
                     <span className="shrink-0 min-w-[1rem] h-4 px-1 rounded text-[10px] flex items-center justify-center bg-white/10">{badge}</span>
                   )}
                 </span>
@@ -1620,6 +1650,7 @@ export default function ProfilePageMobile() {
 
             {profileTab === 'perks' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4">
+                <JulyBogoPromoBanner variant="compact" className="mb-4" />
                 {isLoadingPerks ? (
                   <>
                     <p className="text-slate-400 text-sm text-center mb-3">Loading perks…</p>

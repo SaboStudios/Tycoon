@@ -8,10 +8,13 @@ import { TYCOON_CONTRACT_ADDRESSES } from '@/constants/contracts';
 import TycoonABI from '@/context/abi/tycoonabi.json';
 import { LeaderboardView } from './LeaderboardView';
 import {
-  BOUNTY_COMPLETED,
   BOUNTY_MONTH_KEY,
   BOUNTY_MONTH_LABEL,
   LEADERBOARD_LIMIT,
+  bountyMonthToApiParams,
+  getBountyMonthConfig,
+  isBountyMonthKey,
+  parseLeaderboardApiResponse,
   type BountyRow,
   type TimeScope,
 } from './leaderboard-types';
@@ -42,6 +45,14 @@ function formatMonthLabelUtc(yyyyMm: string): string {
   });
 }
 
+function monthOptionSuffix(value: string): string {
+  const config = getBountyMonthConfig(value);
+  if (!config) return '';
+  if (config.completed) return ' (Completed)';
+  if (config.key === BOUNTY_MONTH_KEY) return ' (Daily)';
+  return ' (Bounty)';
+}
+
 function utcYearMonthOptions(count: number): { value: string; label: string }[] {
   const out: { value: string; label: string }[] = [];
   const d = new Date();
@@ -49,29 +60,32 @@ function utcYearMonthOptions(count: number): { value: string; label: string }[] 
     const x = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - i, 1));
     const value = `${x.getUTCFullYear()}-${String(x.getUTCMonth() + 1).padStart(2, '0')}`;
     const base = formatMonthLabelUtc(value);
-    const suffix =
-      value === BOUNTY_MONTH_KEY && BOUNTY_COMPLETED ? ' (Active · Completed)' : '';
-    out.push({ value, label: `${base}${suffix}` });
+    out.push({ value, label: `${base}${monthOptionSuffix(value)}` });
   }
   return out;
 }
 
-function normalizeLeaderboardArray(res: unknown): BountyRow[] {
-  const raw = (res as { data?: unknown })?.data;
-  let list: unknown = raw;
-  if (Array.isArray(raw)) list = raw;
-  else if (raw && typeof raw === 'object' && Array.isArray((raw as { data?: unknown[] }).data)) {
-    list = (raw as { data: unknown[] }).data;
-  } else if (raw && typeof raw === 'object' && Array.isArray((raw as { leaderboard?: unknown[] }).leaderboard)) {
-    list = (raw as { leaderboard: unknown[] }).leaderboard;
+function buildInfoLabel(chainParam: string, timeScope: TimeScope, monthKey: string): string {
+  if (timeScope === 'all') return `${chainParam} · All-time`;
+
+  const config =
+    timeScope === 'bounty' ? getBountyMonthConfig(BOUNTY_MONTH_KEY) : getBountyMonthConfig(monthKey);
+
+  if (timeScope === 'month' && !config) {
+    return `${chainParam} · ${formatMonthLabelUtc(monthKey)}`;
   }
-  if (!Array.isArray(list)) return [];
-  return list.map((row: Record<string, unknown>, index: number) => ({
-    id: Number(row.id ?? index),
-    username: String(row.username ?? '—'),
-    games_played: Number(row.games_played ?? 0),
-    leaderboard_eligible: row.leaderboard_eligible !== false,
-  }));
+
+  if (!config) return `${chainParam} · ${BOUNTY_MONTH_LABEL}`;
+
+  const rangeNote = config.key === '2026-06' ? ' · Jun 1–28' : '';
+
+  if (config.completed) {
+    return `${chainParam} · ${config.label}${rangeNote} · Final standings · Prizes awarded`;
+  }
+  if (timeScope === 'bounty' || config.key === BOUNTY_MONTH_KEY) {
+    return `${chainParam} · ${config.label} · Daily snapshot · Fair play (UTC)`;
+  }
+  return `${chainParam} · ${config.label}${rangeNote} · Bounty · Top ${config.prizeCount}`;
 }
 
 export default function Leaderboard() {
@@ -85,12 +99,19 @@ export default function Leaderboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<BountyRow[]>([]);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
   const [timeScope, setTimeScope] = useState<TimeScope>('bounty');
   const [monthKey, setMonthKey] = useState<string>(BOUNTY_MONTH_KEY);
 
-  const isMayView =
-    timeScope === 'bounty' ||
-    (timeScope === 'month' && monthKey === BOUNTY_MONTH_KEY);
+  const activeBountyKey = timeScope === 'bounty' ? BOUNTY_MONTH_KEY : monthKey;
+  const activeBountyConfig = getBountyMonthConfig(activeBountyKey);
+
+  const isFeaturedBountyView =
+    timeScope === 'bounty' || (timeScope === 'month' && isBountyMonthKey(monthKey));
+
+  const bountyWinnerCount = activeBountyConfig?.prizeCount ?? 10;
+  const bountyCompleted = activeBountyConfig?.completed ?? false;
+  const bountyMonthLabel = activeBountyConfig?.label ?? BOUNTY_MONTH_LABEL;
 
   const { data: username } = useReadContract({
     address: tycoonAddress,
@@ -122,17 +143,26 @@ export default function Leaderboard() {
       };
 
       if (timeScope === 'bounty') {
-        params.period = 'month';
-        params.month = BOUNTY_MONTH_KEY;
+        const config = getBountyMonthConfig(BOUNTY_MONTH_KEY);
+        if (config) Object.assign(params, bountyMonthToApiParams(config));
+        else {
+          params.period = 'month';
+          params.month = BOUNTY_MONTH_KEY;
+        }
       } else if (timeScope === 'month') {
-        params.period = 'month';
-        params.month = monthKey;
+        const config = getBountyMonthConfig(monthKey);
+        if (config) Object.assign(params, bountyMonthToApiParams(config));
+        else {
+          params.period = 'month';
+          params.month = monthKey;
+        }
       } else {
         params.period = 'all';
       }
 
       const res = await apiClient.get('/users/leaderboard', params);
-      const normalized = normalizeLeaderboardArray(res);
+      const { rows: normalized, meta } = parseLeaderboardApiResponse(res);
+      setLastUpdatedAt(meta.lastUpdatedAt);
       const filtered =
         timeScope === 'month' || timeScope === 'bounty'
           ? normalized.filter((row) => !row.username.includes('AI_'))
@@ -145,7 +175,7 @@ export default function Leaderboard() {
     } finally {
       setLoading(false);
     }
-  }, [chainParam, isMayView, monthKey, timeScope]);
+  }, [chainParam, monthKey, timeScope]);
 
   useEffect(() => {
     fetchLeaderboard();
@@ -156,16 +186,7 @@ export default function Leaderboard() {
       ? rows.findIndex((row) => row.username && myLeaderboardUsernames.has(row.username)) + 1
       : 0;
 
-  const infoLabel =
-    timeScope === 'bounty' && BOUNTY_COMPLETED
-      ? `${chainParam} · ${BOUNTY_MONTH_LABEL} · Active bounty · Final standings`
-      : timeScope === 'bounty'
-        ? `${chainParam} · ${BOUNTY_MONTH_LABEL} · Finished games only`
-        : timeScope === 'month' && monthKey === BOUNTY_MONTH_KEY && BOUNTY_COMPLETED
-          ? `${chainParam} · ${BOUNTY_MONTH_LABEL} · Active · Completed · Final standings`
-          : timeScope === 'month'
-            ? `${chainParam} · ${formatMonthLabelUtc(monthKey)} · Finished games only`
-            : `${chainParam} · All-time · Finished games only`;
+  const infoLabel = buildInfoLabel(chainParam, timeScope, monthKey);
 
   return (
     <LeaderboardView
@@ -182,9 +203,11 @@ export default function Leaderboard() {
       myPosition={myPosition}
       myLeaderboardUsernames={myLeaderboardUsernames}
       onRetry={fetchLeaderboard}
-      bountyMonthLabel={BOUNTY_MONTH_LABEL}
-      bountyCompleted={BOUNTY_COMPLETED}
-      isMayBountyView={isMayView && BOUNTY_COMPLETED}
+      bountyMonthLabel={bountyMonthLabel}
+      bountyCompleted={bountyCompleted}
+      bountyWinnerCount={bountyWinnerCount}
+      isFeaturedBountyView={isFeaturedBountyView}
+      lastUpdatedAt={lastUpdatedAt}
     />
   );
 }

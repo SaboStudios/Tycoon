@@ -407,7 +407,7 @@ export function useAiPlayerLogic({
   const handlePropertyTransfer = useCallback(
     async (propertyId: number, newPlayerId: number, _player_address: string) => {
       if (!propertyId || !newPlayerId) {
-        toast("Cannot transfer: missing property or player");
+        gameBoardToastError("Cannot transfer: missing property or player", { severity: "warning" });
         return;
       }
 
