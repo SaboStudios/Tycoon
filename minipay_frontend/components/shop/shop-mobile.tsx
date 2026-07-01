@@ -723,15 +723,21 @@ export default function GameShopMobile() {
       if (buyHash) await waitForTxConfirmed(publicClient, buyHash);
       if (buyHash) {
         setSuccessBanner('Purchase successful!');
-        void apiClient
-          .post('auth/minipay/claim-perk-bogo', {
-            txHash: buyHash,
-            tokenId: item.tokenId.toString(),
-            recipient: payerAddress,
-            chain: 'CELO',
-            promoMode: MINIPAY_PROMO_MODE,
-          })
-          .catch(() => {});
+        try {
+          await apiClient.post(
+            'auth/minipay/claim-perk-bogo',
+            {
+              txHash: buyHash,
+              tokenId: item.tokenId.toString(),
+              recipient: payerAddress,
+              chain: 'CELO',
+              promoMode: MINIPAY_PROMO_MODE,
+            },
+            { timeout: 90000 }
+          );
+        } catch {
+          // Bonus is best-effort; purchase already succeeded on-chain.
+        }
       }
       void refetchStableAllowance();
     } catch (err: unknown) {
