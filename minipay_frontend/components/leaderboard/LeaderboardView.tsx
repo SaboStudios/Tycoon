@@ -286,12 +286,12 @@ export function LeaderboardView({
   }
 
   function renderList(mode: boolean) {
-    const top = eligibleRows.slice(0, mode ? BOUNTY_WINNER_COUNT : eligibleRows.length);
-    const rest = mode ? eligibleRows.slice(BOUNTY_WINNER_COUNT) : [];
+    const prizeRows = mode ? eligibleRows.slice(0, BOUNTY_WINNER_COUNT) : eligibleRows;
+    const restRows = mode ? eligibleRows.slice(BOUNTY_WINNER_COUNT) : [];
 
     return (
       <>
-        {mode && top.length > 0 && (
+        {mode && prizeRows.length > 0 && (
           <div className="mb-2 flex items-center gap-2 px-1">
             <Medal className="h-3.5 w-3.5 text-amber-400/80" />
             <span className="text-[10px] font-orbitron font-bold uppercase tracking-[0.2em] text-amber-200/70">
@@ -301,54 +301,28 @@ export function LeaderboardView({
         )}
 
         <div className={`${mode ? 'space-y-2.5' : 'space-y-2'}`}>
-          {top.map((row, idx) => {
+          {prizeRows.map((row, idx) => {
             const rank = idx + 1;
             const isMe = Boolean(row.username && myLeaderboardUsernames.has(row.username));
             return (
               <RankCard key={`${row.id}-${rank}`} row={row} rank={rank} isMe={isMe} tier={cardTier(rank, mode)} bountyMode={mode} />
             );
           })}
+          {restRows.map((row, idx) => {
+            const rank = BOUNTY_WINNER_COUNT + idx + 1;
+            const isMe = Boolean(row.username && myLeaderboardUsernames.has(row.username));
+            return (
+              <RankCard key={`${row.id}-${rank}`} row={row} rank={rank} isMe={isMe} tier="rest" bountyMode={mode} />
+            );
+          })}
+          {ineligibleRows.map((row, idx) => {
+            const rank = eligibleRows.length + idx + 1;
+            const isMe = Boolean(row.username && myLeaderboardUsernames.has(row.username));
+            return (
+              <RankCard key={`${row.id}-${rank}`} row={row} rank={rank} isMe={isMe} tier="rest" bountyMode={mode} />
+            );
+          })}
         </div>
-
-        {rest.length > 0 && (
-          <>
-            <div className="my-5 flex items-center gap-3" aria-hidden>
-              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-              <span className="text-[10px] font-orbitron uppercase tracking-widest text-white/35 shrink-0">
-                Rest of field
-              </span>
-              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-            </div>
-            <div className="space-y-1.5">
-              {rest.map((row, idx) => {
-                const rank = BOUNTY_WINNER_COUNT + idx + 1;
-                const isMe = Boolean(row.username && myLeaderboardUsernames.has(row.username));
-                return (
-                  <RankCard key={`${row.id}-${rank}`} row={row} rank={rank} isMe={isMe} tier="rest" />
-                );
-              })}
-            </div>
-          </>
-        )}
-
-        {ineligibleRows.length > 0 && (
-          <>
-            <div className="my-5 flex items-center gap-3" aria-hidden>
-              <div className="h-px flex-1 bg-white/10" />
-              <span className="text-[10px] text-white/30 uppercase tracking-widest">Ineligible</span>
-              <div className="h-px flex-1 bg-white/10" />
-            </div>
-            <div className="space-y-1.5 opacity-75">
-              {ineligibleRows.map((row, idx) => {
-                const rank = eligibleRows.length + idx + 1;
-                const isMe = Boolean(row.username && myLeaderboardUsernames.has(row.username));
-                return (
-                  <RankCard key={`${row.id}-${rank}`} row={row} rank={rank} isMe={isMe} tier="rest" />
-                );
-              })}
-            </div>
-          </>
-        )}
       </>
     );
   }
