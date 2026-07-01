@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { CalendarDays, ChevronLeft, Info, Loader2, Medal, Users, Zap } from 'lucide-react';
 import type { BountyRow, TimeScope } from './leaderboard-types';
 import { BOUNTY_WINNER_COUNT, formatLeaderboardLastUpdated } from './leaderboard-types';
+import { JulyBogoPromoBanner } from '@/components/promos/JulyBogoPromoBanner';
 
 type TabId = TimeScope;
 
@@ -359,6 +360,8 @@ export function LeaderboardView({
             {chainParam}
           </p>
         </motion.div>
+
+        <JulyBogoPromoBanner variant="compact" className="mb-4" />
 
         <ScopeTabs timeScope={timeScope} setTimeScope={setTimeScope} bountyMonthLabel={bountyMonthLabel} />
 

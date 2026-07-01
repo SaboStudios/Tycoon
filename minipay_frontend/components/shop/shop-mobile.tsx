@@ -74,6 +74,7 @@ import {
 } from '@/lib/rewardOwnedEnumerable';
 import { ApiError } from '@/lib/api';
 import { getNairaEligibility, nairaBlockedMessage } from '@/lib/shop/nairaPayment';
+import { JulyBogoPromoBanner } from '@/components/promos/JulyBogoPromoBanner';
 
 const VOUCHER_ID_START = 1_000_000_000;
 const COLLECTIBLE_ID_START = 2_000_000_000;
@@ -1005,6 +1006,8 @@ export default function GameShopMobile() {
             </button>
           </motion.div>
         )}
+
+        <JulyBogoPromoBanner variant="shop" />
 
         {/* Stable balance — MiniPay wallet (USDT default) */}
         <motion.div

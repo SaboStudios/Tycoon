@@ -30,6 +30,7 @@ import { SkeletonPerkGrid, SkeletonCard } from '@/components/ui/SkeletonCard';
 import EmptyState from '@/components/ui/EmptyState';
 import FirstTimeHint from '@/components/ui/FirstTimeHint';
 import { useMergedProfileRewardAssets } from '@/hooks/useMergedProfileRewardAssets';
+import { JulyBogoPromoBanner } from '@/components/promos/JulyBogoPromoBanner';
 import { collectRewardHolderAddresses } from '@/lib/rewardOwnedEnumerable';
 import { getPerkShopAsset } from '@/lib/perkShopAssets';
 import { ProfilePerkCardImage } from '@/components/profile/ProfilePerkCardImage';
@@ -805,6 +806,7 @@ function GuestProfileViewMobile({
 
             {profileTab === 'perks' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4">
+                <JulyBogoPromoBanner variant="compact" className="mb-4" />
                 <p className="text-[10px] text-white/50 mb-3 text-center">Connect a wallet from the menu to transfer perks on-chain.</p>
                 {isLoadingPerks ? (
                   <>
@@ -1648,6 +1650,7 @@ export default function ProfilePageMobile() {
 
             {profileTab === 'perks' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4">
+                <JulyBogoPromoBanner variant="compact" className="mb-4" />
                 {isLoadingPerks ? (
                   <>
                     <p className="text-slate-400 text-sm text-center mb-3">Loading perks…</p>
