@@ -5,7 +5,6 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useAccount, useBalance, usePublicClient, useReadContract, useReadContracts } from 'wagmi';
 import { formatUnits, parseUnits, isAddress, type Address, type Abi } from 'viem';
 import { motion, AnimatePresence } from 'framer-motion';
-import { toast } from 'react-toastify';
 import {
   pageContractError,
   pageToastError,
@@ -233,6 +232,7 @@ export default function GameShopMobile() {
   const [ngnLoadingBundleId, setNgnLoadingBundleId] = useState<number | null>(null);
   const [ngnLoadingTokenId, setNgnLoadingTokenId] = useState<string | null>(null);
   const [bundleBuyingName, setBundleBuyingName] = useState<string | null>(null);
+  const [successBanner, setSuccessBanner] = useState<string | null>(null);
 
   const USDC_TO_NGN_RATE = 1600;
 
@@ -270,7 +270,7 @@ export default function GameShopMobile() {
         }
         const data = r?.data;
         if (data?.found && data?.fulfilled) {
-          toast.success('Perk bought successfully! Your bundle will be available in-game.');
+          setSuccessBanner('Perk bought successfully!');
         } else if (data?.found && data?.status === 'failed') {
           pageToastError('Payment failed or was not completed.');
         } else if (data?.found && data?.status === 'pending') {
@@ -408,6 +408,12 @@ export default function GameShopMobile() {
     resetShopWrites();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!successBanner) return;
+    const t = window.setTimeout(() => setSuccessBanner(null), 4500);
+    return () => window.clearTimeout(t);
+  }, [successBanner]);
 
   const payFromSmartWalletUnsupported = payWith === 'smart_wallet' && !smartWalletAddress;
 
@@ -735,7 +741,7 @@ export default function GameShopMobile() {
             throw new Error(res?.data?.message || 'Purchase failed');
           }
           const bonusApplied = !!res?.data?.data?.bonus?.applied;
-          toast.success(bonusApplied ? 'Purchase successful! Bonus perk added.' : 'Purchase successful!');
+          setSuccessBanner(bonusApplied ? 'Purchase successful! Bonus perk added.' : 'Purchase successful!');
         } else {
           await ensureErc20Allowance({
             publicClient,
@@ -750,6 +756,7 @@ export default function GameShopMobile() {
           if (buyHash) await waitForTxConfirmed(publicClient, buyHash);
           if (buyHash) {
             let bonusApplied = false;
+            let bonusFailed = false;
             try {
               const promoRes = await apiClient.post<{ success?: boolean; message?: string }>('auth/minipay/claim-perk-bogo', {
                 txHash: buyHash,
@@ -759,8 +766,14 @@ export default function GameShopMobile() {
                 promoMode: MINIPAY_PROMO_MODE,
               });
               bonusApplied = !!promoRes?.data?.data?.bonus?.applied;
-            } catch (_) {}
-            toast.success(bonusApplied ? 'Purchase successful! Bonus perk added.' : 'Purchase successful!');
+              bonusFailed = !bonusApplied;
+            } catch (_) {
+              bonusFailed = true;
+            }
+            setSuccessBanner(bonusApplied ? 'Purchase successful! Bonus perk added.' : 'Purchase successful!');
+            if (bonusFailed) {
+              pageToastError('Perk bought, but bonus copy was not added.');
+            }
           }
         }
       } else {
@@ -797,6 +810,7 @@ export default function GameShopMobile() {
         if (buyHash) await waitForTxConfirmed(publicClient, buyHash);
         if (buyHash && payerAddress) {
           let bonusApplied = false;
+          let bonusFailed = false;
           try {
             const promoRes = await apiClient.post<{ success?: boolean; message?: string }>('auth/minipay/claim-perk-bogo', {
               txHash: buyHash,
@@ -806,8 +820,14 @@ export default function GameShopMobile() {
               promoMode: MINIPAY_PROMO_MODE,
             });
             bonusApplied = !!promoRes?.data?.data?.bonus?.applied;
-          } catch (_) {}
-          toast.success(bonusApplied ? 'Purchase successful! Bonus perk added.' : 'Purchase successful!');
+            bonusFailed = !bonusApplied;
+          } catch (_) {
+            bonusFailed = true;
+          }
+          setSuccessBanner(bonusApplied ? 'Purchase successful! Bonus perk added.' : 'Purchase successful!');
+          if (bonusFailed) {
+            pageToastError('Perk bought, but bonus copy was not added.');
+          }
         }
         void refetchStableAllowance();
       }
@@ -954,7 +974,7 @@ export default function GameShopMobile() {
             pin,
           });
           if (!res?.success && !res?.data?.success) throw new Error(res?.data?.message || 'Bundle purchase failed');
-          toast.success('Bundle purchase successful!');
+          setSuccessBanner('Bundle purchase successful!');
           refetchUsdt();
           return;
         }
@@ -974,7 +994,7 @@ export default function GameShopMobile() {
         const hash = await buyBundle(BigInt(bundleEntry.id), true);
         await waitForBundleTx(hash);
       }
-      toast.success('Bundle purchase successful!');
+      setSuccessBanner('Bundle purchase successful!');
       refetchUsdt();
     } catch (err: unknown) {
       notifyShopTxOutcome(err, 'Bundle purchase failed');
@@ -1008,7 +1028,6 @@ export default function GameShopMobile() {
   // Success / Error toasts
   useEffect(() => {
     if (buySuccess) {
-      toast.success('Purchase successful!');
       refetchUsdt();
       void refetchStableAllowance();
       resetBuy();
@@ -1016,7 +1035,6 @@ export default function GameShopMobile() {
   }, [buySuccess, refetchUsdt, refetchStableAllowance, resetBuy]);
   useEffect(() => {
     if (buyFromSuccess) {
-      toast.success('Purchase successful!');
       refetchUsdt();
       void refetchStableAllowance();
       resetBuyFrom();
@@ -1025,14 +1043,14 @@ export default function GameShopMobile() {
 
   useEffect(() => {
     if (redeemSuccess) {
-      toast.success('Voucher redeemed successfully!');
+      setSuccessBanner('Voucher redeemed successfully!');
       resetRedeem();
     }
   }, [redeemSuccess, resetRedeem]);
 
   useEffect(() => {
     if (redeemForSuccess) {
-      toast.success('Voucher redeemed successfully!');
+      setSuccessBanner('Voucher redeemed successfully!');
       resetRedeemFor();
     }
   }, [redeemForSuccess, resetRedeemFor]);
@@ -1090,6 +1108,24 @@ export default function GameShopMobile() {
       </div>
 
       <div className="px-4 pt-6 pb-32 max-w-xl mx-auto space-y-8">
+        {successBanner && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 flex items-start justify-between gap-3"
+          >
+            <p className="text-sm text-emerald-200">{successBanner}</p>
+            <button
+              type="button"
+              onClick={() => setSuccessBanner(null)}
+              className="shrink-0 rounded-lg p-1 text-emerald-200/80 hover:bg-emerald-500/10 hover:text-emerald-100"
+              aria-label="Dismiss success message"
+            >
+              <X size={16} />
+            </button>
+          </motion.div>
+        )}
+
         {/* Stable balance — MiniPay wallet (USDT default) */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
