@@ -45,9 +45,14 @@ import {
 import { ApiResponse } from "@/types/api";
 import { JAIL_POSITION } from "@/utils/constants/monopoly";
 import {
+  balancesFromReadResults,
+  buildBalanceOfCallsForHeldTokens,
   buildMergedHolderSlotCalls,
+  collectRewardHolderAddresses,
   mergeSlotScanResultsForHolders,
   REWARD_OWNED_SLOT_SCAN_CAP,
+  sumBalances,
+  uniqueHeldTokensFromSlotScan,
 } from "@/lib/rewardOwnedEnumerable";
 import { getPerkShopAsset } from "@/lib/perkShopAssets";
 import { getInstantCashAmount, instantCashShopName } from "@/lib/perks/instantCash";
@@ -138,7 +143,10 @@ export default function CollectibleInventoryBar({
   }, [pathname, searchParams]);
 
   // Use provided wallet addresses, or fall back to single userAddress, or wagmi address
-  const addressesToCheck = userWalletAddresses?.length ? userWalletAddresses : (userAddress ? [userAddress] : (wagmiAddress ? [wagmiAddress] : []));
+  const addressesToCheck = useMemo(
+    () => collectRewardHolderAddresses(...(userWalletAddresses ?? []), userAddress, wagmiAddress),
+    [userWalletAddresses, userAddress, wagmiAddress]
+  );
   const address = addressesToCheck[0] as Address | undefined;
 
   const [overlayPortalTarget, setOverlayPortalTarget] = useState<HTMLElement | null>(null);
@@ -238,12 +246,8 @@ export default function CollectibleInventoryBar({
     }
   };
 
-  // === OWNED COLLECTIBLES === (slot-scan: see rewardOwnedEnumerable.ts)
-  // Support multiple addresses to find perks across all user wallets
-  const validAddresses = useMemo(() => {
-    const addrs = addressesToCheck.filter((a): a is Address => !!a && a !== '0x0000000000000000000000000000000000000000');
-    return addrs.length > 0 ? addrs : [];
-  }, [addressesToCheck]);
+  // === OWNED COLLECTIBLES === (slot-scan + balanceOf: see rewardOwnedEnumerable.ts)
+  const validAddresses = addressesToCheck;
 
   const ownedTokenCalls = useMemo(() => {
     if (!contractAddress || validAddresses.length === 0) return [];
@@ -255,28 +259,52 @@ export default function CollectibleInventoryBar({
     query: { enabled: !!contractAddress && validAddresses.length > 0 },
   });
 
-  const { tokenIds: ownedTokenIds } = useMemo(() =>
-    mergeSlotScanResultsForHolders(validAddresses, tokenResults, REWARD_OWNED_SLOT_SCAN_CAP),
+  const { tokenIds: ownedTokenIds, heldBy: ownedHeldBy } = useMemo(
+    () => mergeSlotScanResultsForHolders(validAddresses, tokenResults, REWARD_OWNED_SLOT_SCAN_CAP),
     [validAddresses, tokenResults]
   );
 
-  const filteredOwnedTokenIds = useMemo(() => {
-    return ownedTokenIds.filter((id) => id >= BigInt(COLLECTIBLE_ID_START));
-  }, [ownedTokenIds]);
+  const heldTokens = useMemo(
+    () => uniqueHeldTokensFromSlotScan(ownedTokenIds, ownedHeldBy),
+    [ownedTokenIds, ownedHeldBy]
+  );
 
-  const infoCalls = useMemo(() =>
-    filteredOwnedTokenIds.map(id => ({
-      address: contractAddress!,
-      abi: RewardABI as Abi,
-      functionName: "getCollectibleInfo" as const,
-      args: [id],
-    })),
-    [contractAddress, filteredOwnedTokenIds]
+  const collectibleHeldTokens = useMemo(
+    () => heldTokens.filter((t) => t.tokenId >= BigInt(COLLECTIBLE_ID_START)),
+    [heldTokens]
+  );
+
+  const balanceCalls = useMemo(() => {
+    if (!contractAddress || collectibleHeldTokens.length === 0) return [];
+    return buildBalanceOfCallsForHeldTokens(contractAddress, RewardABI as Abi, collectibleHeldTokens, chainId);
+  }, [contractAddress, collectibleHeldTokens, chainId]);
+
+  const { data: balanceResults } = useReadContracts({
+    contracts: balanceCalls,
+    query: { enabled: !!contractAddress && collectibleHeldTokens.length > 0 },
+  });
+
+  const collectibleBalances = useMemo(() => {
+    const balances = balancesFromReadResults(balanceResults);
+    return collectibleHeldTokens
+      .map((t, i) => ({ ...t, balance: balances[i] ?? 0 }))
+      .filter((t) => t.balance > 0);
+  }, [collectibleHeldTokens, balanceResults]);
+
+  const infoCalls = useMemo(
+    () =>
+      collectibleBalances.map((t) => ({
+        address: contractAddress!,
+        abi: RewardABI as Abi,
+        functionName: "getCollectibleInfo" as const,
+        args: [t.tokenId],
+      })),
+    [contractAddress, collectibleBalances]
   );
 
   const { data: infoResults } = useReadContracts({
     contracts: infoCalls,
-    query: { enabled: filteredOwnedTokenIds.length > 0 },
+    query: { enabled: collectibleBalances.length > 0 },
   });
 
   const ownedCollectiblesRaw = useMemo(() => {
@@ -285,6 +313,7 @@ export default function CollectibleInventoryBar({
     return infoResults
       .map((res, i) => {
         if (res?.status !== "success") return null;
+        const { tokenId, holder, balance } = collectibleBalances[i]!;
         const [perkBig, strengthBig] = res.result as [bigint, bigint];
         const perk = Number(perkBig);
         const strength = Number(strengthBig);
@@ -299,7 +328,9 @@ export default function CollectibleInventoryBar({
         const shopAsset = getPerkShopAsset(perk);
 
         return {
-          tokenId: filteredOwnedTokenIds[i],
+          tokenId,
+          holder,
+          balance,
           perk,
           name: displayName,
           icon: meta.icon,
@@ -311,28 +342,32 @@ export default function CollectibleInventoryBar({
         };
       })
       .filter((c): c is NonNullable<typeof c> => c !== null);
-  }, [infoResults, filteredOwnedTokenIds]);
+  }, [infoResults, collectibleBalances]);
 
   // Group by (perk, strength) so we can show one card per type with "×n" when count > 1
   const ownedCollectibles = useMemo(() => {
-    const byKey = new Map<string, { item: typeof ownedCollectiblesRaw[0]; tokenIds: bigint[] }>();
+    const byKey = new Map<string, { item: typeof ownedCollectiblesRaw[0]; tokenIds: bigint[]; count: number }>();
     for (const item of ownedCollectiblesRaw) {
       const key = `${item.perk}-${item.strength}`;
       const existing = byKey.get(key);
       if (existing) {
         existing.tokenIds.push(item.tokenId);
+        existing.count += item.balance;
       } else {
-        byKey.set(key, { item, tokenIds: [item.tokenId] });
+        byKey.set(key, { item, tokenIds: [item.tokenId], count: item.balance });
       }
     }
-    return Array.from(byKey.values()).map(({ item, tokenIds }) => ({
+    return Array.from(byKey.values()).map(({ item, tokenIds, count }) => ({
       ...item,
       tokenId: tokenIds[0],
-      count: tokenIds.length,
+      count,
     }));
   }, [ownedCollectiblesRaw]);
 
-  const totalOwned = ownedCollectiblesRaw.length;
+  const totalOwned = useMemo(
+    () => sumBalances(ownedCollectiblesRaw.map((item) => item.balance)),
+    [ownedCollectiblesRaw]
+  );
 
   const handleUsePerk = (
     tokenId: bigint,

@@ -9,9 +9,14 @@ import RewardABI from "@/context/abi/rewardabi.json";
 import { REWARD_CONTRACT_ADDRESSES } from "@/constants/contracts";
 import { getPerkShopAsset } from "@/lib/perkShopAssets";
 import {
-  buildTokenOfOwnerByIndexSlotCalls,
+  balancesFromReadResults,
+  buildBalanceOfCallsForHeldTokens,
+  buildMergedHolderSlotCalls,
+  collectRewardHolderAddresses,
+  mergeSlotScanResultsForHolders,
   REWARD_OWNED_SLOT_SCAN_CAP,
-  takeTokenIdsUntilFirstFailure,
+  sumBalances,
+  uniqueHeldTokensFromSlotScan,
 } from "@/lib/rewardOwnedEnumerable";
 
 const COLLECTIBLE_ID_START = 2_000_000_000;
@@ -55,6 +60,8 @@ interface PerksBarProps {
   /** When set, clicking a perk activates it (burn + apply) instead of opening the modal. */
   onUsePerk?: (tokenId: bigint, perk: number, strength: number, name: string) => void;
   className?: string;
+  /** All wallets that may hold perks (connected, guest, linked, smart). */
+  userWalletAddresses?: string[];
   /**
    * Mobile 3D: render as a fixed strip above the bottom nav. Returns null when the wallet has no perk NFTs
    * (avoids duplicating the main “Perks” nav button).
@@ -62,73 +69,105 @@ interface PerksBarProps {
   dockAboveNav?: boolean;
 }
 
-export default function PerksBar({ onOpenModal, onUsePerk, className = "", dockAboveNav = false }: PerksBarProps) {
+export default function PerksBar({
+  onOpenModal,
+  onUsePerk,
+  className = "",
+  userWalletAddresses,
+  dockAboveNav = false,
+}: PerksBarProps) {
   const { address } = useAccount();
   const chainId = useChainId();
   const contractAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES] as Address | undefined;
 
+  const holders = useMemo(
+    () => collectRewardHolderAddresses(...(userWalletAddresses ?? []), address),
+    [userWalletAddresses, address]
+  );
+
   const tokenCalls = useMemo(() => {
-    if (!contractAddress || !address) return [];
-    return buildTokenOfOwnerByIndexSlotCalls(contractAddress, RewardABI as Abi, address, chainId, REWARD_OWNED_SLOT_SCAN_CAP);
-  }, [contractAddress, address, chainId]);
+    if (!contractAddress || holders.length === 0) return [];
+    return buildMergedHolderSlotCalls(contractAddress, RewardABI as Abi, holders, chainId, REWARD_OWNED_SLOT_SCAN_CAP);
+  }, [contractAddress, holders, chainId]);
 
   const { data: tokenResults } = useReadContracts({
     contracts: tokenCalls,
-    query: { enabled: !!contractAddress && !!address },
+    query: { enabled: !!contractAddress && holders.length > 0 },
   });
 
-  const ownedTokenIds = useMemo(() => {
-    const scanned = takeTokenIdsUntilFirstFailure(tokenResults);
-    return scanned.filter((id) => id >= COLLECTIBLE_ID_START);
-  }, [tokenResults]);
+  const { tokenIds, heldBy } = useMemo(
+    () => mergeSlotScanResultsForHolders(holders, tokenResults, REWARD_OWNED_SLOT_SCAN_CAP),
+    [holders, tokenResults]
+  );
+
+  const heldTokens = useMemo(() => uniqueHeldTokensFromSlotScan(tokenIds, heldBy), [tokenIds, heldBy]);
+
+  const collectibleHeldTokens = useMemo(
+    () => heldTokens.filter((t) => t.tokenId >= COLLECTIBLE_ID_START),
+    [heldTokens]
+  );
+
+  const balanceCalls = useMemo(() => {
+    if (!contractAddress || collectibleHeldTokens.length === 0) return [];
+    return buildBalanceOfCallsForHeldTokens(contractAddress, RewardABI as Abi, collectibleHeldTokens, chainId);
+  }, [contractAddress, collectibleHeldTokens, chainId]);
+
+  const { data: balanceResults } = useReadContracts({
+    contracts: balanceCalls,
+    query: { enabled: !!contractAddress && collectibleHeldTokens.length > 0 },
+  });
+
+  const collectibleBalances = useMemo(() => {
+    const balances = balancesFromReadResults(balanceResults);
+    return collectibleHeldTokens
+      .map((t, i) => ({ ...t, balance: balances[i] ?? 0 }))
+      .filter((t) => t.balance > 0);
+  }, [collectibleHeldTokens, balanceResults]);
 
   const infoCalls = useMemo(() => {
-    if (!contractAddress || ownedTokenIds.length === 0) return [];
-    return ownedTokenIds.map((id) => ({
+    if (!contractAddress || collectibleBalances.length === 0) return [];
+    return collectibleBalances.map((t) => ({
       address: contractAddress,
       abi: RewardABI as Abi,
       functionName: "getCollectibleInfo" as const,
-      args: [id],
+      args: [t.tokenId],
     }));
-  }, [contractAddress, ownedTokenIds]);
+  }, [contractAddress, collectibleBalances]);
 
   const { data: infoResults } = useReadContracts({
     contracts: infoCalls,
-    query: { enabled: ownedTokenIds.length > 0 },
+    query: { enabled: collectibleBalances.length > 0 },
   });
 
   const perks = useMemo(() => {
-    if (!infoResults || infoResults.length !== ownedTokenIds.length) return [];
+    if (!infoResults || infoResults.length !== collectibleBalances.length) return [];
     return infoResults
       .map((res, i) => {
         if (res?.status !== "success") return null;
-        const tokenId = ownedTokenIds[i];
-        if (tokenId == null || tokenId < COLLECTIBLE_ID_START) return null;
+        const { tokenId, balance } = collectibleBalances[i]!;
         const arr = res.result as [bigint, bigint?, ...unknown[]];
         const perk = Number(arr?.[0]);
         if (Number.isNaN(perk) || perk < 1 || perk > 14) return null;
         const strength = arr?.[1] != null ? Number(arr[1]) : 1;
-        return { perk, tokenId, strength };
+        return { perk, tokenId, strength, balance };
       })
-      .filter((c): c is { perk: number; tokenId: bigint; strength: number } => c !== null);
-  }, [infoResults, ownedTokenIds]);
+      .filter((c): c is { perk: number; tokenId: bigint; strength: number; balance: number } => c !== null);
+  }, [infoResults, collectibleBalances]);
 
-  /** Group by perk type: count, and first tokenId/strength for activation */
+  const totalPerkBalance = useMemo(() => sumBalances(perks.map((p) => p.balance)), [perks]);
+
+  /** Group by perk + strength: count balances, keep first tokenId for activation */
   const perksGrouped = useMemo(() => {
-    const byPerk: Record<number, { count: number; tokenId: bigint; strength: number }> = {};
-    perks.forEach(({ perk, tokenId, strength }) => {
-      if (!byPerk[perk]) byPerk[perk] = { count: 1, tokenId, strength };
-      else byPerk[perk].count += 1;
+    const byKey: Record<string, { count: number; tokenId: bigint; strength: number; perk: number }> = {};
+    perks.forEach(({ perk, tokenId, strength, balance }) => {
+      const key = `${perk}-${strength}`;
+      if (!byKey[key]) byKey[key] = { count: balance, tokenId, strength, perk };
+      else byKey[key].count += balance;
     });
-    return Object.entries(byPerk).map(([perkStr, v]) => ({
-      perk: Number(perkStr),
-      count: v.count,
-      tokenId: v.tokenId,
-      strength: v.strength,
-    }));
+    return Object.values(byKey);
   }, [perks]);
 
-  if (!address || perks.length === 0) {
+  if (holders.length === 0 || totalPerkBalance === 0) {
     if (dockAboveNav) return null;
     return (
       <button
@@ -147,7 +186,7 @@ export default function PerksBar({ onOpenModal, onUsePerk, className = "", dockA
     <>
       {perksGrouped.map(({ perk, count, tokenId, strength }) => (
         <button
-          key={perk}
+          key={`${perk}-${strength}`}
           type="button"
           onClick={() => (onUsePerk ? onUsePerk(tokenId, perk, strength, PERK_NAMES[perk] ?? `Perk ${perk}`) : onOpenModal())}
           title={`${PERK_NAMES[perk] ?? `Perk ${perk}`}${count > 1 ? ` (×${count})` : ""}`}
