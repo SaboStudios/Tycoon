@@ -6,6 +6,7 @@ import { ProfileProvider } from "@/context/ProfileContext";
 import { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { isPublicPath } from "@/lib/publicPaths";
+import { ServiceRestoredBanner } from "@/components/promos/ServiceRestoredBanner";
 
 const AuthGuard = dynamic(() => import("@/components/auth/AuthGuard"), { ssr: false });
 
@@ -34,10 +35,18 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
     <ProfileProvider>
       <div suppressHydrationWarning>
         {isBoard3D ? (
-          <NavBarMobile minimal />
+          <>
+            <NavBarMobile minimal />
+            <div className="max-w-md mx-auto w-full px-3 pt-2">
+              <ServiceRestoredBanner />
+            </div>
+          </>
         ) : (
           <div className="max-w-md mx-auto w-full">
             <NavBarMobile />
+            <div className="px-3 pb-1">
+              <ServiceRestoredBanner />
+            </div>
           </div>
         )}
         {isPublic ? pageContent : <AuthGuard>{pageContent}</AuthGuard>}
