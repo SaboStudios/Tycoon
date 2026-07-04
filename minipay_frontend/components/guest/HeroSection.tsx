@@ -7,7 +7,7 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import HeroMarketingContent from "@/components/guest/HeroMarketingContent";
 import HeroNoticeBanner from "@/components/guest/HeroNoticeBanner";
-import { JulyBogoPromoBanner } from "@/components/promos/JulyBogoPromoBanner";
+import { ServiceRestoredBanner } from "@/components/promos/ServiceRestoredBanner";
 
 const ParticleBackground = dynamic(
   () => import("@/components/hero/ParticleBackground").then((m) => ({ default: m.ParticleBackground })),
@@ -129,7 +129,7 @@ const HeroSection: React.FC = () => {
 
       <main className="relative z-20 flex h-full w-full flex-col items-center justify-start gap-1 overflow-y-auto overflow-x-hidden px-4 pt-4 pb-24">
         <HeroMarketingContent showDescription={!hideDescription} />
-        <JulyBogoPromoBanner variant="hero" dismissible />
+        <ServiceRestoredBanner variant="hero" dismissible />
 
         <div className="relative z-1 mt-6 flex min-h-[152px] w-full flex-col items-center justify-center gap-4">
           <div
