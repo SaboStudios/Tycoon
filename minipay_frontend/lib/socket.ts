@@ -60,7 +60,13 @@ class SocketService {
   }
 
   /** Register presence in global lobby (for "everyone online" and general chat). */
-  registerLobbyPresence(payload: { userId?: number; username?: string; address?: string }): void {
+  registerLobbyPresence(payload: {
+    userId?: number;
+    username?: string;
+    address?: string;
+    status?: "lobby" | "waiting" | "game";
+    gameCode?: string;
+  }): void {
     if (!this.socket) return;
     if (!(payload?.userId != null || payload?.username || payload?.address)) return;
     // Prefer live socket.connected — isConnected can lag a tick behind the connect event.
@@ -71,7 +77,16 @@ class SocketService {
   }
 
   /** Listen for lobby online-users list (broadcast by server). */
-  onOnlineUsers(callback: (data: { users: Array<{ userId?: number; username?: string | null; address?: string | null }>; count: number }) => void): void {
+  onOnlineUsers(callback: (data: {
+    users: Array<{
+      userId?: number;
+      username?: string | null;
+      address?: string | null;
+      status?: "lobby" | "waiting" | "game" | null;
+      gameCode?: string | null;
+    }>;
+    count: number;
+  }) => void): void {
     if (this.socket) {
       this.socket.on("online-users", callback);
     }

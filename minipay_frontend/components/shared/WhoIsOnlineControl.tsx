@@ -14,6 +14,8 @@ import { HIDE_WALLET_ADDRESS_UI } from "@/lib/miniappUi";
 import OnlineDmPanel from "@/components/shared/OnlineDmPanel";
 import OnlineLobbyPanel from "@/components/shared/OnlineLobbyPanel";
 import { useMessageNotifications } from "@/context/MessageNotificationsContext";
+import { presenceStatusLabel, resolvePresenceFromPath } from "@/lib/presenceStatus";
+import { usePathname, useSearchParams } from "next/navigation";
 
 const DISMISS_KEY = "tycoon_who_is_online_pill_dismissed";
 
@@ -87,9 +89,15 @@ export default function WhoIsOnlineControl({
   forceShow = false,
   variant = "nav",
 }: WhoIsOnlineControlProps) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { address } = useAccount();
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
+  const presenceWhere = useMemo(
+    () => resolvePresenceFromPath(pathname, searchParams?.get("gameCode")),
+    [pathname, searchParams]
+  );
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [pillDismissed, setPillDismissed] = useState(false);
@@ -149,6 +157,9 @@ export default function WhoIsOnlineControl({
     enabled: allowed && !pillDismissed,
     userId: guestUser?.id,
     username: guestUser?.username ?? username ?? undefined,
+    status: presenceWhere.status,
+    gameCode: presenceWhere.gameCode,
+    registerPresence: false,
   });
 
   useEffect(() => {
@@ -480,8 +491,17 @@ export default function WhoIsOnlineControl({
                               <p className="truncate font-dmSans text-sm font-semibold text-[#e8f4f7]">
                                 {label}
                               </p>
-                              <p className="font-dmSans text-[11px] text-[#8aa4b0]">
-                                {canOpenStats ? "Tap to view stats" : "Online on Tycoon"}
+                              <p
+                                className={`font-dmSans text-[11px] ${
+                                  u.status === "game"
+                                    ? "text-amber-300"
+                                    : u.status === "waiting"
+                                      ? "text-cyan-300"
+                                      : "text-[#8aa4b0]"
+                                }`}
+                              >
+                                {presenceStatusLabel(u.status, u.gameCode)}
+                                {canOpenStats ? " · tap for stats" : ""}
                               </p>
                             </div>
                           </button>

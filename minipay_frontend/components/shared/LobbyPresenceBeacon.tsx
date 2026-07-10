@@ -1,21 +1,30 @@
 "use client";
 
 import { useMemo } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useAccount } from "wagmi";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { useGetUsername } from "@/context/contractReads";
 import { getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
 import { useOnlineUsers } from "@/hooks/useOnlineUsers";
+import { resolvePresenceFromPath } from "@/lib/presenceStatus";
 import { isAddress } from "viem";
 
 /**
- * Silent beacon: any signed-in MiniPay user registers lobby presence
- * so they appear in the global online list (even if they can't see the UI).
+ * Silent beacon: any signed-in MiniPay user registers presence (lobby / waiting / in-game).
  */
 export default function LobbyPresenceBeacon() {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { address, isConnected } = useAccount();
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
+
+  const gameCode = searchParams?.get("gameCode") ?? null;
+  const { status, gameCode: presenceCode } = useMemo(
+    () => resolvePresenceFromPath(pathname, gameCode),
+    [pathname, gameCode]
+  );
 
   const safeAddress =
     address && isAddress(address) ? (address as `0x${string}`) : undefined;
@@ -33,12 +42,12 @@ export default function LobbyPresenceBeacon() {
 
   const enabled = !!(isConnected || guestUser) && !!(presenceAddress || username || guestUser?.id);
 
-  // Registers presence + keeps socket lobby membership fresh.
-  // We don't render the list here — WhoIsOnlineControl does that for preview users.
   useOnlineUsers(presenceAddress, {
     enabled,
     userId: guestUser?.id,
     username,
+    status,
+    gameCode: presenceCode,
     pollIntervalMs: 12000,
   });
 
