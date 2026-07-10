@@ -15,6 +15,8 @@ import avatar from '@/public/avatar.jpg';
 import ThemeSoundPlayer from './ThemeSoundPlayer';
 import { JulyBogoPromoBanner } from '@/components/promos/JulyBogoPromoBanner';
 import WhoIsOnlineControl from '@/components/shared/WhoIsOnlineControl';
+import LobbyChatControl from '@/components/shared/LobbyChatControl';
+import { canAccessMultiplayerPreview } from '@/lib/featureAccess';
 
 const WalletConnectModal = dynamic(() => import('./wallet-connect-modal'), { ssr: false });
 const WalletDisconnectModal = dynamic(() => import('./wallet-disconnect-modal'), { ssr: false });
@@ -230,7 +232,11 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
               <Logo className="w-[44px] drop-shadow-[0_0_8px_rgba(0,240,255,0.2)] relative z-[1]" image={LogoIcon} href="/" />
               <div className="pointer-events-none absolute inset-x-0 top-0 bottom-0 flex items-center justify-center z-[1]">
                 <div className="pointer-events-auto">
-                  <WhoIsOnlineControl username={displayName} />
+                  {canAccessMultiplayerPreview(displayName) ? (
+                    <WhoIsOnlineControl username={displayName} />
+                  ) : (
+                    <LobbyChatControl username={displayName} />
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-2 relative z-[1]">
