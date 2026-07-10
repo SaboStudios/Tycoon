@@ -8,7 +8,7 @@ import { useAccount } from "wagmi";
 import { useOnlineUsers, type OnlineUser } from "@/hooks/useOnlineUsers";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
-import { canAccessMultiplayerPreview, canAccessDirectMessages, canAccessChallenges } from "@/lib/featureAccess";
+import { canAccessDirectMessages, canAccessChallenges } from "@/lib/featureAccess";
 import { apiClient } from "@/lib/api";
 import { HIDE_WALLET_ADDRESS_UI } from "@/lib/miniappUi";
 import OnlineDmPanel from "@/components/shared/OnlineDmPanel";
@@ -70,7 +70,7 @@ function parseStatsRow(row: Record<string, unknown> | null, fallbackLabel: strin
 
 type WhoIsOnlineControlProps = {
   className?: string;
-  /** Resolved display username (guest / on-chain / backend). Used for allowlist gate. */
+  /** Resolved display username (guest / on-chain / backend). */
   username?: string | null;
   forceShow?: boolean;
   /**
@@ -81,8 +81,8 @@ type WhoIsOnlineControlProps = {
 };
 
 /**
- * Live global online count + sheet. Soft-launch: Ajisabo / Jaibois only unless forceShow.
- * Tap a player to view their public stats.
+ * Live global online count + sheet (Online list + public Lobby).
+ * Available to all signed-in users. DMs / Challenge stay soft-launch gated.
  */
 export default function WhoIsOnlineControl({
   className = "",
@@ -93,7 +93,7 @@ export default function WhoIsOnlineControl({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { address } = useAccount();
+  const { address, isConnected } = useAccount();
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
   const presenceWhere = useMemo(
@@ -146,9 +146,7 @@ export default function WhoIsOnlineControl({
   }, [view, selected, setActiveDmConversationId]);
 
   const allowed =
-    forceShow ||
-    canAccessMultiplayerPreview(username) ||
-    canAccessMultiplayerPreview(guestUser?.username);
+    forceShow || !!guestUser || isConnected || !!(username && String(username).trim());
 
   const presenceAddress = useMemo(() => {
     if (address) return address;

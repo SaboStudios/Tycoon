@@ -37,7 +37,6 @@ import { Address, parseUnits } from "viem";
 import { getContractErrorMessage } from "@/lib/utils/contractErrors";
 import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
 import WhoIsOnlineControl from "@/components/shared/WhoIsOnlineControl";
-import { canAccessMultiplayerPreview } from "@/lib/featureAccess";
 
 interface GameCreateResponse {
   data?: {
@@ -188,7 +187,7 @@ export default function CreateGameMobile({
 
   const { data: username } = useGetUsername(address);
   const headerUsername = guestUser?.username ?? (typeof username === "string" ? username : null);
-  const showOnlineInHeader = canAccessMultiplayerPreview(headerUsername);
+  const showOnlineInHeader = true;
   const { data: isUserRegistered } = useIsRegistered(address);
 
   const isMiniPay = MINIPAY_CHAIN_IDS.includes(wagmiChainId);

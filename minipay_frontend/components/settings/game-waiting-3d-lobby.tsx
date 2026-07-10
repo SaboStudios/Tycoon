@@ -6,7 +6,6 @@ import { useWaitingRoom } from "./useWaitingRoom";
 import GameRoomLoading from "./game-room-loading";
 import { Check, Copy, LifeBuoy, Users, X } from "lucide-react";
 import WhoIsOnlineControl from "@/components/shared/WhoIsOnlineControl";
-import { canAccessMultiplayerPreview } from "@/lib/featureAccess";
 import { ScanlineOverlay } from "@/components/hero/ScanlineOverlay";
 import { ParticleBackground } from "@/components/hero/ParticleBackground";
 import { WARoomLaunchButton } from "@/components/game-setup/WARoomLaunchButton";
@@ -89,7 +88,7 @@ export default function GameWaiting3DLobby(): React.ReactElement {
   } = useWaitingRoom({ redirectToBoard: REDIRECT_TO_BOARD });
 
   const headerUsername = guestUser?.username ?? waitingUsername ?? null;
-  const showOnlineInHeader = canAccessMultiplayerPreview(headerUsername);
+  const showOnlineInHeader = true;
 
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [playersSheetOpen, setPlayersSheetOpen] = useState(false);
