@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useWaitingRoom } from "./useWaitingRoom";
 import GameRoomLoading from "./game-room-loading";
@@ -91,12 +91,6 @@ export default function GameWaiting3DLobby(): React.ReactElement {
   const headerUsername = guestUser?.username ?? waitingUsername ?? null;
   const showOnlineInHeader = canAccessMultiplayerPreview(headerUsername);
 
-  const gameUrl3d = useMemo(() => {
-    if (!gameCode) return "";
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
-    return `${origin}/game-waiting-3d?gameCode=${encodeURIComponent(gameCode)}`;
-  }, [gameCode]);
-
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [playersSheetOpen, setPlayersSheetOpen] = useState(false);
 
@@ -110,12 +104,6 @@ export default function GameWaiting3DLobby(): React.ReactElement {
     const ok = await copyText(gameCode);
     flashCopy(ok ? "Code copied!" : "Copy failed");
   }, [gameCode, flashCopy]);
-
-  const handleCopyLink = useCallback(async () => {
-    if (!gameUrl3d) return;
-    const ok = await copyText(gameUrl3d);
-    flashCopy(ok ? "Link copied!" : "Copy failed");
-  }, [gameUrl3d, flashCopy]);
 
   const joinLoading = actionLoading || isJoining || approvePending || approveConfirming;
   const slotsOpen = playersJoined < maxPlayers;
@@ -256,7 +244,7 @@ export default function GameWaiting3DLobby(): React.ReactElement {
             {gameCode}
           </motion.p>
           <p className="relative mt-2 inline-flex items-center gap-1.5 font-dmSans text-[11px] text-[#7ec8d4]">
-            {copyFeedback?.includes("Code") ? (
+            {copyFeedback ? (
               <>
                 <Check className="h-3.5 w-3.5 text-emerald-400" />
                 {copyFeedback}
@@ -270,39 +258,8 @@ export default function GameWaiting3DLobby(): React.ReactElement {
           </p>
         </motion.button>
 
-        {/* Share battle link */}
-        <div className="mb-5">
-          <SectionLabel>Share battle link</SectionLabel>
-          <div className="flex items-stretch gap-2">
-            <input
-              type="text"
-              readOnly
-              value={gameUrl3d}
-              aria-label="Join game URL"
-              className="min-w-0 flex-1 truncate rounded-xl border border-[#00D4FF]/20 bg-[#050a0b] px-3 py-3 font-mono text-xs text-cyan-200/90 shadow-inner focus:outline-none focus:ring-1 focus:ring-cyan-500/50"
-            />
-            <button
-              type="button"
-              onClick={handleCopyLink}
-              disabled={actionLoading || !gameUrl3d}
-              className="flex min-h-12 min-w-12 shrink-0 items-center justify-center rounded-xl border-2 border-[#00D4FF]/50 bg-[#00D4FF]/10 text-[#00D4FF] transition hover:shadow-[0_0_16px_rgba(0,212,255,0.45)] disabled:opacity-40"
-              title="Copy link"
-              aria-label="Copy battle link"
-            >
-              {copyFeedback?.includes("Link") ? (
-                <Check className="h-5 w-5 text-emerald-400" />
-              ) : (
-                <Copy className="h-5 w-5" />
-              )}
-            </button>
-          </div>
-          {copyFeedback?.includes("Link") && (
-            <p className="mt-1.5 text-center font-orbitron text-xs text-emerald-400">{copyFeedback}</p>
-          )}
-        </div>
-
         {/* Combatants */}
-        <div className="mb-5">
+        <div className="mb-5 mt-2">
           <div className="mb-2.5 flex items-center justify-between gap-2">
             <p className="font-orbitron text-[10px] font-bold uppercase tracking-[0.2em] text-[#00D4FF]/80">
               Combatants
