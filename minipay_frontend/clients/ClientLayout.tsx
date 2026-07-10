@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import NavBarMobile from "@/components/shared/navbar-mobile";
 import LobbyPresenceBeacon from "@/components/shared/LobbyPresenceBeacon";
 import { ProfileProvider } from "@/context/ProfileContext";
+import { MessageNotificationsProvider } from "@/context/MessageNotificationsContext";
 import { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { isPublicPath } from "@/lib/publicPaths";
@@ -37,18 +38,20 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
 
   return (
     <ProfileProvider>
-      <div suppressHydrationWarning>
-        {/* Always register presence (even when nav is hidden on create/waiting). */}
-        <LobbyPresenceBeacon />
-        {isBoard3D ? (
-          <NavBarMobile minimal />
-        ) : isSelfHeaderSetup ? null : (
-          <div className="max-w-md mx-auto w-full">
-            <NavBarMobile />
-          </div>
-        )}
-        {isPublic ? pageContent : <AuthGuard>{pageContent}</AuthGuard>}
-      </div>
+      <MessageNotificationsProvider>
+        <div suppressHydrationWarning>
+          {/* Always register presence (even when nav is hidden on create/waiting). */}
+          <LobbyPresenceBeacon />
+          {isBoard3D ? (
+            <NavBarMobile minimal />
+          ) : isSelfHeaderSetup ? null : (
+            <div className="max-w-md mx-auto w-full">
+              <NavBarMobile />
+            </div>
+          )}
+          {isPublic ? pageContent : <AuthGuard>{pageContent}</AuthGuard>}
+        </div>
+      </MessageNotificationsProvider>
     </ProfileProvider>
   );
 }

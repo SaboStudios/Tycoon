@@ -13,6 +13,7 @@ import { apiClient } from "@/lib/api";
 import { HIDE_WALLET_ADDRESS_UI } from "@/lib/miniappUi";
 import OnlineDmPanel from "@/components/shared/OnlineDmPanel";
 import OnlineLobbyPanel from "@/components/shared/OnlineLobbyPanel";
+import { useMessageNotifications } from "@/context/MessageNotificationsContext";
 
 const DISMISS_KEY = "tycoon_who_is_online_pill_dismissed";
 
@@ -98,6 +99,7 @@ export default function WhoIsOnlineControl({
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState(false);
   const [stats, setStats] = useState<PlayerStats | null>(null);
+  const { setLobbyOpen, setActiveDmConversationId } = useMessageNotifications();
 
   useEffect(() => {
     setMounted(true);
@@ -107,6 +109,30 @@ export default function WhoIsOnlineControl({
       // ignore
     }
   }, []);
+
+  useEffect(() => {
+    const onOpenLobby = () => {
+      setOpen(true);
+      setSelected(null);
+      setMainTab("lobby");
+    };
+    window.addEventListener("tycoon-open-lobby-chat", onOpenLobby);
+    return () => window.removeEventListener("tycoon-open-lobby-chat", onOpenLobby);
+  }, []);
+
+  useEffect(() => {
+    const lobbyVisible = open && !selected && mainTab === "lobby";
+    setLobbyOpen(lobbyVisible);
+    return () => setLobbyOpen(false);
+  }, [open, selected, mainTab, setLobbyOpen]);
+
+  useEffect(() => {
+    if (view === "dm" && selected) {
+      // conversation id unknown until panel opens — clear when leaving dm
+      return () => setActiveDmConversationId(null);
+    }
+    setActiveDmConversationId(null);
+  }, [view, selected, setActiveDmConversationId]);
 
   const allowed =
     forceShow ||
