@@ -35,6 +35,7 @@ import { isBenignTurnOrderError, getContractErrorMessage } from "@/lib/utils/con
 import { gameBoardToastError } from "@/lib/utils/gameBoardErrors";
 import { recoverFromDoublesJailError, recoverFromRollPositionError } from "@/lib/game/recoverFromRollError";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
+import { getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
 import { usePreventDoubleSubmit } from "@/hooks/usePreventDoubleSubmit";
 import { useGameTrades } from "@/hooks/useGameTrades";
 import { useMobilePropertyActions } from "@/hooks/useMobilePropertyActions";
@@ -276,16 +277,31 @@ function Board3DMobilePageContent() {
   }, [gameCode, game?.is_ai, queryClient, refetchGame, refetchGameProperties]);
 
   const me = useMemo<Player | null>(() => {
+    if (!game?.players?.length) return null;
+    const myId = guestUser?.id != null ? Number(guestUser.id) : null;
+    if (myId != null && Number.isFinite(myId) && myId > 0) {
+      const byUserId = game.players.find((p: Player) => Number(p.user_id) === myId);
+      if (byUserId) return byUserId;
+    }
     const addrs = [
+      getGuestUserPlayAddress(guestUser),
       guestUser?.address,
       guestUser?.linked_wallet_address,
       guestUser?.smart_wallet_address,
       address,
     ].filter((a): a is string => !!a && String(a).trim().length > 0);
     const lower = addrs.map((a) => a.toLowerCase());
-    if (!game?.players || lower.length === 0) return null;
+    if (lower.length === 0) return null;
     return game.players.find((p: Player) => p.address && lower.includes(p.address.toLowerCase())) ?? null;
-  }, [game?.players, address, guestUser?.address, guestUser?.linked_wallet_address, guestUser?.smart_wallet_address]);
+  }, [
+    game?.players,
+    address,
+    guestUser,
+    guestUser?.id,
+    guestUser?.address,
+    guestUser?.linked_wallet_address,
+    guestUser?.smart_wallet_address,
+  ]);
 
   const userWalletAddresses = useMemo(
     () =>
@@ -528,7 +544,11 @@ function Board3DMobilePageContent() {
 
   const currentPlayerId = game?.next_player_id ?? null;
   const isUntimed = !game?.duration || Number(game.duration) === 0;
-  const isMyTurn = !!(me && currentPlayerId !== null && me.user_id === currentPlayerId);
+  const isMyTurn = !!(
+    me &&
+    currentPlayerId !== null &&
+    Number(me.user_id) === Number(currentPlayerId)
+  );
   const gameTimeUp = game?.status === "FINISHED" || gameTimeUpLocal;
   const meInJail = !!(me && Number(me.position) === JAIL_POSITION && me.in_jail);
   const canPayToLeaveJail = meInJail && (me?.balance ?? 0) >= 50;
@@ -595,7 +615,7 @@ function Board3DMobilePageContent() {
 
   const currentPlayer = useMemo(() => {
     if (!livePlayers || currentPlayerId == null) return null;
-    return livePlayers.find((p: Player) => p.user_id === currentPlayerId) ?? null;
+    return livePlayers.find((p: Player) => Number(p.user_id) === Number(currentPlayerId)) ?? null;
   }, [livePlayers, currentPlayerId]);
 
   const liveDevelopmentByPropertyId = useMemo(() => {

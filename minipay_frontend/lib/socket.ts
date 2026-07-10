@@ -60,16 +60,68 @@ class SocketService {
   }
 
   /** Register presence in global lobby (for "everyone online" and general chat). */
-  registerLobbyPresence(payload: { userId?: number; username?: string; address?: string }): void {
-    if (this.socket && this.isConnected && (payload?.userId != null || payload?.username || payload?.address)) {
+  registerLobbyPresence(payload: {
+    userId?: number;
+    username?: string;
+    address?: string;
+    status?: "lobby" | "waiting" | "game";
+    gameCode?: string;
+  }): void {
+    if (!this.socket) return;
+    if (!(payload?.userId != null || payload?.username || payload?.address)) return;
+    // Prefer live socket.connected — isConnected can lag a tick behind the connect event.
+    if (this.socket.connected || this.isConnected) {
+      this.isConnected = true;
       this.socket.emit("register-presence", payload);
     }
   }
 
   /** Listen for lobby online-users list (broadcast by server). */
-  onOnlineUsers(callback: (data: { users: Array<{ userId?: number; username?: string | null; address?: string | null }>; count: number }) => void): void {
+  onOnlineUsers(callback: (data: {
+    users: Array<{
+      userId?: number;
+      username?: string | null;
+      address?: string | null;
+      status?: "lobby" | "waiting" | "game" | null;
+      gameCode?: string | null;
+    }>;
+    count: number;
+  }) => void): void {
     if (this.socket) {
       this.socket.on("online-users", callback);
+    }
+  }
+
+  /** Direct message realtime delivery. */
+  onDmMessage(callback: (data: { conversationId?: number; message?: { id: number; body: string; senderId: number; username?: string | null; createdAt?: string } }) => void): void {
+    if (this.socket) {
+      this.socket.on("dm-message", callback);
+    }
+  }
+
+  /** Global lobby chat realtime delivery. */
+  onLobbyMessage(callback: (data: { message?: { id: number | string; body: string; user_id?: number | null; username?: string | null; created_at?: string } }) => void): void {
+    if (this.socket) {
+      this.socket.on("lobby-message", callback);
+    }
+  }
+
+  /** Online PvP challenge invite / accept / reject. */
+  onPlayerChallenge(callback: (data: {
+    type?: "incoming" | "outgoing" | "accepted" | "rejected" | "cancelled" | "expired";
+    challenge?: {
+      id: number;
+      challengerId: number;
+      opponentId: number;
+      gameId?: number | null;
+      gameCode: string;
+      status: string;
+      challengerUsername?: string | null;
+      opponentUsername?: string | null;
+    };
+  }) => void): void {
+    if (this.socket) {
+      this.socket.on("player-challenge", callback);
     }
   }
 

@@ -13,6 +13,8 @@ import { JoinRoomAuthModal, JoinRoomAuthStickyBar } from "@/components/settings/
 import { useJoinRoomAuthContinuation } from "@/components/settings/useJoinRoomAuthContinuation";
 import { motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
+import WhoIsOnlineControl from "@/components/shared/WhoIsOnlineControl";
+import { useGetUsername } from "@/context/ContractProvider";
 
 interface JoinRoomMobileProps {
   /** When game is RUNNING, redirect here (default: /board-3d-multi-mobile). */
@@ -34,6 +36,10 @@ export default function JoinRoom({
   const guestUser = guestAuth?.guestUser ?? null;
   const authLoading = guestAuth?.isLoading ?? true;
   const canAct = isConnected || !!guestUser;
+  const { data: onChainUsername } = useGetUsername(address);
+  const previewUsername =
+    guestUser?.username ?? (onChainUsername != null ? String(onChainUsername).trim() : null);
+  const showWhoIsOnline = true;
   const { modalOpen, modalHint, queueAfterAuth, cancelModal } = useJoinRoomAuthContinuation(canAct);
 
   const [code, setCode] = useState<string>("");
@@ -245,6 +251,11 @@ export default function JoinRoom({
               <p className="text-cyan-300/70 font-dmSans text-xs tracking-widest uppercase mt-2">
                 Find Your Match · Enter The Arena · Dominate
               </p>
+              {showWhoIsOnline && (
+                <div className="mt-4 flex justify-center">
+                  <WhoIsOnlineControl username={previewUsername} variant="page" />
+                </div>
+              )}
             </div>
           </div>
 

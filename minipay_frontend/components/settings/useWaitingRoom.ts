@@ -68,6 +68,7 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
   const [copySuccessFarcaster, setCopySuccessFarcaster] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [redirectingToBoard, setRedirectingToBoard] = useState(false);
   const [actionLoading, setActionLoading] = useState<boolean>(false);
   const actionGuardRef = useRef<boolean>(false);
 
@@ -145,6 +146,7 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
 
   const mountedRef = useRef(true);
   const refetchGameRef = useRef<{ fn: (() => Promise<void>) | null }>({ fn: null });
+  const lobbyClosedHandledRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -292,6 +294,7 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
     }
 
     let pollTimer: number | null = null;
+    lobbyClosedHandledRef.current = false;
 
     const fetchOnce = async () => {
       setError(null);
@@ -309,7 +312,19 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
         const gameData = res.data.data;
 
         if (gameData.status === "RUNNING") {
-          router.push(`${getRedirectBoardUrl()}?gameCode=${encodeURIComponent(gameCode)}`);
+          setRedirectingToBoard(true);
+          setLoading(true);
+          router.replace(`${getRedirectBoardUrl()}?gameCode=${encodeURIComponent(gameCode)}`);
+          return;
+        }
+
+        const closed = String(gameData.status || "").toUpperCase();
+        if (closed === "CANCELLED" || closed === "FINISHED" || closed === "COMPLETED") {
+          if (!lobbyClosedHandledRef.current) {
+            lobbyClosedHandledRef.current = true;
+            toast.info("Challenge declined — returning home", { autoClose: 3500 });
+            router.replace("/");
+          }
           return;
         }
 
@@ -325,8 +340,11 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
           const updateRes = await apiClient.put<ApiResponse>(`/games/${gameData.id}`, {
             status: "RUNNING",
           });
-          if (updateRes?.data?.success)
-            router.push(`${getRedirectBoardUrl()}?gameCode=${encodeURIComponent(gameCode)}`);
+          if (updateRes?.data?.success) {
+            setRedirectingToBoard(true);
+            setLoading(true);
+            router.replace(`${getRedirectBoardUrl()}?gameCode=${encodeURIComponent(gameCode)}`);
+          }
         }
       } catch (err: unknown) {
         if (!mountedRef.current) return;
@@ -374,14 +392,34 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
     const onPlayerJoined = () => {
       refetchGameRef.current.fn?.();
     };
+    const onGameEnded = (data: { gameCode?: string; reason?: string }) => {
+      if (data?.gameCode && data.gameCode !== gameCode) return;
+      const reason = String(data?.reason || "").toLowerCase();
+      if (reason === "rejected" || reason === "cancelled" || reason === "expired") {
+        if (!lobbyClosedHandledRef.current) {
+          lobbyClosedHandledRef.current = true;
+          toast.info(
+            reason === "rejected"
+              ? "Challenge declined — returning home"
+              : "Lobby cancelled — returning home",
+            { autoClose: 3500 }
+          );
+          router.replace("/");
+        }
+        return;
+      }
+      refetchGameRef.current.fn?.();
+    };
     socketService.onGameUpdate(onGameUpdate);
     socketService.onPlayerJoined(onPlayerJoined);
+    socketService.onGameEnded(onGameEnded);
     return () => {
       socketService.removeListener("game-update", onGameUpdate);
       socketService.removeListener("player-joined", onPlayerJoined);
+      socketService.removeListener("game-ended", onGameEnded);
       socketService.leaveGameRoom(gameCode);
     };
-  }, [gameCode]);
+  }, [gameCode, router]);
 
   const playersJoined =
     contractGame?.joinedPlayers
@@ -643,6 +681,7 @@ export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
     error,
     setError,
     loading,
+    redirectingToBoard,
     actionLoading,
     contractGame,
     contractGameLoading,
