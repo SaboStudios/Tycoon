@@ -17,10 +17,12 @@ interface ClientLayoutProps {
 export default function ClientLayout({ children }: ClientLayoutProps) {
   const pathname = usePathname();
   const isBoard3D = pathname === "/board-3d-mobile" || pathname === "/board-3d-multi-mobile";
-  /** Create Game owns its own header (Close / Tycoon / Support) — no global nav chrome. */
-  const isCreateGameSetup = !!pathname && pathname.startsWith("/game-settings");
+  /** Create Game / War Room own their headers — no global nav chrome or floating hamburger. */
+  const isSelfHeaderSetup =
+    !!pathname &&
+    (pathname.startsWith("/game-settings") || pathname.startsWith("/game-waiting"));
   const isPublic = isPublicPath(pathname ?? "");
-  const needsMobileNavPadding = !isBoard3D && !isCreateGameSetup;
+  const needsMobileNavPadding = !isBoard3D && !isSelfHeaderSetup;
   const contentClassName = [
     needsMobileNavPadding ? "pt-below-mobile-nav" : "",
     !isBoard3D ? "max-w-md mx-auto w-full" : "",
@@ -37,7 +39,7 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
       <div suppressHydrationWarning>
         {isBoard3D ? (
           <NavBarMobile minimal />
-        ) : isCreateGameSetup ? null : (
+        ) : isSelfHeaderSetup ? null : (
           <div className="max-w-md mx-auto w-full">
             <NavBarMobile />
           </div>
