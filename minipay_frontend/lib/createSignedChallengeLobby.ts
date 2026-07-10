@@ -35,7 +35,7 @@ type WriteContractAsync = (args: {
 
 /**
  * Challenger signs createGame on-chain (PRIVATE 2p), then saves the lobby to the API.
- * `stake` is human USDC amount (0 = free).
+ * `stake` is human USDT amount (0 = free).
  */
 export async function createSignedChallengeLobby(opts: {
   address: `0x${string}`;

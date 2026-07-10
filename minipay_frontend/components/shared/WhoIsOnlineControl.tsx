@@ -766,7 +766,7 @@ export default function WhoIsOnlineControl({
                       Challenge {stakePrompt.label}
                     </p>
                     <p className="mt-1 font-dmSans text-xs text-[#8aa4b0]">
-                      Free games need no stake. Staked games lock cUSD for both players.
+                      Free games need no stake. Staked games lock USDT for both players.
                     </p>
                     <div className="mt-3 grid grid-cols-2 gap-2">
                       <button
@@ -793,7 +793,7 @@ export default function WhoIsOnlineControl({
                     {stakeMode === "staked" ? (
                       <div className="mt-3 space-y-2">
                         <label className="block font-dmSans text-[11px] font-medium text-[#8aa4b0]">
-                          Stake amount (cUSD)
+                          Stake amount (USDT)
                           <input
                             type="number"
                             min={0.1}
@@ -818,7 +818,7 @@ export default function WhoIsOnlineControl({
                           {challengeBusy ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
-                            `Send ${stakeAmount} cUSD challenge`
+                            `Send ${stakeAmount} USDT challenge`
                           )}
                         </button>
                       </div>

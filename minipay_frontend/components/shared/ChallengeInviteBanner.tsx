@@ -155,7 +155,7 @@ export default function ChallengeInviteBanner({ username }: { username?: string 
                 </p>
                 <p className="mt-0.5 font-dmSans text-xs text-[#8aa4b0]">
                   {active.stake != null && Number(active.stake) > 0
-                    ? `${Number(active.stake)} cUSD stake · lobby ${active.gameCode}`
+                    ? `${Number(active.stake)} USDT stake · lobby ${active.gameCode}`
                     : `Free match · lobby ${active.gameCode}`}
                 </p>
                 {error ? <p className="mt-1 font-dmSans text-xs text-rose-300">{error}</p> : null}
