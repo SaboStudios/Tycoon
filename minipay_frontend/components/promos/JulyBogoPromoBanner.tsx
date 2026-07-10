@@ -38,6 +38,10 @@ export function JulyBogoPromoBanner({
       setHidden(false);
       return;
     }
+    if (!isMinipayJulyBogoPromoActive()) {
+      setHidden(true);
+      return;
+    }
     try {
       setHidden(sessionStorage.getItem(MINIPAY_JULY_BOGO_DISMISS_KEY) === '1');
     } catch {
@@ -132,46 +136,69 @@ export function JulyBogoPromoBanner({
     );
   }
 
-  // hero
+  // hero — sleek glass promo (cool, not loud)
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.15 }}
-      className={`w-full max-w-sm mt-4 ${className}`}
+      transition={{ delay: 0.15, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      className={`relative w-full max-w-sm mt-4 ${className}`}
     >
-      <div className={`${shell} px-4 py-3.5`}>
-        {dismissible && (
-          <button
-            type="button"
-            onClick={dismiss}
-            className="absolute top-2 right-2 rounded-lg p-1 text-amber-200/60 hover:bg-amber-500/15 hover:text-amber-100"
-            aria-label="Dismiss promo"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        )}
-        <div className="flex items-start gap-3 pr-6">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 border border-amber-400/50 shadow-[0_0_16px_rgba(251,191,36,0.2)]">
-            <Gift className="h-5 w-5 text-amber-200" aria-hidden />
-          </div>
-          <div className="min-w-0 flex-1 text-left">
-            <p className="text-[10px] font-orbitron font-bold uppercase tracking-[0.22em] text-amber-300/90">
-              {MINIPAY_JULY_BOGO_HEADLINE}
-            </p>
-            <p className="text-[15px] font-black font-orbitron text-amber-50 mt-1 leading-snug">
-              {MINIPAY_JULY_BOGO_MESSAGE}
-            </p>
-            <p className="text-[12px] text-[#F0F7F7]/65 mt-1.5 leading-relaxed font-dmSans">
-              {MINIPAY_JULY_BOGO_SUBLINE}
-            </p>
-            <Link
-              href={shopHref}
-              className="mt-3 inline-flex items-center justify-center rounded-xl border border-amber-400/50 bg-amber-500/20 px-4 py-2 text-[11px] font-orbitron font-bold uppercase tracking-widest text-amber-50 hover:bg-amber-500/30 transition-colors"
+      <div className="group relative overflow-hidden rounded-2xl border border-[#00F0FF]/20 bg-[#0a1618]/40 p-[1px] shadow-[0_8px_32px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+        {/* soft inner glow */}
+        <div
+          className="pointer-events-none absolute inset-0 opacity-60"
+          style={{
+            background:
+              'radial-gradient(ellipse 80% 60% at 0% 0%, rgba(0,240,255,0.12), transparent 50%), radial-gradient(ellipse 60% 50% at 100% 100%, rgba(251,191,36,0.08), transparent 45%)',
+          }}
+          aria-hidden
+        />
+
+        <div className="relative rounded-[0.9rem] bg-[#061012]/75 px-4 py-3.5 backdrop-blur-md">
+          {dismissible && (
+            <button
+              type="button"
+              onClick={dismiss}
+              className="absolute top-2.5 right-2.5 z-10 rounded-md p-1 text-[#F0F7F7]/35 hover:text-[#F0F7F7]/70 transition-colors"
+              aria-label="Dismiss promo"
             >
-              {MINIPAY_JULY_BOGO_CTA}
-            </Link>
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+
+          <div className="flex items-center gap-3.5 pr-5">
+            <motion.div
+              className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-[#00F0FF]/25 bg-gradient-to-br from-[#00F0FF]/10 to-amber-500/5"
+              animate={{ y: [0, -2, 0] }}
+              transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
+            >
+              <Gift className="h-5 w-5 text-[#00F0FF]/90" strokeWidth={1.75} aria-hidden />
+              <span className="absolute -bottom-1 -right-1 rounded-md border border-amber-400/40 bg-amber-500/20 px-1 py-px font-orbitron text-[8px] font-bold text-amber-200/95 backdrop-blur-sm">
+                1+1
+              </span>
+            </motion.div>
+
+            <div className="min-w-0 flex-1">
+              <p className="font-orbitron text-[9px] font-medium uppercase tracking-[0.28em] text-[#00F0FF]/70">
+                {MINIPAY_JULY_BOGO_HEADLINE}
+              </p>
+              <p className="mt-1 font-orbitron text-[14px] font-semibold leading-snug text-[#F0F7F7]">
+                {MINIPAY_JULY_BOGO_MESSAGE}
+              </p>
+              <p className="mt-1 font-dmSans text-[11px] leading-relaxed text-[#F0F7F7]/50 line-clamp-2">
+                {MINIPAY_JULY_BOGO_SUBLINE}
+              </p>
+            </div>
           </div>
+
+          <Link
+            href={shopHref}
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-[#00F0FF]/30 bg-[#00F0FF]/[0.07] py-2.5 font-orbitron text-[10px] font-semibold uppercase tracking-[0.18em] text-[#00F0FF] transition-all hover:border-[#00F0FF]/50 hover:bg-[#00F0FF]/12 active:scale-[0.99]"
+          >
+            <Sparkles className="h-3 w-3 opacity-80" aria-hidden />
+            {MINIPAY_JULY_BOGO_CTA}
+          </Link>
         </div>
       </div>
     </motion.div>

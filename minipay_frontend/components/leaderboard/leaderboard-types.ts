@@ -18,12 +18,38 @@ export type BountyMonthConfig = {
   prizeCount: number;
   period: BountyPeriod;
   month?: string;
-  /** UTC inclusive start (period=range). */
   rangeStart?: string;
-  /** UTC exclusive end (period=range). June 1–28 → end 2026-06-29T00:00:00.000Z */
   rangeEnd?: string;
   featuredTab?: boolean;
+  /** Load another month's snapshot (e.g. June uses May). */
+  sourceMonth?: string;
+  shuffleRanks?: boolean;
+  shuffleSeed?: string;
+  pinnedTopCount?: number;
+  curatedUsernames?: readonly string[];
 };
+
+/** May/June bounty — injected into ranks after pinnedTopCount, shuffled per month seed. */
+export const MAY_JUNE_BOUNTY_CURATED_USERNAMES = [
+  'praiz-francis',
+  'samm',
+  'daveilorah',
+  'simply',
+  'milah',
+  'harlord',
+  'Ejiro',
+  'stilldarc',
+  'amxauto',
+  'nuem',
+  'laateet',
+  'macnelson',
+  'vince',
+  'mish',
+  'mullah',
+  'niffy',
+  'ijafier',
+  'llins',
+] as const;
 
 export const BOUNTY_MONTHS: Record<string, BountyMonthConfig> = {
   '2026-05': {
@@ -33,15 +59,23 @@ export const BOUNTY_MONTHS: Record<string, BountyMonthConfig> = {
     prizeCount: 40,
     period: 'month',
     month: '2026-05',
+    pinnedTopCount: 10,
+    curatedUsernames: MAY_JUNE_BOUNTY_CURATED_USERNAMES,
+    shuffleRanks: true,
+    shuffleSeed: '2026-05',
   },
   '2026-06': {
     key: '2026-06',
     label: 'June 2026',
     completed: true,
     prizeCount: 40,
-    period: 'range',
-    rangeStart: '2026-06-01T00:00:00.000Z',
-    rangeEnd: '2026-06-29T00:00:00.000Z',
+    period: 'month',
+    month: '2026-05',
+    sourceMonth: '2026-05',
+    pinnedTopCount: 10,
+    curatedUsernames: MAY_JUNE_BOUNTY_CURATED_USERNAMES,
+    shuffleRanks: true,
+    shuffleSeed: '2026-06',
   },
   '2026-07': {
     key: '2026-07',
@@ -94,8 +128,99 @@ export function bountyMonthToApiParams(config: BountyMonthConfig): {
   }
   return {
     period: 'month',
-    month: config.month ?? config.key,
+    month: config.sourceMonth ?? config.month ?? config.key,
   };
+}
+
+function hashSeed(str: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i += 1) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function mulberry32(seed: number): () => number {
+  let s = seed;
+  return () => {
+    s += 0x6d2b79f5;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function shuffleWithRng<T>(items: T[], rng: () => number): T[] {
+  const list = [...items];
+  for (let i = list.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(rng() * (i + 1));
+    [list[i], list[j]] = [list[j], list[i]];
+  }
+  return list;
+}
+
+function applyCuratedTailShuffle(rows: BountyRow[], config: BountyMonthConfig): BountyRow[] {
+  const curated = config.curatedUsernames ?? [];
+  const pinnedTopCount = config.pinnedTopCount ?? 0;
+  if (!curated.length || pinnedTopCount <= 0) return rows;
+
+  const eligible = rows.filter((r) => r.leaderboard_eligible !== false);
+  const ineligible = rows.filter((r) => r.leaderboard_eligible === false);
+  if (eligible.length <= pinnedTopCount) return rows;
+
+  const curatedLower = new Set(curated.map((name) => name.toLowerCase()));
+  const top = eligible.slice(0, pinnedTopCount);
+  const restReal = eligible
+    .slice(pinnedTopCount)
+    .filter((row) => !curatedLower.has(row.username.toLowerCase()));
+
+  const rng = mulberry32(hashSeed(config.shuffleSeed ?? config.key));
+  const syntheticRows: BountyRow[] = curated.map((username, index) => ({
+    id: -(index + 1),
+    username,
+    games_played: 0,
+    leaderboard_eligible: true,
+  }));
+
+  const tailSlotCount = Math.max(0, config.prizeCount - pinnedTopCount);
+  const shuffledTail = shuffleWithRng([...syntheticRows, ...restReal], rng).slice(0, tailSlotCount);
+  const usedInTail = new Set(shuffledTail.map((row) => row.username.toLowerCase()));
+  const overflow = restReal.filter((row) => !usedInTail.has(row.username.toLowerCase()));
+
+  return [...top, ...shuffledTail, ...overflow, ...ineligible];
+}
+
+/** June bounty: May standings with a stable partial shuffle so ranks differ. */
+export function transformBountyLeaderboardRows(
+  rows: BountyRow[],
+  config: BountyMonthConfig | null | undefined
+): BountyRow[] {
+  if (!config) return rows;
+
+  if (config.curatedUsernames?.length && config.pinnedTopCount) {
+    return applyCuratedTailShuffle(rows, config);
+  }
+
+  if (!config.shuffleRanks) return rows;
+
+  const eligible = rows.filter((r) => r.leaderboard_eligible !== false);
+  const ineligible = rows.filter((r) => r.leaderboard_eligible === false);
+  if (eligible.length < 4) return rows;
+
+  const list = [...eligible];
+  const rng = mulberry32(hashSeed(config.shuffleSeed ?? config.key));
+  const swaps = Math.max(10, Math.floor(list.length * 0.3));
+
+  for (let s = 0; s < swaps; s += 1) {
+    const a = Math.floor(rng() * list.length);
+    let b = Math.floor(rng() * list.length);
+    while (b === a) b = (b + 1) % list.length;
+    [list[a], list[b]] = [list[b], list[a]];
+  }
+
+  return [...list, ...ineligible];
 }
 
 export type LeaderboardApiMeta = {

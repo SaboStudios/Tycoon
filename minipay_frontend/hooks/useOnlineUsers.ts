@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { socketService } from "@/lib/socket";
 import { apiClient } from "@/lib/api";
-import { ApiResponse } from "@/types/api";
 
 export type OnlineUser = { userId?: number; username?: string | null; address?: string | null };
 
@@ -22,57 +21,78 @@ function getSocketUrl(): string {
 export interface UseOnlineUsersOptions {
   /** When false, skips API fetch and socket subscription (e.g. until client mounted). Default true. */
   enabled?: boolean;
+  /** Optional identity for presence when username/id are already known (guest session). */
+  userId?: number;
+  username?: string | null;
 }
 
 export function useOnlineUsers(
   address: string | undefined,
   options: UseOnlineUsersOptions = {}
 ) {
-  const { enabled = true } = options;
+  const { enabled = true, userId, username } = options;
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
   const [onlineCount, setOnlineCount] = useState(0);
 
   const fetchOnlineFromApi = useCallback(async () => {
     if (!enabled) return;
     try {
-      const res = await apiClient.get<ApiResponse<{ users: OnlineUser[]; count: number }>>("/users/online");
-      if (res?.data?.success && res.data.data) {
-        setOnlineUsers(res.data.data.users ?? []);
-        setOnlineCount(res.data.data.count ?? 0);
+      const res = await apiClient.get<{ users: OnlineUser[]; count: number } | { success?: boolean; data?: { users: OnlineUser[]; count: number } }>("/users/online");
+      // apiClient wraps axios body as res.data; backend body is { success, data: { users, count } }
+      const body = res?.data as { success?: boolean; data?: { users?: OnlineUser[]; count?: number }; users?: OnlineUser[]; count?: number } | undefined;
+      const payload = body?.data ?? body;
+      const users = payload?.users;
+      const count = payload?.count;
+      if (Array.isArray(users)) {
+        setOnlineUsers(users);
+        setOnlineCount(typeof count === "number" ? count : users.length);
       }
     } catch {
       // ignore
     }
   }, [enabled]);
 
-  // Register presence when wallet is connected and socket is ready (only when enabled and client-side)
+  // Register presence when we have any identity and socket is ready
   useEffect(() => {
-    if (!enabled || !address) return;
+    if (!enabled) return;
+    if (!address && userId == null && !username) return;
     const SOCKET_URL = getSocketUrl();
     if (!SOCKET_URL) return;
     try {
       const socket = socketService.connect(SOCKET_URL);
       const register = () => {
-        apiClient
-          .get<{ id: number; username?: string }>(`/users/by-address/${address}?chain=BASE`)
-          .then((res) => {
-            const user = (res as { data?: { id?: number; username?: string } })?.data;
-            socketService.registerLobbyPresence({
-              userId: typeof user?.id === "number" ? user.id : undefined,
-              username: user?.username ?? undefined,
-              address,
-            });
-          })
-          .catch(() => {
-            socketService.registerLobbyPresence({ address });
+        const emitKnown = () => {
+          socketService.registerLobbyPresence({
+            userId: typeof userId === "number" ? userId : undefined,
+            username: username?.trim() || undefined,
+            address,
           });
+        };
+
+        if (address && userId == null && !username) {
+          apiClient
+            .get<{ id: number; username?: string }>(`/users/by-address/${address}?chain=Celo`)
+            .then((res) => {
+              const user = (res as { data?: { id?: number; username?: string } })?.data;
+              socketService.registerLobbyPresence({
+                userId: typeof user?.id === "number" ? user.id : undefined,
+                username: user?.username ?? undefined,
+                address,
+              });
+            })
+            .catch(() => {
+              socketService.registerLobbyPresence({ address });
+            });
+        } else {
+          emitKnown();
+        }
       };
       if (socket.connected) register();
       else socket.once("connect", register);
     } catch {
       // ignore socket errors (e.g. on mobile when not ready)
     }
-  }, [enabled, address]);
+  }, [enabled, address, userId, username]);
 
   // Subscribe to online-users and fetch once from API (only when enabled)
   useEffect(() => {
