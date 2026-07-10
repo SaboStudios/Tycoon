@@ -35,6 +35,7 @@ export type ChallengeItem = {
   gameId?: number | null;
   gameCode: string;
   status: string;
+  stake?: number;
   challengerUsername?: string | null;
   challengerAddress?: string | null;
   opponentUsername?: string | null;
@@ -364,6 +365,55 @@ export function MessageNotificationsProvider({
       // ignore
     }
 
+    const ensureUserRoom = () => {
+      if (myUserId != null) {
+        socketService.registerLobbyPresence({
+          userId: myUserId,
+          username: myUsername?.trim() || undefined,
+          address: presenceAddress,
+          status: "lobby",
+        });
+        return;
+      }
+      if (!presenceAddress && !myUsername) return;
+      socketService.registerLobbyPresence({
+        username: myUsername?.trim() || undefined,
+        address: presenceAddress,
+        status: "lobby",
+      });
+      if (presenceAddress) {
+        void apiClient
+          .get<{ id?: number; username?: string; data?: { id?: number; username?: string } }>(
+            `/users/by-address/${presenceAddress}`,
+            { params: { chain: "CELO" } }
+          )
+          .then((res) => {
+            const body = res?.data as
+              | { id?: number; username?: string; data?: { id?: number; username?: string } }
+              | undefined;
+            const user = body?.data ?? body;
+            if (user?.id != null) {
+              socketService.registerLobbyPresence({
+                userId: Number(user.id),
+                username: (user.username ?? myUsername)?.trim() || undefined,
+                address: presenceAddress,
+                status: "lobby",
+              });
+            }
+          })
+          .catch(() => {
+            // ignore
+          });
+      }
+    };
+    try {
+      const sock = socketService.connect(url);
+      if (sock.connected) ensureUserRoom();
+      sock.on("connect", ensureUserRoom);
+    } catch {
+      // ignore
+    }
+
     const poll = window.setInterval(() => {
       void refreshLobbyUnread();
       void refreshDmUnread();
@@ -375,6 +425,8 @@ export function MessageNotificationsProvider({
         socketService.removeListener("lobby-message", onLobby);
         socketService.removeListener("dm-message", onDm);
         socketService.removeListener("player-challenge", onChallenge);
+        const sock = socketService.connect(url);
+        sock.off("connect", ensureUserRoom);
       } catch {
         // ignore
       }
@@ -454,7 +506,8 @@ export function MessageNotificationsProvider({
 
   const dmUnreadTotal = dmItems.reduce((sum, i) => sum + i.count, 0);
   const challengeUnread = canChallenge ? challengeItems.length : 0;
-  const totalUnread = lobbyUnread + (canDm ? dmUnreadTotal : 0) + challengeUnread;
+  // Challenges use the full-screen banner — keep them out of the nav bell badge.
+  const totalUnread = lobbyUnread + (canDm ? dmUnreadTotal : 0);
 
   const value: MessageNotificationsValue = {
     lobbyUnread,
