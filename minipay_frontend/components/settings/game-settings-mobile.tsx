@@ -1,19 +1,18 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  ArrowLeft,
-  ArrowRight,
   Building2,
-  Clock3,
-  Gamepad2,
+  ChevronDown,
   Gavel,
   Info,
   Landmark,
+  LifeBuoy,
+  Lock,
   LockOpen,
   Users,
-  Wallet,
+  X,
 } from "lucide-react";
 import { GiPrisoner } from "react-icons/gi";
 import { useRouter } from "next/navigation";
@@ -46,8 +45,22 @@ interface GameCreateResponse {
   id?: string | number;
 }
 
+type SettingsState = {
+  symbol: string;
+  maxPlayers: number;
+  privateRoom: boolean;
+  auction: boolean;
+  rentInPrison: boolean;
+  mortgage: boolean;
+  evenBuild: boolean;
+  startingCash: number;
+  stake: number;
+  duration: number;
+};
+
 const USDC_DECIMALS = 6;
 const stakePresets = [1, 5, 10, 25, 50, 100];
+const SUPPORT_URL = "https://t.me/+xJLEjw9tbyQwMGVk";
 
 const PIECE_EMOJI: Record<string, string> = {
   hat: "🎩",
@@ -61,11 +74,18 @@ const PIECE_EMOJI: Record<string, string> = {
   top_hat: "🎩",
 };
 
-const STEPS = [
-  { id: 1, label: "Loadout" },
-  { id: 2, label: "Stakes" },
-  { id: 3, label: "Rules" },
-] as const;
+const DEFAULT_SETTINGS: SettingsState = {
+  symbol: "hat",
+  maxPlayers: 4,
+  privateRoom: false,
+  auction: true,
+  rentInPrison: true,
+  mortgage: true,
+  evenBuild: true,
+  startingCash: 1500,
+  stake: 5,
+  duration: 30,
+};
 
 const HOUSE_RULES = [
   {
@@ -145,6 +165,11 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
+function pickRandomPiece(): string {
+  const pool = GamePieces.slice(0, 4);
+  return pool[Math.floor(Math.random() * pool.length)]?.id ?? "hat";
+}
+
 interface GameSettingsMobileProps {
   redirectToWaitingRoom?: string;
 }
@@ -164,25 +189,16 @@ export default function CreateGameMobile({
   const isMiniPay = MINIPAY_CHAIN_IDS.includes(wagmiChainId);
   const chainName = resolveChainForBackend(wagmiChainId);
 
-  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [isFreeGame, setIsFreeGame] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
+  const [houseRulesOpen, setHouseRulesOpen] = useState(false);
   const [hintKey, setHintKey] = useState<string | null>(null);
+  const [customStake, setCustomStake] = useState("");
+  const [gameCode, setGameCode] = useState(() => generateGameCode());
+  /** Set after Quick Start state flush so on-chain create uses the new hook args. */
+  const [pendingLaunch, setPendingLaunch] = useState<{ free: boolean } | null>(null);
 
-  const [settings, setSettings] = useState({
-    symbol: "hat",
-    maxPlayers: 2,
-    auction: true,
-    rentInPrison: false,
-    mortgage: true,
-    evenBuild: true,
-    startingCash: 1500,
-    stake: 5,
-    duration: 30,
-  });
-
-  const [customStake, setCustomStake] = useState<string>("");
-  const [gameCode] = useState(() => generateGameCode());
+  const [settings, setSettings] = useState<SettingsState>(DEFAULT_SETTINGS);
 
   const contractAddress = TYCOON_CONTRACT_ADDRESSES[
     wagmiChainId as keyof typeof TYCOON_CONTRACT_ADDRESSES
@@ -197,16 +213,15 @@ export default function CreateGameMobile({
     query: { enabled: !!address && !!stakeTokenAddress && !!contractAddress && !isFreeGame },
   });
 
-  const gameType = "PUBLIC";
+  const gameType = settings.privateRoom ? "PRIVATE" : "PUBLIC";
+  const finalStake = isFreeGame || isGuest ? 0 : settings.stake;
+  const stakeAmount = parseUnits(finalStake.toString(), USDC_DECIMALS);
 
   const {
     approve: approveUSDC,
     isPending: approvePending,
     isConfirming: approveConfirming,
   } = useApprove();
-
-  const finalStake = isFreeGame ? 0 : settings.stake;
-  const stakeAmount = parseUnits(finalStake.toString(), USDC_DECIMALS);
 
   const { write: createGame, isPending: isCreatePending } = useCreateGame(
     username || "",
@@ -220,21 +235,6 @@ export default function CreateGameMobile({
 
   const playGuard = usePreventDoubleSubmit();
 
-  const handleStakeSelect = (value: number) => {
-    if (isFreeGame) return;
-    setSettings((prev) => ({ ...prev, stake: value }));
-    setCustomStake("");
-  };
-
-  const handleCustomStake = (value: string) => {
-    if (isFreeGame) return;
-    setCustomStake(value);
-    const num = Number(value);
-    if (!Number.isNaN(num) && num >= 0.01) {
-      setSettings((prev) => ({ ...prev, stake: num }));
-    }
-  };
-
   const extractGameId = (response: unknown): string | number | undefined => {
     if (typeof response === "string" || typeof response === "number") return response;
     const r = response as GameCreateResponse & {
@@ -246,616 +246,613 @@ export default function CreateGameMobile({
     );
   };
 
-  const handlePlay = async () => {
-    if (isStarting) return;
-    setIsStarting(true);
-    const toastId = toast.loading("Creating game...");
+  const createMatch = useCallback(
+    async (opts: {
+      settings: SettingsState;
+      free: boolean;
+      code: string;
+    }) => {
+      if (isStarting) return;
+      setIsStarting(true);
+      const toastId = toast.loading("Creating game...");
+      const { settings: s, free, code } = opts;
+      const mode = s.privateRoom ? "PRIVATE" : "PUBLIC";
+      const stake = free || isGuest ? 0 : s.stake;
+      const stakeWei = parseUnits(stake.toString(), USDC_DECIMALS);
 
-    try {
-      await ensureMiniPayWalletReady();
-    } catch (err: unknown) {
-      const msg = (err as Error)?.message ?? "Connect your wallet in MiniPay, then try again.";
-      toast.update(toastId, { render: msg, type: "error", isLoading: false, autoClose: 8000 });
-      setIsStarting(false);
-      return;
-    }
-
-    if (isGuest) {
       try {
-        toast.update(toastId, { render: "Creating game (guest)..." });
-        const res = await apiClient.post<GameCreateResponse>("/games/create-as-guest", {
-          code: gameCode,
-          mode: gameType,
-          symbol: settings.symbol,
-          number_of_players: settings.maxPlayers,
-          stake: 0,
-          starting_cash: settings.startingCash,
+        await ensureMiniPayWalletReady();
+      } catch (err: unknown) {
+        const msg = (err as Error)?.message ?? "Connect your wallet in MiniPay, then try again.";
+        toast.update(toastId, { render: msg, type: "error", isLoading: false, autoClose: 8000 });
+        setIsStarting(false);
+        return;
+      }
+
+      if (isGuest) {
+        try {
+          toast.update(toastId, { render: "Creating game (guest)..." });
+          const res = await apiClient.post<GameCreateResponse>("/games/create-as-guest", {
+            code,
+            mode,
+            symbol: s.symbol,
+            number_of_players: s.maxPlayers,
+            stake: 0,
+            starting_cash: s.startingCash,
+            is_ai: false,
+            is_minipay: isMiniPay,
+            chain: chainName,
+            duration: s.duration,
+            use_usdc: false,
+            settings: {
+              auction: s.auction,
+              rent_in_prison: s.rentInPrison,
+              mortgage: s.mortgage,
+              even_build: s.evenBuild,
+              starting_cash: s.startingCash,
+            },
+          });
+          const dbGameId = extractGameId(res);
+          if (!dbGameId) throw new Error("Backend did not return game ID");
+          toast.update(toastId, {
+            render: `Game created! Code: ${code}`,
+            type: "success",
+            isLoading: false,
+            autoClose: 5000,
+            onClose: () => router.push(`${redirectToWaitingRoom}?gameCode=${code}`),
+          });
+        } catch (err: unknown) {
+          const msg =
+            (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data
+              ?.message ??
+            (err as Error)?.message ??
+            "Failed to create game.";
+          toast.update(toastId, { render: msg, type: "error", isLoading: false, autoClose: 8000 });
+        }
+        setIsStarting(false);
+        return;
+      }
+
+      if (!address || !username || !isUserRegistered) {
+        toast.update(toastId, {
+          render:
+            "Connect your wallet and complete on-chain registration on the home page, then try again.",
+          type: "error",
+          isLoading: false,
+          autoClose: 8000,
+        });
+        setIsStarting(false);
+        return;
+      }
+
+      if (!contractAddress) {
+        toast.update(toastId, {
+          render: "Game contract not available on this network.",
+          type: "error",
+          isLoading: false,
+        });
+        setIsStarting(false);
+        return;
+      }
+
+      if (!free && (stakeTokenLoading || !stakeTokenAddress)) {
+        toast.update(toastId, {
+          render: "USDT not supported on current network.",
+          type: "error",
+          isLoading: false,
+        });
+        setIsStarting(false);
+        return;
+      }
+
+      try {
+        if (!free) {
+          toast.update(toastId, { render: "Checking USDT allowance..." });
+          const allowanceResult = await refetchAllowance();
+          const allowance = allowanceResult.data
+            ? BigInt(allowanceResult.data.toString())
+            : stakeAllowance
+              ? BigInt(stakeAllowance.toString())
+              : 0n;
+          if (allowance < stakeWei) {
+            toast.update(toastId, { render: "Approving USDT (one-time)..." });
+            await approveUSDC(stakeTokenAddress!, contractAddress, stakeWei);
+            await new Promise((r) => setTimeout(r, 4000));
+            await refetchAllowance();
+          }
+        }
+
+        toast.update(toastId, { render: "Creating game on-chain (sign in wallet)..." });
+        const onChainGameId = await createGame();
+        if (onChainGameId == null) throw new Error("Failed to create game on-chain");
+
+        toast.update(toastId, { render: "Saving game to server..." });
+        const saveRes = await apiClient.post<GameCreateResponse>("/games", {
+          id: onChainGameId.toString(),
+          code,
+          mode,
+          address,
+          symbol: s.symbol,
+          number_of_players: s.maxPlayers,
+          stake,
+          starting_cash: s.startingCash,
           is_ai: false,
           is_minipay: isMiniPay,
           chain: chainName,
-          duration: settings.duration,
-          use_usdc: false,
+          duration: s.duration,
+          use_usdc: !free,
           settings: {
-            auction: settings.auction,
-            rent_in_prison: settings.rentInPrison,
-            mortgage: settings.mortgage,
-            even_build: settings.evenBuild,
-            starting_cash: settings.startingCash,
+            auction: s.auction,
+            rent_in_prison: s.rentInPrison,
+            mortgage: s.mortgage,
+            even_build: s.evenBuild,
+            starting_cash: s.startingCash,
           },
         });
-        const dbGameId = extractGameId(res);
+
+        const dbGameId = extractGameId(saveRes);
         if (!dbGameId) throw new Error("Backend did not return game ID");
+
         toast.update(toastId, {
-          render: `Game created! Code: ${gameCode}`,
+          render: `Game created! Code: ${code}`,
           type: "success",
           isLoading: false,
           autoClose: 5000,
-          onClose: () => router.push(`${redirectToWaitingRoom}?gameCode=${gameCode}`),
+          onClose: () => router.push(`${redirectToWaitingRoom}?gameCode=${code}`),
         });
       } catch (err: unknown) {
-        const msg =
-          (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data
-            ?.message ??
-          (err as Error)?.message ??
-          "Failed to create game.";
-        toast.update(toastId, { render: msg, type: "error", isLoading: false, autoClose: 8000 });
+        const message = getContractErrorMessage(err, "Failed to create game. Please try again.");
+        toast.update(toastId, {
+          render: message,
+          type: "error",
+          isLoading: false,
+          autoClose: 8000,
+        });
       }
       setIsStarting(false);
-      return;
-    }
+    },
+    [
+      isStarting,
+      isGuest,
+      isMiniPay,
+      chainName,
+      router,
+      redirectToWaitingRoom,
+      address,
+      username,
+      isUserRegistered,
+      contractAddress,
+      stakeTokenLoading,
+      stakeTokenAddress,
+      refetchAllowance,
+      stakeAllowance,
+      approveUSDC,
+      createGame,
+    ]
+  );
 
-    if (!address || !username || !isUserRegistered) {
-      toast.update(toastId, {
-        render:
-          "Connect your wallet and complete on-chain registration on the home page, then try again.",
-        type: "error",
-        isLoading: false,
-        autoClose: 8000,
-      });
-      setIsStarting(false);
-      return;
-    }
-
-    if (!contractAddress) {
-      toast.update(toastId, {
-        render: "Game contract not available on this network.",
-        type: "error",
-        isLoading: false,
-      });
-      setIsStarting(false);
-      return;
-    }
-
-    if (!isFreeGame && (stakeTokenLoading || !stakeTokenAddress)) {
-      toast.update(toastId, {
-        render: "USDT not supported on current network.",
-        type: "error",
-        isLoading: false,
-      });
-      setIsStarting(false);
-      return;
-    }
-
-    try {
-      if (!isFreeGame) {
-        toast.update(toastId, { render: "Checking USDT allowance..." });
-        const allowanceResult = await refetchAllowance();
-        const allowance = allowanceResult.data
-          ? BigInt(allowanceResult.data.toString())
-          : stakeAllowance
-            ? BigInt(stakeAllowance.toString())
-            : 0n;
-        if (allowance < stakeAmount) {
-          toast.update(toastId, { render: "Approving USDT (one-time)..." });
-          await approveUSDC(stakeTokenAddress!, contractAddress, stakeAmount);
-          await new Promise((r) => setTimeout(r, 4000));
-          await refetchAllowance();
-        }
-      }
-
-      toast.update(toastId, { render: "Creating game on-chain (sign in wallet)..." });
-      const onChainGameId = await createGame();
-      if (onChainGameId == null) throw new Error("Failed to create game on-chain");
-
-      toast.update(toastId, { render: "Saving game to server..." });
-
-      const saveRes = await apiClient.post<GameCreateResponse>("/games", {
-        id: onChainGameId.toString(),
+  const handleInitiate = () => {
+    playGuard.submit(() =>
+      createMatch({
+        settings,
+        free: isFreeGame || isGuest,
         code: gameCode,
-        mode: gameType,
-        address,
-        symbol: settings.symbol,
-        number_of_players: settings.maxPlayers,
-        stake: finalStake,
-        starting_cash: settings.startingCash,
-        is_ai: false,
-        is_minipay: isMiniPay,
-        chain: chainName,
-        duration: settings.duration,
-        use_usdc: !isFreeGame,
-        settings: {
-          auction: settings.auction,
-          rent_in_prison: settings.rentInPrison,
-          mortgage: settings.mortgage,
-          even_build: settings.evenBuild,
-          starting_cash: settings.startingCash,
-        },
-      });
-
-      const dbGameId = extractGameId(saveRes);
-      if (!dbGameId) throw new Error("Backend did not return game ID");
-
-      toast.update(toastId, {
-        render: `Game created! Code: ${gameCode}`,
-        type: "success",
-        isLoading: false,
-        autoClose: 5000,
-        onClose: () => router.push(`${redirectToWaitingRoom}?gameCode=${gameCode}`),
-      });
-    } catch (err: unknown) {
-      const message = getContractErrorMessage(err, "Failed to create game. Please try again.");
-      toast.update(toastId, {
-        render: message,
-        type: "error",
-        isLoading: false,
-        autoClose: 8000,
-      });
-    }
-    setIsStarting(false);
+      })
+    );
   };
 
   const canCreate = isGuest || (address && username && isUserRegistered);
   const isLaunching =
     playGuard.isSubmitting || isStarting || approvePending || approveConfirming || (!isGuest && isCreatePending);
 
+  const handleQuickStart = () => {
+    if (isLaunching) return;
+    const quick: SettingsState = {
+      ...DEFAULT_SETTINGS,
+      symbol: pickRandomPiece(),
+      maxPlayers: 4,
+      privateRoom: false,
+      startingCash: 1500,
+      duration: 30,
+      auction: true,
+      rentInPrison: true,
+      mortgage: true,
+      evenBuild: true,
+      stake: 0,
+    };
+    setSettings(quick);
+    setIsFreeGame(true);
+    setCustomStake("");
+    setGameCode(generateGameCode());
+    setPendingLaunch({ free: true });
+  };
+
+  useEffect(() => {
+    if (!pendingLaunch) return;
+    const free = pendingLaunch.free;
+    setPendingLaunch(null);
+    playGuard.submit(() =>
+      createMatch({
+        settings,
+        free: free || isGuest,
+        code: gameCode,
+      })
+    );
+    // Intentionally run once per pendingLaunch flush (settings/gameCode already updated in same render).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingLaunch]);
+
   const selectedPiece = GamePieces.find((p) => p.id === settings.symbol);
-  const durationLabel =
-    settings.duration === 0 ? "No limit" : `${settings.duration}m`;
   const stakeLabel = isGuest || isFreeGame ? "Free" : `${finalStake} USDT`;
+  const houseOnCount = HOUSE_RULES.filter((r) => settings[r.key]).length;
 
-  const summaryChips = useMemo(
-    () => [
-      {
-        show: true,
-        icon: PIECE_EMOJI[settings.symbol] ?? "🎲",
-        text: selectedPiece?.name ?? settings.symbol,
-      },
-      { show: true, icon: <Users className="h-3 w-3" />, text: `${settings.maxPlayers}p` },
-      {
-        show: step >= 2,
-        icon: <Wallet className="h-3 w-3" />,
-        text: stakeLabel,
-      },
-      {
-        show: step >= 2,
-        icon: <Clock3 className="h-3 w-3" />,
-        text: durationLabel,
-      },
-    ],
-    [settings.symbol, settings.maxPlayers, settings.duration, selectedPiece, stakeLabel, durationLabel, step]
-  );
-
-  const canAdvanceStep2 = isGuest || isFreeGame || settings.stake >= 0.01;
+  const primaryPieces = useMemo(() => GamePieces.slice(0, 4), []);
 
   return (
-    <div className="relative flex min-h-below-mobile-nav flex-col overflow-hidden bg-[#060d16]">
-      {/* Atmosphere */}
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_20%_0%,rgba(0,212,255,0.14),transparent_45%),radial-gradient(ellipse_at_90%_20%,rgba(30,90,180,0.12),transparent_40%),linear-gradient(180deg,#07111c_0%,#040a12_55%,#02060c_100%)]" />
+    <div className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-[#0A1628]">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_15%_0%,rgba(0,212,255,0.16),transparent_42%),radial-gradient(ellipse_at_90%_10%,rgba(40,90,200,0.12),transparent_40%),linear-gradient(180deg,#0A1628_0%,#07111c_50%,#040a12_100%)]" />
       <div
-        className="pointer-events-none absolute inset-0 opacity-[0.04]"
+        className="pointer-events-none absolute inset-0 opacity-[0.035]"
         style={{
           backgroundImage:
-            "repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,212,255,0.5) 4px)",
+            "repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,212,255,0.55) 4px)",
         }}
       />
 
-      <div className="relative z-10 mx-auto flex w-full max-w-md flex-1 flex-col px-4 pb-28 pt-3">
-        {/* Header + stepper */}
-        <div className="mb-3">
+      {/* Persistent page header */}
+      <header className="sticky top-0 z-40 border-b border-[#00D4FF]/20 bg-[#0A1628]/95 pt-[env(safe-area-inset-top)] backdrop-blur-md">
+        <div className="mx-auto flex h-14 max-w-md items-center justify-between px-3">
           <button
             type="button"
-            onClick={() => (step === 1 ? router.push("/") : setStep((s) => (s === 3 ? 2 : 1)))}
-            className="mb-3 inline-flex min-h-11 items-center gap-2 font-dmSans text-sm text-[#7ec8d4] transition hover:text-[#00D4FF]"
+            onClick={() => router.push("/")}
+            aria-label="Close"
+            className="flex h-11 w-11 items-center justify-center rounded-xl border border-[#00D4FF]/25 text-[#00D4FF] transition hover:border-[#00D4FF]/50 hover:bg-[#00D4FF]/10"
           >
-            <ArrowLeft className="h-4 w-4" />
-            {step === 1 ? "Back to base" : "Previous step"}
+            <X className="h-5 w-5" />
           </button>
-
-          <h1 className="font-orbitron text-2xl font-black uppercase tracking-wide text-white">
-            <span className="bg-gradient-to-r from-[#00D4FF] via-[#6ec8ff] to-[#00D4FF] bg-clip-text text-transparent">
-              Create Game
+          <h1 className="font-orbitron text-base font-bold uppercase tracking-[0.2em] text-white">
+            <span className="bg-gradient-to-r from-[#00D4FF] to-[#6ec8ff] bg-clip-text text-transparent">
+              Tycoon
             </span>
           </h1>
-          <p className="mt-1 font-dmSans text-xs text-[#8aa4b0]">
-            Configure your on-chain match, then invite friends with a code.
-          </p>
+          <a
+            href={SUPPORT_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-[#00D4FF]/25 px-3 font-dmSans text-xs font-medium text-[#9ad8e4] transition hover:border-[#00D4FF]/50 hover:text-[#00D4FF]"
+          >
+            <LifeBuoy className="h-4 w-4" />
+            Support
+          </a>
+        </div>
+      </header>
 
-          <div className="mt-4 flex items-center gap-1.5">
-            {STEPS.map((s, i) => {
-              const done = step > s.id;
-              const current = step === s.id;
+      <div className="relative z-10 mx-auto w-full max-w-md flex-1 overflow-y-auto px-4 pb-28 pt-4">
+        {/* Quick Start */}
+        <motion.button
+          type="button"
+          onClick={handleQuickStart}
+          disabled={isLaunching}
+          whileTap={{ scale: 0.98 }}
+          className="relative mb-5 w-full overflow-hidden rounded-2xl border-2 border-[#00D4FF]/60 bg-gradient-to-r from-[#00D4FF]/20 via-[#0a2a3a] to-[#1a4a8a]/30 px-4 py-5 text-left shadow-[0_0_36px_rgba(0,212,255,0.35)] disabled:opacity-50"
+        >
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_50%,rgba(0,212,255,0.25),transparent_55%)]" />
+          <CornerBrackets active />
+          <p className="relative font-orbitron text-base font-black uppercase tracking-wide text-[#e8fbff]">
+            ⚡ Quick Start — Jump In Now
+          </p>
+          <p className="relative mt-1 font-dmSans text-xs text-[#9ad8e4]/90">
+            Random piece · 4 players · $1500 · 30m · free public room
+          </p>
+        </motion.button>
+
+        <div className="mb-5 flex items-center gap-3">
+          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#00D4FF]/35 to-transparent" />
+          <span className="shrink-0 font-dmSans text-[11px] text-[#6a8490]">or customize your match</span>
+          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#00D4FF]/35 to-transparent" />
+        </div>
+
+        {/* Piece */}
+        <section className="mb-5">
+          <SectionLabel>Your piece</SectionLabel>
+          <div className="grid grid-cols-4 gap-2">
+            {primaryPieces.map((piece) => {
+              const selected = settings.symbol === piece.id;
               return (
-                <React.Fragment key={s.id}>
-                  <button
-                    type="button"
-                    disabled={s.id > step}
-                    onClick={() => s.id < step && setStep(s.id)}
-                    className={`flex min-h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border px-1.5 transition ${
-                      current
-                        ? "border-[#00D4FF]/60 bg-[#00D4FF]/15 text-[#00D4FF] shadow-[0_0_16px_rgba(0,212,255,0.2)]"
-                        : done
-                          ? "border-[#00D4FF]/30 bg-[#00D4FF]/8 text-[#9ad8e4]"
-                          : "border-white/10 bg-white/[0.03] text-[#5a7380]"
-                    }`}
+                <motion.button
+                  key={piece.id}
+                  type="button"
+                  onClick={() => setSettings((p) => ({ ...p, symbol: piece.id }))}
+                  whileTap={{ scale: 0.95 }}
+                  className={`relative flex min-h-[88px] flex-col items-center justify-center gap-1 rounded-xl border px-1 py-2 transition ${
+                    selected
+                      ? "border-[#00D4FF] bg-[#00D4FF]/12 shadow-[0_0_20px_rgba(0,212,255,0.28)]"
+                      : "border-[#00D4FF]/15 bg-[#0a1520]/70"
+                  }`}
+                >
+                  <CornerBrackets active={selected} />
+                  <motion.span
+                    animate={selected ? { scale: [1, 1.2, 1], y: [0, -4, 0] } : { scale: 1, y: 0 }}
+                    transition={
+                      selected
+                        ? { duration: 0.55, repeat: Infinity, repeatDelay: 1.2 }
+                        : { duration: 0.15 }
+                    }
+                    className="text-2xl drop-shadow-[0_0_10px_rgba(0,212,255,0.5)]"
                   >
-                    <span
-                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-orbitron font-bold ${
-                        current || done ? "bg-[#00D4FF] text-[#041018]" : "bg-white/10 text-[#7a93a0]"
-                      }`}
-                    >
-                      {done ? "✓" : s.id}
-                    </span>
-                    <span className="truncate font-orbitron text-[10px] font-bold uppercase tracking-wider">
-                      {s.label}
-                    </span>
-                  </button>
-                  {i < STEPS.length - 1 && (
-                    <div
-                      className={`h-px w-2 shrink-0 ${done || current ? "bg-[#00D4FF]/50" : "bg-white/10"}`}
-                    />
-                  )}
-                </React.Fragment>
+                    {PIECE_EMOJI[piece.id]}
+                  </motion.span>
+                  <span className="font-dmSans text-[11px] capitalize text-[#c8e6ec]">
+                    {piece.name.toLowerCase()}
+                  </span>
+                </motion.button>
               );
             })}
           </div>
-        </div>
+        </section>
 
-        {/* Sticky summary */}
-        <div className="sticky top-[var(--mobile-nav-offset)] z-20 -mx-1 mb-4 rounded-xl border border-[#00D4FF]/20 bg-[#07131c]/92 px-2 py-2 backdrop-blur-md">
-          <div className="flex flex-wrap items-center gap-1.5">
-            {summaryChips
-              .filter((c) => c.show)
-              .map((chip, idx) => (
-                <span
-                  key={idx}
-                  className="inline-flex min-h-8 items-center gap-1 rounded-md border border-[#00D4FF]/20 bg-[#0a1a26]/80 px-2 font-dmSans text-[11px] text-[#c5e8ef]"
+        {/* Max players */}
+        <section className="mb-5">
+          <SectionLabel>Max players</SectionLabel>
+          <HudPanel>
+            <div className="grid grid-cols-6 gap-1.5 p-3">
+              {[2, 3, 4, 5, 6, 7].map((num) => (
+                <button
+                  key={num}
+                  type="button"
+                  onClick={() => setSettings((p) => ({ ...p, maxPlayers: num }))}
+                  className={`flex min-h-11 items-center justify-center rounded-lg border font-orbitron text-sm font-bold transition ${
+                    settings.maxPlayers === num
+                      ? "border-[#00D4FF] bg-[#00D4FF]/20 text-[#00D4FF]"
+                      : "border-white/10 bg-black/20 text-[#7a93a0]"
+                  }`}
                 >
-                  <span className="opacity-90">{chip.icon}</span>
-                  {chip.text}
-                </span>
+                  {num}
+                </button>
               ))}
-            {step < 2 && (
-              <span className="font-dmSans text-[10px] text-[#5a7380]">Stakes unlock on step 2</span>
-            )}
+            </div>
+            <div className="flex justify-center gap-1.5 px-3 pb-3">
+              {[...Array(7)].map((_, idx) => (
+                <div
+                  key={idx}
+                  className={`flex h-8 w-8 items-center justify-center rounded-md border text-sm transition ${
+                    idx < settings.maxPlayers
+                      ? "border-[#00D4FF]/50 bg-[#00D4FF]/10 text-[#00D4FF]"
+                      : "border-white/5 bg-black/20 text-white/15"
+                  }`}
+                >
+                  👤
+                </div>
+              ))}
+            </div>
+          </HudPanel>
+        </section>
+
+        {/* Starting cash */}
+        <section className="mb-5">
+          <SectionLabel>Starting cash</SectionLabel>
+          <div className="grid grid-cols-2 gap-2">
+            {[500, 1000, 1500, 2000].map((amount) => (
+              <button
+                key={amount}
+                type="button"
+                onClick={() => setSettings((p) => ({ ...p, startingCash: amount }))}
+                className={`relative flex min-h-12 items-center justify-center rounded-xl border font-dmSans text-sm font-semibold transition ${
+                  settings.startingCash === amount
+                    ? "border-[#00D4FF] bg-[#00D4FF]/15 text-[#e8fbff]"
+                    : "border-[#00D4FF]/15 bg-[#0a1520]/70 text-[#8aa4b0]"
+                }`}
+              >
+                <CornerBrackets active={settings.startingCash === amount} />
+                ${amount.toLocaleString()}
+              </button>
+            ))}
           </div>
-        </div>
+        </section>
 
-        <AnimatePresence mode="wait">
-          {step === 1 && (
-            <motion.div
-              key="step-1"
-              initial={{ opacity: 0, x: 24 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -24 }}
-              transition={{ duration: 0.22 }}
-              className="space-y-5"
-            >
-              <div>
-                <SectionLabel>Your piece</SectionLabel>
-                <div className="grid grid-cols-3 gap-2">
-                  {GamePieces.slice(0, 6).map((piece) => {
-                    const selected = settings.symbol === piece.id;
-                    return (
-                      <motion.button
-                        key={piece.id}
-                        type="button"
-                        onClick={() => setSettings((p) => ({ ...p, symbol: piece.id }))}
-                        whileTap={{ scale: 0.96 }}
-                        className={`relative flex min-h-[88px] flex-col items-center justify-center gap-1 rounded-xl border px-1 py-2 transition ${
-                          selected
-                            ? "border-[#00D4FF] bg-[#00D4FF]/12 shadow-[0_0_20px_rgba(0,212,255,0.25)]"
-                            : "border-[#00D4FF]/15 bg-[#0a1520]/70 hover:border-[#00D4FF]/35"
-                        }`}
-                      >
-                        <CornerBrackets active={selected} />
-                        <motion.span
-                          animate={
-                            selected
-                              ? { scale: [1, 1.18, 1], y: [0, -3, 0] }
-                              : { scale: 1, y: 0 }
-                          }
-                          transition={
-                            selected
-                              ? { duration: 0.55, repeat: Infinity, repeatDelay: 1.4 }
-                              : { duration: 0.2 }
-                          }
-                          className="text-2xl drop-shadow-[0_0_8px_rgba(0,212,255,0.45)]"
-                        >
-                          {PIECE_EMOJI[piece.id]}
-                        </motion.span>
-                        <span className="font-dmSans text-[11px] font-medium capitalize text-[#c8e6ec]">
-                          {piece.name.toLowerCase()}
-                        </span>
-                      </motion.button>
-                    );
-                  })}
-                </div>
-                {GamePieces.length > 6 && (
-                  <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
-                    {GamePieces.slice(6).map((piece) => {
-                      const selected = settings.symbol === piece.id;
-                      return (
-                        <button
-                          key={piece.id}
-                          type="button"
-                          onClick={() => setSettings((p) => ({ ...p, symbol: piece.id }))}
-                          className={`relative flex min-h-14 min-w-[72px] flex-col items-center justify-center rounded-lg border px-2 ${
-                            selected
-                              ? "border-[#00D4FF] bg-[#00D4FF]/12"
-                              : "border-[#00D4FF]/15 bg-[#0a1520]/70"
-                          }`}
-                        >
-                          <span className="text-lg">{PIECE_EMOJI[piece.id]}</span>
-                          <span className="font-dmSans text-[10px] capitalize text-[#9ab8c0]">
-                            {piece.name.toLowerCase()}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+        {/* Duration */}
+        <section className="mb-5">
+          <SectionLabel>Game duration</SectionLabel>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { value: 30, label: "30m" },
+              { value: 45, label: "45m" },
+              { value: 60, label: "60m" },
+              { value: 90, label: "90m" },
+              { value: 0, label: "No limit" },
+            ].map((d) => (
+              <button
+                key={d.value}
+                type="button"
+                onClick={() => setSettings((p) => ({ ...p, duration: d.value }))}
+                className={`relative flex min-h-11 items-center rounded-full border px-3.5 font-dmSans text-sm transition ${
+                  settings.duration === d.value
+                    ? "border-[#00D4FF] bg-[#00D4FF]/15 text-[#00D4FF]"
+                    : "border-[#00D4FF]/15 bg-[#0a1520]/70 text-[#8aa4b0]"
+                }`}
+              >
+                {d.label}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {/* Room access */}
+        <section className="mb-5">
+          <SectionLabel>Room access</SectionLabel>
+          <HudPanel>
+            <div className="grid grid-cols-2 gap-2 p-3">
+              <button
+                type="button"
+                onClick={() => setSettings((p) => ({ ...p, privateRoom: false }))}
+                className={`relative flex min-h-12 items-center justify-center gap-2 rounded-lg border transition ${
+                  !settings.privateRoom
+                    ? "border-[#00D4FF] bg-[#00D4FF]/15 text-[#00D4FF]"
+                    : "border-white/10 bg-black/25 text-[#7a93a0]"
+                }`}
+              >
+                <CornerBrackets active={!settings.privateRoom} />
+                <LockOpen className="h-4 w-4" />
+                <span className="font-orbitron text-[11px] font-bold uppercase">Public</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSettings((p) => ({ ...p, privateRoom: true }))}
+                className={`relative flex min-h-12 items-center justify-center gap-2 rounded-lg border transition ${
+                  settings.privateRoom
+                    ? "border-[#00D4FF] bg-[#00D4FF]/15 text-[#00D4FF]"
+                    : "border-white/10 bg-black/25 text-[#7a93a0]"
+                }`}
+              >
+                <CornerBrackets active={settings.privateRoom} />
+                <Lock className="h-4 w-4" />
+                <span className="font-orbitron text-[11px] font-bold uppercase">Private</span>
+              </button>
+            </div>
+            <p className="px-3 pb-3 font-dmSans text-[11px] text-[#6a8490]">
+              {settings.privateRoom
+                ? "Only players you invite with the code can join."
+                : "Anyone with the invite code can join."}
+            </p>
+          </HudPanel>
+        </section>
+
+        {/* Game type & stake */}
+        <section className="mb-5">
+          <SectionLabel>Game type & stake</SectionLabel>
+          {isGuest ? (
+            <HudPanel active>
+              <div className="p-3.5">
+                <p className="font-orbitron text-xs font-bold uppercase tracking-wider text-amber-200">
+                  Guest games are free
+                </p>
+                <p className="mt-1 font-dmSans text-xs text-[#8aa4b0]">
+                  Connect a wallet later to host staked matches.
+                </p>
               </div>
-
-              <div>
-                <SectionLabel>Max players</SectionLabel>
-                <HudPanel>
-                  <div className="grid grid-cols-6 gap-1.5 p-3">
-                    {[2, 3, 4, 5, 6, 7].map((num) => (
-                      <button
-                        key={num}
-                        type="button"
-                        onClick={() => setSettings((p) => ({ ...p, maxPlayers: num }))}
-                        className={`relative flex min-h-11 items-center justify-center rounded-lg border font-orbitron text-sm font-bold transition ${
-                          settings.maxPlayers === num
-                            ? "border-[#00D4FF] bg-[#00D4FF]/20 text-[#00D4FF]"
-                            : "border-white/10 bg-black/20 text-[#7a93a0]"
-                        }`}
-                      >
-                        {num}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="flex justify-center gap-1.5 px-3 pb-3">
-                    {[...Array(7)].map((_, idx) => (
-                      <div
-                        key={idx}
-                        className={`flex h-8 w-8 items-center justify-center rounded-md border text-sm transition ${
-                          idx < settings.maxPlayers
-                            ? "border-[#00D4FF]/50 bg-[#00D4FF]/10 text-[#00D4FF]"
-                            : "border-white/5 bg-black/20 text-white/15"
-                        }`}
-                      >
-                        👤
-                      </div>
-                    ))}
-                  </div>
-                </HudPanel>
-              </div>
-
-              <div>
-                <SectionLabel>Starting cash</SectionLabel>
+            </HudPanel>
+          ) : (
+            <HudPanel active={!isFreeGame}>
+              <div className="p-3">
                 <div className="grid grid-cols-2 gap-2">
-                  {[500, 1000, 1500, 2000].map((amount) => (
-                    <button
-                      key={amount}
-                      type="button"
-                      onClick={() => setSettings((p) => ({ ...p, startingCash: amount }))}
-                      className={`relative flex min-h-12 items-center justify-center gap-1.5 rounded-xl border font-dmSans text-sm font-semibold transition ${
-                        settings.startingCash === amount
-                          ? "border-[#00D4FF] bg-[#00D4FF]/15 text-[#e8fbff]"
-                          : "border-[#00D4FF]/15 bg-[#0a1520]/70 text-[#8aa4b0]"
-                      }`}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsFreeGame(true);
+                      setCustomStake("");
+                    }}
+                    className={`relative flex min-h-12 flex-col items-center justify-center rounded-lg border transition ${
+                      isFreeGame
+                        ? "border-[#00D4FF] bg-[#00D4FF]/15 text-[#00D4FF]"
+                        : "border-white/10 bg-black/25 text-[#7a93a0]"
+                    }`}
+                  >
+                    <CornerBrackets active={isFreeGame} />
+                    <span className="font-orbitron text-[11px] font-bold uppercase">Free</span>
+                    <span className="font-dmSans text-[10px] opacity-80">No entry fee</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsFreeGame(false);
+                      if (settings.stake < 0.01) setSettings((p) => ({ ...p, stake: 5 }));
+                    }}
+                    className={`relative flex min-h-12 flex-col items-center justify-center rounded-lg border transition ${
+                      !isFreeGame
+                        ? "border-emerald-400/70 bg-emerald-500/15 text-emerald-300"
+                        : "border-white/10 bg-black/25 text-[#7a93a0]"
+                    }`}
+                  >
+                    <CornerBrackets active={!isFreeGame} />
+                    <span className="font-orbitron text-[11px] font-bold uppercase">Staked</span>
+                    <span className="font-dmSans text-[10px] opacity-80">USDT entry</span>
+                  </button>
+                </div>
+
+                <AnimatePresence initial={false}>
+                  {!isFreeGame && (
+                    <motion.div
+                      key="stake"
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="overflow-hidden"
                     >
-                      <CornerBrackets active={settings.startingCash === amount} />
-                      ${amount.toLocaleString()}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {step === 2 && (
-            <motion.div
-              key="step-2"
-              initial={{ opacity: 0, x: 24 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -24 }}
-              transition={{ duration: 0.22 }}
-              className="space-y-5"
-            >
-              <div>
-                <SectionLabel>Game duration</SectionLabel>
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    { value: 30, label: "30 min" },
-                    { value: 45, label: "45 min" },
-                    { value: 60, label: "60 min" },
-                    { value: 90, label: "90 min" },
-                    { value: 0, label: "No limit" },
-                  ].map((d) => (
-                    <button
-                      key={d.value}
-                      type="button"
-                      onClick={() => setSettings((p) => ({ ...p, duration: d.value }))}
-                      className={`relative flex min-h-11 items-center rounded-xl border px-3.5 font-dmSans text-sm transition ${
-                        settings.duration === d.value
-                          ? "border-[#00D4FF] bg-[#00D4FF]/15 text-[#00D4FF]"
-                          : "border-[#00D4FF]/15 bg-[#0a1520]/70 text-[#8aa4b0]"
-                      }`}
-                    >
-                      <CornerBrackets active={settings.duration === d.value} />
-                      {d.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <SectionLabel>Room access</SectionLabel>
-                <HudPanel>
-                  <div className="flex min-h-14 items-center gap-3 px-3.5 py-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-[#00D4FF]/25 bg-[#00D4FF]/10 text-[#00D4FF]">
-                      <LockOpen className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <p className="font-orbitron text-xs font-bold uppercase tracking-wider text-white">
-                        Public
-                      </p>
-                      <p className="font-dmSans text-xs text-[#8aa4b0]">
-                        Anyone with the invite code can join.
-                      </p>
-                    </div>
-                  </div>
-                </HudPanel>
-              </div>
-
-              {/* Free / Staked + inline stake */}
-              <div>
-                <SectionLabel>Entry & stake</SectionLabel>
-                {isGuest ? (
-                  <HudPanel active>
-                    <div className="flex items-start gap-3 p-3.5">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-amber-400/30 bg-amber-500/10 text-amber-300">
-                        <Gamepad2 className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <p className="font-orbitron text-xs font-bold uppercase tracking-wider text-amber-200">
-                          Guest games are free
-                        </p>
-                        <p className="mt-0.5 font-dmSans text-xs text-[#8aa4b0]">
-                          Connect a wallet later if you want to host staked matches.
-                        </p>
-                      </div>
-                    </div>
-                  </HudPanel>
-                ) : (
-                  <HudPanel active={!isFreeGame}>
-                    <div className="p-3">
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsFreeGame(true);
-                            setCustomStake("");
-                          }}
-                          className={`relative flex min-h-12 flex-col items-center justify-center rounded-lg border transition ${
-                            isFreeGame
-                              ? "border-[#00D4FF] bg-[#00D4FF]/15 text-[#00D4FF]"
-                              : "border-white/10 bg-black/25 text-[#7a93a0]"
-                          }`}
-                        >
-                          <CornerBrackets active={isFreeGame} />
-                          <span className="font-orbitron text-[11px] font-bold uppercase">Free</span>
-                          <span className="font-dmSans text-[10px] opacity-80">No entry fee</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsFreeGame(false);
-                            if (settings.stake < 0.01) {
-                              setSettings((p) => ({ ...p, stake: 5 }));
-                            }
-                          }}
-                          className={`relative flex min-h-12 flex-col items-center justify-center rounded-lg border transition ${
-                            !isFreeGame
-                              ? "border-emerald-400/70 bg-emerald-500/15 text-emerald-300"
-                              : "border-white/10 bg-black/25 text-[#7a93a0]"
-                          }`}
-                        >
-                          <CornerBrackets active={!isFreeGame} />
-                          <span className="font-orbitron text-[11px] font-bold uppercase">Staked</span>
-                          <span className="font-dmSans text-[10px] opacity-80">USDT entry</span>
-                        </button>
-                      </div>
-
-                      <AnimatePresence initial={false}>
-                        {isFreeGame ? (
-                          <motion.p
-                            key="free-note"
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: "auto" }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className="mt-3 overflow-hidden text-center font-dmSans text-[11px] text-[#5a7380]"
+                      <div className="mt-3 grid grid-cols-3 gap-1.5">
+                        {stakePresets.map((amount) => (
+                          <button
+                            key={amount}
+                            type="button"
+                            onClick={() => {
+                              setSettings((p) => ({ ...p, stake: amount }));
+                              setCustomStake("");
+                            }}
+                            className={`flex min-h-11 items-center justify-center rounded-lg border font-orbitron text-sm font-bold ${
+                              settings.stake === amount && !customStake
+                                ? "border-amber-300 bg-gradient-to-br from-amber-300 to-amber-500 text-[#1a1200]"
+                                : "border-white/10 bg-black/30 text-[#c5d8e0]"
+                            }`}
                           >
-                            No entry fee — play for fun.
-                          </motion.p>
-                        ) : (
-                          <motion.div
-                            key="stake-opts"
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: "auto" }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className="overflow-hidden"
-                          >
-                            <div className="mt-3 grid grid-cols-3 gap-1.5">
-                              {stakePresets.map((amount) => (
-                                <button
-                                  key={amount}
-                                  type="button"
-                                  onClick={() => handleStakeSelect(amount)}
-                                  className={`flex min-h-11 items-center justify-center rounded-lg border font-orbitron text-sm font-bold transition ${
-                                    settings.stake === amount && !customStake
-                                      ? "border-amber-300 bg-gradient-to-br from-amber-300 to-amber-500 text-[#1a1200]"
-                                      : "border-white/10 bg-black/30 text-[#c5d8e0]"
-                                  }`}
-                                >
-                                  {amount}
-                                </button>
-                              ))}
-                            </div>
-                            <input
-                              type="number"
-                              min="0.01"
-                              step="0.01"
-                              placeholder="Custom USDT"
-                              value={customStake}
-                              onChange={(e) => handleCustomStake(e.target.value)}
-                              className="mt-2 min-h-11 w-full rounded-lg border border-emerald-500/40 bg-black/40 px-3 text-center font-dmSans text-sm text-white outline-none placeholder:text-[#5a7380] focus:border-emerald-400"
-                            />
-                            <p className="mt-1.5 text-center font-dmSans text-xs text-emerald-300/90">
-                              Each player stakes {settings.stake} USDT
-                            </p>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  </HudPanel>
-                )}
+                            {amount}
+                          </button>
+                        ))}
+                      </div>
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        placeholder="Custom USDT"
+                        value={customStake}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setCustomStake(v);
+                          const num = Number(v);
+                          if (!Number.isNaN(num) && num >= 0.01) {
+                            setSettings((p) => ({ ...p, stake: num }));
+                          }
+                        }}
+                        className="mt-2 min-h-11 w-full rounded-lg border border-emerald-500/40 bg-black/40 px-3 text-center font-dmSans text-sm text-white outline-none placeholder:text-[#5a7380] focus:border-emerald-400"
+                      />
+                      <p className="mt-1.5 text-center font-dmSans text-xs text-emerald-300/90">
+                        Each player stakes {settings.stake} USDT
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
-            </motion.div>
+            </HudPanel>
           )}
+        </section>
 
-          {step === 3 && (
-            <motion.div
-              key="step-3"
-              initial={{ opacity: 0, x: 24 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -24 }}
-              transition={{ duration: 0.22 }}
-              className="space-y-5"
-            >
-              <div>
-                <div className="mb-2.5 flex items-center gap-2">
-                  <p className="font-orbitron text-[11px] font-bold uppercase tracking-[0.18em] text-[#00D4FF]/75">
-                    House rules
-                  </p>
-                  <span className="inline-flex items-center gap-1 font-dmSans text-[10px] text-[#5a7380]">
-                    <Info className="h-3 w-3" />
-                    Tap (i) for details
-                  </span>
-                </div>
-                <div className="grid grid-cols-1 gap-2">
+        {/* House rules accordion */}
+        <section className="mb-4">
+          <button
+            type="button"
+            onClick={() => setHouseRulesOpen((o) => !o)}
+            className="flex min-h-12 w-full items-center justify-between rounded-xl border border-[#00D4FF]/20 bg-[#0a1520]/80 px-3.5 text-left"
+          >
+            <div>
+              <p className="font-orbitron text-[11px] font-bold uppercase tracking-[0.16em] text-[#00D4FF]/85">
+                House rules
+              </p>
+              <p className="font-dmSans text-[11px] text-[#6a8490]">
+                {houseOnCount} of {HOUSE_RULES.length} on
+              </p>
+            </div>
+            <ChevronDown
+              className={`h-5 w-5 text-[#00D4FF]/70 transition ${houseRulesOpen ? "rotate-180" : ""}`}
+            />
+          </button>
+
+          <AnimatePresence initial={false}>
+            {houseRulesOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="mt-2 space-y-2">
                   {HOUSE_RULES.map((rule) => {
                     const active = Boolean(settings[rule.key]);
                     const Icon = rule.Icon;
@@ -864,13 +861,12 @@ export default function CreateGameMobile({
                       <HudPanel key={rule.key} active={active}>
                         <div className="flex items-center gap-3 p-3">
                           <div
-                            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border text-lg ${
+                            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${
                               active
                                 ? "border-[#00D4FF]/40 bg-[#00D4FF]/15 text-[#00D4FF]"
                                 : "border-white/10 bg-black/25 text-[#6a8490]"
                             }`}
                           >
-                            {/* react-icons + lucide share className */}
                             <Icon className="h-5 w-5" aria-hidden />
                           </div>
                           <div className="min-w-0 flex-1">
@@ -924,47 +920,36 @@ export default function CreateGameMobile({
                     );
                   })}
                 </div>
-              </div>
-
-              <HudPanel active>
-                <div className="space-y-1.5 p-3.5 font-dmSans text-xs text-[#9ab8c0]">
-                  <p className="font-orbitron text-[10px] font-bold uppercase tracking-wider text-[#00D4FF]/80">
-                    Match briefing
-                  </p>
-                  <p>
-                    {selectedPiece?.name} · {settings.maxPlayers} players · ${settings.startingCash}{" "}
-                    start · {durationLabel} · {stakeLabel} · Public room
-                  </p>
-                </div>
-              </HudPanel>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </section>
       </div>
 
-      {/* Bottom CTA */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-[#00D4FF]/15 bg-[#060d16]/95 px-4 py-3 backdrop-blur-md">
-        <div className="mx-auto flex w-full max-w-md gap-2">
-          {step < 3 ? (
-            <button
-              type="button"
-              disabled={step === 2 && !canAdvanceStep2}
-              onClick={() => setStep((s) => (s === 1 ? 2 : 3))}
-              className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl border-2 border-[#00D4FF]/50 bg-gradient-to-r from-[#00D4FF] to-[#3aa8ff] font-orbitron text-sm font-bold uppercase tracking-wide text-[#041018] shadow-[0_0_24px_rgba(0,212,255,0.35)] transition enabled:active:scale-[0.98] disabled:opacity-40"
-            >
-              Continue
-              <ArrowRight className="h-4 w-4" />
-            </button>
-          ) : (
-            <button
-              type="button"
-              disabled={!canCreate || isLaunching}
-              onClick={() => playGuard.submit(() => handlePlay())}
-              className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl border-2 border-[#00D4FF]/60 bg-gradient-to-r from-[#00D4FF] to-[#3aa8ff] font-orbitron text-sm font-bold uppercase tracking-wide text-[#041018] shadow-[0_0_28px_rgba(0,212,255,0.4)] transition enabled:active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
-            >
-              {isLaunching ? "Loading…" : "Initiate Match"}
-            </button>
-          )}
+      {/* Sticky bottom bar */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#00D4FF]/20 bg-[#0A1628]/96 pb-[env(safe-area-inset-bottom)] backdrop-blur-md">
+        <div className="mx-auto flex max-w-md items-center gap-2 px-3 py-2.5">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+            <span className="inline-flex min-h-8 items-center gap-1 rounded-md border border-[#00D4FF]/20 bg-[#0a1a26] px-2 font-dmSans text-[11px] text-[#c5e8ef]">
+              <span>{PIECE_EMOJI[settings.symbol]}</span>
+              {selectedPiece?.name ?? "Piece"}
+            </span>
+            <span className="inline-flex min-h-8 items-center gap-1 rounded-md border border-[#00D4FF]/20 bg-[#0a1a26] px-2 font-dmSans text-[11px] text-[#c5e8ef]">
+              <Users className="h-3 w-3" />
+              {settings.maxPlayers}p
+            </span>
+            <span className="inline-flex min-h-8 items-center gap-1 rounded-md border border-[#00D4FF]/20 bg-[#0a1a26] px-2 font-dmSans text-[11px] text-[#c5e8ef]">
+              {stakeLabel}
+            </span>
+          </div>
+          <button
+            type="button"
+            disabled={!canCreate || isLaunching}
+            onClick={handleInitiate}
+            className="flex min-h-12 shrink-0 items-center justify-center rounded-xl border-2 border-[#00D4FF]/60 bg-gradient-to-r from-[#00D4FF] to-[#3aa8ff] px-3.5 font-orbitron text-xs font-bold uppercase tracking-wide text-[#041018] shadow-[0_0_24px_rgba(0,212,255,0.4)] transition enabled:active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            {isLaunching ? "…" : "⚡ Initiate Match"}
+          </button>
         </div>
       </div>
     </div>
