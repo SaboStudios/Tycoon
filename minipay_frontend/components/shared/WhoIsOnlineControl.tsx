@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Globe, X } from "lucide-react";
 import { useAccount } from "wagmi";
@@ -9,33 +10,49 @@ import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
 import { canAccessMultiplayerPreview } from "@/lib/featureAccess";
 
+const DISMISS_KEY = "tycoon_who_is_online_pill_dismissed";
+
 function shortAddress(addr?: string | null): string {
   if (!addr || addr.length < 10) return "Player";
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 
 type WhoIsOnlineControlProps = {
-  /** Compact pill for nav / header centers. */
   className?: string;
   /** Resolved display username (guest / on-chain / backend). Used for allowlist gate. */
   username?: string | null;
-  /** Force-show even if username gate fails (e.g. tests). Default: gate by username. */
   forceShow?: boolean;
+  /**
+   * `nav` — compact center pill (sheet portaled so it isn’t trapped by nav transforms).
+   * `page` — larger chip with its own dismiss X (join room style).
+   */
+  variant?: "nav" | "page";
 };
 
 /**
- * Live global online count + sheet. Visible only to soft-launch preview usernames
- * (Ajisabo, Jaibois) unless forceShow.
+ * Live global online count + sheet. Soft-launch: Ajisabo / Jaibois only unless forceShow.
  */
 export default function WhoIsOnlineControl({
   className = "",
   username,
   forceShow = false,
+  variant = "nav",
 }: WhoIsOnlineControlProps) {
   const { address } = useAccount();
   const guestAuth = useGuestAuthOptional();
   const guestUser = guestAuth?.guestUser ?? null;
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [pillDismissed, setPillDismissed] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    try {
+      setPillDismissed(sessionStorage.getItem(DISMISS_KEY) === "1");
+    } catch {
+      // ignore
+    }
+  }, []);
 
   const allowed =
     forceShow ||
@@ -49,40 +66,35 @@ export default function WhoIsOnlineControl({
   }, [address, guestUser]);
 
   const { onlineUsers, onlineCount } = useOnlineUsers(presenceAddress, {
-    enabled: allowed,
+    enabled: allowed && !pillDismissed,
     userId: guestUser?.id,
-    username: guestUser?.username ?? undefined,
+    username: guestUser?.username ?? username ?? undefined,
   });
 
-  if (!allowed) return null;
+  const dismissPill = () => {
+    setOpen(false);
+    setPillDismissed(true);
+    try {
+      sessionStorage.setItem(DISMISS_KEY, "1");
+    } catch {
+      // ignore
+    }
+  };
 
-  return (
-    <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className={`inline-flex min-h-9 max-w-[9.5rem] items-center gap-1.5 rounded-full border border-[#00F0FF]/35 bg-[#00F0FF]/10 px-2.5 py-1.5 font-dmSans text-[11px] text-[#9ad8e4] shadow-[0_0_14px_rgba(0,240,255,0.12)] transition hover:border-[#00F0FF]/55 hover:text-[#00F0FF] active:scale-[0.98] ${className}`}
-        aria-label={`${onlineCount} players online — tap to view`}
-      >
-        <motion.span
-          className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400"
-          animate={{ opacity: [1, 0.4, 1], scale: [1, 1.25, 1] }}
-          transition={{ repeat: Infinity, duration: 1.2 }}
-        />
-        <Globe className="h-3.5 w-3.5 shrink-0 text-[#00F0FF]" />
-        <span className="truncate">
-          <span className="font-orbitron font-bold text-[#00F0FF]">{onlineCount}</span>
-          <span className="text-[#8aa4b0]"> online</span>
-        </span>
-      </button>
+  if (!allowed || pillDismissed) return null;
 
+  const isPage = variant === "page";
+
+  const sheet =
+    mounted &&
+    createPortal(
       <AnimatePresence>
         {open && (
           <>
             <motion.button
               type="button"
               aria-label="Close online list"
-              className="fixed inset-0 z-[1100] bg-black/70 backdrop-blur-[2px]"
+              className="fixed inset-0 z-[1200] bg-black/75 backdrop-blur-[2px]"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -91,36 +103,39 @@ export default function WhoIsOnlineControl({
             <motion.div
               role="dialog"
               aria-modal="true"
-              aria-labelledby="nav-online-sheet-title"
+              aria-labelledby="who-online-sheet-title"
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 320 }}
-              className="fixed bottom-0 left-0 right-0 z-[1101] max-h-[75dvh] overflow-y-auto rounded-t-2xl border-t-2 border-emerald-500/30 bg-gradient-to-b from-[#0c1c28] to-[#071018] pb-[env(safe-area-inset-bottom)]"
+              className="fixed bottom-0 left-0 right-0 z-[1201] max-h-[80dvh] overflow-y-auto rounded-t-2xl border-t-2 border-emerald-500/35 bg-gradient-to-b from-[#0c1c28] to-[#071018] pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_40px_rgba(0,0,0,0.55)]"
             >
               <div className="mx-auto max-w-md px-4 pb-6 pt-3">
-                <div className="mb-4 flex justify-center">
+                <div className="mb-3 flex justify-center">
                   <div className="h-1.5 w-12 rounded-full bg-emerald-400/60" />
                 </div>
-                <div className="mb-4 flex items-center justify-between">
-                  <div>
+
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
                     <h3
-                      id="nav-online-sheet-title"
+                      id="who-online-sheet-title"
                       className="font-orbitron text-sm font-bold uppercase tracking-wider text-emerald-300"
                     >
                       Who&apos;s online
                     </h3>
-                    <p className="font-dmSans text-xs text-[#8aa4b0]">
-                      {onlineCount} {onlineCount === 1 ? "player" : "players"} on Tycoon right now
+                    <p className="mt-0.5 font-dmSans text-xs text-[#8aa4b0]">
+                      <span className="font-orbitron font-bold text-emerald-300">{onlineCount}</span>
+                      {" "}
+                      {onlineCount === 1 ? "player" : "players"} on Tycoon right now
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={() => setOpen(false)}
-                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-500/30 text-emerald-300"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border-2 border-emerald-400/50 bg-emerald-500/15 text-emerald-200 transition hover:border-emerald-300 hover:bg-emerald-500/25"
                     aria-label="Close"
                   >
-                    <X className="h-4 w-4" />
+                    <X className="h-5 w-5" strokeWidth={2.5} />
                   </button>
                 </div>
 
@@ -160,11 +175,66 @@ export default function WhoIsOnlineControl({
                     })}
                   </ul>
                 )}
+
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="mt-5 flex min-h-12 w-full items-center justify-center rounded-xl border border-emerald-500/40 bg-emerald-500/10 font-orbitron text-xs font-bold uppercase tracking-wider text-emerald-200 transition hover:bg-emerald-500/20"
+                >
+                  Close
+                </button>
               </div>
             </motion.div>
           </>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body
+    );
+
+  return (
+    <>
+      <div
+        className={`inline-flex items-center gap-1 ${
+          isPage
+            ? "rounded-full border border-[#00F0FF]/40 bg-[#00F0FF]/12 p-1 pl-1.5 shadow-[0_0_18px_rgba(0,240,255,0.18)]"
+            : ""
+        } ${className}`}
+      >
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className={`inline-flex min-h-9 items-center gap-1.5 font-dmSans text-[11px] text-[#9ad8e4] transition hover:text-[#00F0FF] active:scale-[0.98] ${
+            isPage
+              ? "rounded-full px-2.5 py-1.5"
+              : "max-w-[9.5rem] rounded-full border border-[#00F0FF]/35 bg-[#00F0FF]/10 px-2.5 py-1.5 shadow-[0_0_14px_rgba(0,240,255,0.12)] hover:border-[#00F0FF]/55"
+          }`}
+          aria-label={`${onlineCount} players online — tap to view`}
+        >
+          <motion.span
+            className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400"
+            animate={{ opacity: [1, 0.4, 1], scale: [1, 1.25, 1] }}
+            transition={{ repeat: Infinity, duration: 1.2 }}
+          />
+          <Globe className="h-3.5 w-3.5 shrink-0 text-[#00F0FF]" />
+          <span className="truncate">
+            <span className="font-orbitron font-bold text-[#00F0FF]">{onlineCount}</span>
+            <span className="text-[#8aa4b0]"> online</span>
+          </span>
+        </button>
+
+        {isPage && (
+          <button
+            type="button"
+            onClick={dismissPill}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#00F0FF]/25 text-[#7ec8d4] transition hover:border-[#00F0FF]/50 hover:text-[#00F0FF]"
+            aria-label="Hide online indicator"
+          >
+            <X className="h-3.5 w-3.5" strokeWidth={2.5} />
+          </button>
+        )}
+      </div>
+
+      {sheet}
     </>
   );
 }

@@ -254,7 +254,7 @@ export default function JoinRoom({
               </p>
               {showWhoIsOnline && (
                 <div className="mt-4 flex justify-center">
-                  <WhoIsOnlineControl username={previewUsername} />
+                  <WhoIsOnlineControl username={previewUsername} variant="page" />
                 </div>
               )}
             </div>
