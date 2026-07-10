@@ -63,6 +63,7 @@ export default function GameWaiting3DLobby(): React.ReactElement {
     gameCode,
     game,
     loading,
+    redirectingToBoard,
     contractGameLoading,
     error,
     playerSymbol,
@@ -109,7 +110,7 @@ export default function GameWaiting3DLobby(): React.ReactElement {
   const players: Player[] = game?.players ?? [];
   const showViewAll = maxPlayers > 4 || players.length > 0;
 
-  if (loading || contractGameLoading) {
+  if (loading || contractGameLoading || redirectingToBoard) {
     return <GameRoomLoading variant="waiting" />;
   }
 
