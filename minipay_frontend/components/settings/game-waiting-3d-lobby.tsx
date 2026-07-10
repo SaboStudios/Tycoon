@@ -2,12 +2,15 @@
 
 import React, { useCallback, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { useAccount } from "wagmi";
 import { useWaitingRoom } from "./useWaitingRoom";
 import GameRoomLoading from "./game-room-loading";
-import { Check, Copy, LifeBuoy, Users, X } from "lucide-react";
+import { Check, Copy, Globe, LifeBuoy, Users, X } from "lucide-react";
 import { ScanlineOverlay } from "@/components/hero/ScanlineOverlay";
 import { ParticleBackground } from "@/components/hero/ParticleBackground";
 import { WARoomLaunchButton } from "@/components/game-setup/WARoomLaunchButton";
+import { useOnlineUsers } from "@/hooks/useOnlineUsers";
+import { getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
 import type { Player } from "@/types/game";
 
 const REDIRECT_TO_BOARD = "/board-3d-multi-mobile";
@@ -34,6 +37,11 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
+function shortAddress(addr?: string | null): string {
+  if (!addr || addr.length < 10) return "Player";
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+}
+
 async function copyText(value: string): Promise<boolean> {
   try {
     if (navigator.clipboard?.writeText) {
@@ -57,6 +65,7 @@ async function copyText(value: string): Promise<boolean> {
 
 /** 3D game waiting room. Redirects to /board-3d-multi-mobile when the game starts. */
 export default function GameWaiting3DLobby(): React.ReactElement {
+  const { address } = useAccount();
   const {
     router,
     gameCode,
@@ -82,7 +91,20 @@ export default function GameWaiting3DLobby(): React.ReactElement {
     isJoining,
     joinError,
     contractGameError,
+    guestUser,
   } = useWaitingRoom({ redirectToBoard: REDIRECT_TO_BOARD });
+
+  const presenceAddress = useMemo(() => {
+    if (address) return address;
+    if (guestUser) return getGuestUserPlayAddress(guestUser) ?? guestUser.address ?? undefined;
+    return undefined;
+  }, [address, guestUser]);
+
+  const { onlineUsers, onlineCount } = useOnlineUsers(presenceAddress, {
+    enabled: true,
+    userId: guestUser?.id,
+    username: guestUser?.username ?? undefined,
+  });
 
   const gameUrl3d = useMemo(() => {
     if (!gameCode) return "";
@@ -92,6 +114,7 @@ export default function GameWaiting3DLobby(): React.ReactElement {
 
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [playersSheetOpen, setPlayersSheetOpen] = useState(false);
+  const [onlineSheetOpen, setOnlineSheetOpen] = useState(false);
 
   const flashCopy = useCallback((msg: string) => {
     setCopyFeedback(msg);
@@ -183,20 +206,32 @@ export default function GameWaiting3DLobby(): React.ReactElement {
       <div className="relative z-20 mx-auto w-full max-w-md flex-1 overflow-y-auto px-4 pb-8 pt-5">
         {/* Title block */}
         <div className="mb-5 text-center">
-          <motion.div
-            className="mb-3 inline-flex items-center gap-2 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-          >
-            <motion.span
-              className="h-2 w-2 rounded-full bg-emerald-400"
-              animate={{ scale: [1, 1.45, 1], opacity: [1, 0.45, 1] }}
-              transition={{ repeat: Infinity, duration: 1.15 }}
-            />
-            <span className="font-orbitron text-[10px] font-bold tracking-widest text-emerald-400">
-              LIVE
-            </span>
-          </motion.div>
+          <div className="mb-3 flex flex-wrap items-center justify-center gap-2">
+            <motion.div
+              className="inline-flex items-center gap-2 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+            >
+              <motion.span
+                className="h-2 w-2 rounded-full bg-emerald-400"
+                animate={{ scale: [1, 1.45, 1], opacity: [1, 0.45, 1] }}
+                transition={{ repeat: Infinity, duration: 1.15 }}
+              />
+              <span className="font-orbitron text-[10px] font-bold tracking-widest text-emerald-400">
+                LIVE
+              </span>
+            </motion.div>
+
+            <button
+              type="button"
+              onClick={() => setOnlineSheetOpen(true)}
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-[#00D4FF]/35 bg-[#00D4FF]/10 px-3 py-1.5 font-dmSans text-xs text-[#9ad8e4] transition hover:border-[#00D4FF]/60 hover:text-[#00D4FF]"
+            >
+              <Globe className="h-3.5 w-3.5" />
+              <span className="font-orbitron font-bold text-[#00D4FF]">{onlineCount}</span>
+              online
+            </button>
+          </div>
           <motion.h2
             className="font-orbitron text-3xl font-black tracking-wider text-[#7ee8ff]"
             animate={{
@@ -356,16 +391,28 @@ export default function GameWaiting3DLobby(): React.ReactElement {
             })}
           </div>
 
-          {showViewAll && (
+          <div className="mb-3 grid grid-cols-2 gap-2">
+            {showViewAll && (
+              <button
+                type="button"
+                onClick={() => setPlayersSheetOpen(true)}
+                className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-[#00D4FF]/30 bg-[#00D4FF]/8 px-2 font-dmSans text-xs text-[#9ad8e4] transition hover:border-[#00D4FF]/55 hover:text-[#00D4FF]"
+              >
+                <Users className="h-3.5 w-3.5 shrink-0" />
+                Room players
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => setPlayersSheetOpen(true)}
-              className="mb-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#00D4FF]/30 bg-[#00D4FF]/8 font-dmSans text-sm text-[#9ad8e4] transition hover:border-[#00D4FF]/55 hover:text-[#00D4FF]"
+              onClick={() => setOnlineSheetOpen(true)}
+              className={`flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-2 font-dmSans text-xs text-emerald-200/90 transition hover:border-emerald-400/60 hover:text-emerald-300 ${
+                showViewAll ? "" : "col-span-2"
+              }`}
             >
-              <Users className="h-4 w-4" />
-              View all players
+              <Globe className="h-3.5 w-3.5 shrink-0" />
+              Who&apos;s online ({onlineCount})
             </button>
-          )}
+          </div>
 
           {slotsOpen && (
             <p className="flex items-center justify-center gap-2 font-dmSans text-xs text-amber-400/85">
@@ -523,7 +570,7 @@ export default function GameWaiting3DLobby(): React.ReactElement {
                       id="combatants-sheet-title"
                       className="font-orbitron text-sm font-bold uppercase tracking-wider text-[#00D4FF]"
                     >
-                      View combatants
+                      Room players
                     </h3>
                     <p className="font-dmSans text-xs text-[#8aa4b0]">
                       {playersJoined} of {maxPlayers} seats filled
@@ -584,6 +631,113 @@ export default function GameWaiting3DLobby(): React.ReactElement {
                     );
                   })}
                 </ul>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Global online players sheet */}
+      <AnimatePresence>
+        {onlineSheetOpen && (
+          <>
+            <motion.button
+              type="button"
+              aria-label="Close online list"
+              className="fixed inset-0 z-50 bg-black/70 backdrop-blur-[2px]"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setOnlineSheetOpen(false)}
+            />
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="online-sheet-title"
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 30, stiffness: 320 }}
+              className="fixed bottom-0 left-0 right-0 z-[60] max-h-[75dvh] overflow-y-auto rounded-t-2xl border-t-2 border-emerald-500/30 bg-gradient-to-b from-[#0c1c28] to-[#071018] pb-[env(safe-area-inset-bottom)]"
+            >
+              <div className="mx-auto max-w-md px-4 pb-6 pt-3">
+                <div className="mb-4 flex justify-center">
+                  <div className="h-1.5 w-12 rounded-full bg-emerald-400/60" />
+                </div>
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <h3
+                      id="online-sheet-title"
+                      className="font-orbitron text-sm font-bold uppercase tracking-wider text-emerald-300"
+                    >
+                      Who&apos;s online
+                    </h3>
+                    <p className="font-dmSans text-xs text-[#8aa4b0]">
+                      {onlineCount} {onlineCount === 1 ? "player" : "players"} on Tycoon right now
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setOnlineSheetOpen(false)}
+                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-500/30 text-emerald-300"
+                    aria-label="Close"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {onlineUsers.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-emerald-500/25 bg-emerald-950/10 px-4 py-8 text-center">
+                    <Globe className="mx-auto mb-2 h-6 w-6 text-emerald-400/50" />
+                    <p className="font-dmSans text-sm text-[#8aa4b0]">
+                      No other players showing yet. Stay in the lobby — the list updates live.
+                    </p>
+                  </div>
+                ) : (
+                  <ul className="space-y-2">
+                    {onlineUsers.map((u, idx) => {
+                      const label =
+                        u.username?.trim() ||
+                        shortAddress(u.address) ||
+                        `Player ${idx + 1}`;
+                      const inThisRoom = players.some(
+                        (p) =>
+                          (u.userId != null && p.user_id === u.userId) ||
+                          (u.address &&
+                            p.address &&
+                            p.address.toLowerCase() === u.address.toLowerCase())
+                      );
+                      return (
+                        <li
+                          key={u.userId ?? u.address ?? `online-${idx}`}
+                          className="flex min-h-14 items-center gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/8 px-3 py-2.5"
+                        >
+                          <div className="relative flex h-11 w-11 items-center justify-center rounded-lg border border-emerald-500/35 bg-[#0a1a26] font-orbitron text-sm font-bold text-emerald-300">
+                            {(label[0] || "?").toUpperCase()}
+                            <motion.span
+                              className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#071018] bg-emerald-400"
+                              animate={{ opacity: [1, 0.45, 1] }}
+                              transition={{ repeat: Infinity, duration: 1.4 }}
+                            />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate font-dmSans text-sm font-semibold text-[#e8f4f7]">
+                              {label}
+                            </p>
+                            <p className="font-dmSans text-[11px] text-[#8aa4b0]">
+                              {inThisRoom ? "In this war room" : "Online on Tycoon"}
+                            </p>
+                          </div>
+                          {inThisRoom && (
+                            <span className="shrink-0 rounded-full bg-[#00D4FF]/15 px-2 py-1 font-orbitron text-[9px] font-bold uppercase tracking-wide text-[#00D4FF]">
+                              Here
+                            </span>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
               </div>
             </motion.div>
           </>
