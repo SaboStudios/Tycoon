@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState, useMemo } from "react";
-import { Dices, Gamepad2 } from "lucide-react";
+import { Gamepad2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useAccount, useChainId, useConnect, useSignMessage, usePublicClient, useSwitchChain } from "wagmi";
@@ -31,7 +31,7 @@ import { getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
 import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
 import { useUserLevel } from "@/hooks/useUserLevel";
-import { canAccessMultiplayerPreview } from "@/lib/featureAccess";
+
 function chainIdToBackendChain(chainId: number): string {
   return "CELO";
 }
@@ -253,8 +253,8 @@ const HeroWalletPanel: React.FC<HeroWalletPanelProps> = ({ onReturningPlayerChan
     );
   }, [guestUser, user, localUsername, fetchedUsername, inputUsername]);
 
-  /** Soft-launch: Multiplayer / Join Game only for these tester usernames. */
-  const canSeeMultiplayer = canAccessMultiplayerPreview(displayUsername);
+  /** Multiplayer / Join Game — hidden on MiniPay for now. */
+  const canSeeMultiplayer = false;
 
   const { levelInfo } = useUserLevel({
     address: guestUser && !address ? undefined : levelContractLookupAddress,

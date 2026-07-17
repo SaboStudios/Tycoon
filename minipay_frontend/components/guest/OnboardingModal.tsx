@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { useConnectWallet } from "@/hooks/useConnectWallet";
 import { usePrivy } from "@/hooks/usePrivy";
-import { X, Wallet, Gamepad2, Dices, Sparkles } from "lucide-react";
+import { X, Wallet, Sparkles } from "lucide-react";
 
 const ONBOARDING_STORAGE_KEY = "tycoon_onboarding_done";
 
@@ -56,20 +56,6 @@ export default function OnboardingModal({ onDismiss }: OnboardingModalProps) {
     }
   };
 
-  const handleCreateGame = () => {
-    setOnboardingDone();
-    setOpen(false);
-    router.push("/game-settings-3d");
-    onDismiss?.();
-  };
-
-  const handleJoinGame = () => {
-    setOnboardingDone();
-    setOpen(false);
-    router.push("/join-room-3d");
-    onDismiss?.();
-  };
-
   const handlePlayAI = () => {
     setOnboardingDone();
     setOpen(false);
@@ -109,7 +95,7 @@ export default function OnboardingModal({ onDismiss }: OnboardingModalProps) {
           </div>
 
           <p className="text-slate-300 text-sm sm:text-base font-dmSans mb-6 leading-relaxed">
-            Get started in two steps: connect (or sign in), then create or join a game.
+            Get started in two steps: connect (or sign in), then play vs AI.
           </p>
 
           {step === 1 && (
@@ -129,8 +115,8 @@ export default function OnboardingModal({ onDismiss }: OnboardingModalProps) {
                     2
                   </span>
                   <div>
-                    <p className="font-medium text-white font-dmSans">Create or join a game</p>
-                    <p className="text-slate-400 text-sm mt-0.5">Start a multiplayer room, join with a code, or play solo vs AI.</p>
+                    <p className="font-medium text-white font-dmSans">Play a game</p>
+                    <p className="text-slate-400 text-sm mt-0.5">Challenge AI opponents in a solo match.</p>
                   </div>
                 </div>
               </div>
@@ -152,7 +138,7 @@ export default function OnboardingModal({ onDismiss }: OnboardingModalProps) {
                     onClick={() => setStep(2)}
                     className="w-full py-4 rounded-xl bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] text-[#010F10] font-orbitron font-bold flex items-center justify-center gap-2 hover:opacity-95 transition-opacity"
                   >
-                    Next: Create or join game
+                    Next: Play vs AI
                   </button>
                 )}
                 <button
@@ -170,32 +156,6 @@ export default function OnboardingModal({ onDismiss }: OnboardingModalProps) {
             <>
               <p className="text-slate-400 text-sm mb-6">Choose how you want to play:</p>
               <div className="space-y-3 mb-6">
-                <button
-                  type="button"
-                  onClick={handleCreateGame}
-                  className="w-full py-4 rounded-xl border border-[#003B3E] bg-[#0E1415]/80 text-left px-5 flex items-center gap-4 hover:border-[#00F0FF]/50 hover:bg-[#00F0FF]/5 transition-all group"
-                >
-                  <div className="rounded-xl bg-[#00F0FF]/10 p-2.5 group-hover:bg-[#00F0FF]/20 transition-colors">
-                    <Gamepad2 className="w-6 h-6 text-[#00F0FF]" />
-                  </div>
-                  <div>
-                    <p className="font-orbitron font-semibold text-white">Create game</p>
-                    <p className="text-slate-400 text-sm font-dmSans">Start a new multiplayer room and invite friends</p>
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleJoinGame}
-                  className="w-full py-4 rounded-xl border border-[#003B3E] bg-[#0E1415]/80 text-left px-5 flex items-center gap-4 hover:border-[#00F0FF]/50 hover:bg-[#00F0FF]/5 transition-all group"
-                >
-                  <div className="rounded-xl bg-[#00F0FF]/10 p-2.5 group-hover:bg-[#00F0FF]/20 transition-colors">
-                    <Dices className="w-6 h-6 text-[#00F0FF]" />
-                  </div>
-                  <div>
-                    <p className="font-orbitron font-semibold text-white">Join with code</p>
-                    <p className="text-slate-400 text-sm font-dmSans">Enter a 6-letter code to join a friend&apos;s game</p>
-                  </div>
-                </button>
                 <button
                   type="button"
                   onClick={handlePlayAI}
