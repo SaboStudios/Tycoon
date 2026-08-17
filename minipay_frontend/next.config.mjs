@@ -28,6 +28,15 @@ const nextConfig = {
   },
   productionBrowserSourceMaps: false,
   /**
+   * Do NOT use Vercel Image Optimization (`/_next/image`).
+   * Board/shop/hero assets are static files; each unique w/q/format combo is a
+   * billed transformation. MiniPay traffic × many tiles explodes that invoice.
+   * Serve precompressed files from /public (WebP) — bandwidth only.
+   */
+  images: {
+    unoptimized: true,
+  },
+  /**
    * Next 14 always imports `polyfill-module` from the client runtime (trimStart, .at, etc.).
    * Browserslist/SWC only affect syntax downleveling — not this file. Stub it for MiniPay.
    */
@@ -85,6 +94,15 @@ const nextConfig = {
         headers: [
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+        ],
+      },
+      {
+        source: "/:path*.(png|jpg|jpeg|gif|webp|avif|svg|ico|mp3|ogg|woff2)",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
         ],
       },
     ];
