@@ -1,5 +1,4 @@
 import React from "react";
-import logo from "@/public/footerLogo.svg";
 import Logo from "./logo";
 import Link from "next/link";
 import { FiFacebook, FiGithub } from "react-icons/fi";
@@ -12,7 +11,7 @@ const Footer = () => {
       <div className="w-full max-w-[1120px] mx-auto flex flex-col md:flex-row items-center md:justify-between justify-center md:gap-0 gap-4 bg-[#0B191A] rounded-[16px] p-[20px] border border-[#003B3E]/50 game-panel">
         <Logo
           className="block md:w-[60px] w-[55px] shrink-0"
-          image={logo}
+          image="/footerLogo.svg"
           href="/"
           width={64}
           height={64}
@@ -23,6 +22,7 @@ const Footer = () => {
         <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
           <Link
             href="/how-to-play"
+            prefetch={false}
             className="text-[#F0F7F7] hover:text-[#00F0FF] text-[12px] font-dmSans font-[400] transition-colors"
           >
             How to Play
@@ -30,6 +30,7 @@ const Footer = () => {
           <span className="text-[#455A64] hidden sm:inline">·</span>
           <Link
             href="/terms"
+            prefetch={false}
             className="text-[#F0F7F7] hover:text-[#00F0FF] text-[12px] font-dmSans font-[400] transition-colors"
           >
             Terms
@@ -37,6 +38,7 @@ const Footer = () => {
           <span className="text-[#455A64] hidden sm:inline">·</span>
           <Link
             href="/privacy"
+            prefetch={false}
             className="text-[#F0F7F7] hover:text-[#00F0FF] text-[12px] font-dmSans font-[400] transition-colors"
           >
             Privacy
@@ -44,6 +46,7 @@ const Footer = () => {
           <span className="text-[#455A64] hidden sm:inline">·</span>
           <Link
             href="/cookies"
+            prefetch={false}
             className="text-[#F0F7F7] hover:text-[#00F0FF] text-[12px] font-dmSans font-[400] transition-colors"
           >
             Cookies
