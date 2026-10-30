@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { useConnect } from "wagmi";
-import { injected } from "wagmi/connectors";
+import { injected } from "@wagmi/connectors/injected";
 
 /** Connect MiniPay / injected EOA (no modal). */
 export function useConnectWallet() {

@@ -40,11 +40,23 @@ const nextConfig = {
    * Browserslist/SWC only affect syntax downleveling — not this file. Stub it for MiniPay.
    */
   webpack(config, { isServer, webpack }) {
+    // CDP / Base Account optional peers — MiniPay only uses injected wallet.
+    // Without these aliases, `wagmi/connectors` barrel → @base-org/account →
+    // @coinbase/cdp-sdk fails the Vercel build with "Can't resolve '@x402/*'".
+    const x402Stub = emptyPolyfill;
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      "@x402/evm": x402Stub,
+      "@x402/svm": x402Stub,
+      "@x402/svm/exact/client": x402Stub,
+      "@x402/fetch": x402Stub,
+      ...(isServer
+        ? {}
+        : {
+            [nextPolyfillModule]: emptyPolyfill,
+          }),
+    };
     if (!isServer) {
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        [nextPolyfillModule]: emptyPolyfill,
-      };
       config.plugins.push(
         new webpack.NormalModuleReplacementPlugin(
           /polyfills[\\/]polyfill-module(\.js)?$/,

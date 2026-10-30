@@ -1,5 +1,5 @@
 import { connect, disconnect, getAccount } from '@wagmi/core';
-import { injected } from 'wagmi/connectors';
+import { injected } from '@wagmi/connectors/injected';
 import { getAddress } from 'viem';
 import { getWagmiConfig } from '@/config';
 import { isMinipayOnlyHost } from '@/lib/minipaySiteRedirect';
