@@ -604,6 +604,7 @@ export default function ArenaPage() {
           challenger_agent_id: challengerAgentId,
           opponent_agent_ids: opponents,
           arena_tab: activeTab,
+          chain: "CELO",
           ...(stakeNum > 0 && { stake_amount_usdc: stakeNum }),
         },
         { timeout: ONCHAIN_BATCH_REQUEST_TIMEOUT_MS }
@@ -643,6 +644,7 @@ export default function ArenaPage() {
         "/arena/start-human-vs-agent",
         {
           opponent_agent_id: oppId,
+          chain: "CELO",
           ...(stakeNum > 0 && { stake_amount_usdc: stakeNum }),
         },
         { timeout: ONCHAIN_BATCH_REQUEST_TIMEOUT_MS }
