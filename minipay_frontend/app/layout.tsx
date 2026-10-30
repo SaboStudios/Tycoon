@@ -19,6 +19,7 @@ const FarcasterReady = dynamic(() => import("@/components/FarcasterReady"), { ss
 const BfcacheReloadGuard = dynamic(() => import("@/components/BfcacheReloadGuard"), { ssr: false });
 const ReferralCapture = dynamic(() => import("@/components/ReferralCapture"), { ssr: false });
 const DeferredUiStyles = dynamic(() => import("@/components/DeferredUiStyles"), { ssr: false });
+const GoodDollarVerifyModal = dynamic(() => import("@/components/gooddollar/GoodDollarVerifyModal"), { ssr: false });
 
 const CRITICAL_SHELL_CSS = [
   ":root{--mobile-nav-height:82px;--mobile-nav-offset:calc(var(--mobile-nav-height) + env(safe-area-inset-top,0px));--font-dm-sans:ui-sans-serif,system-ui,sans-serif;--font-krona-one:ui-sans-serif,system-ui,sans-serif;--font-orbitron-sans:ui-sans-serif,system-ui,sans-serif}",
@@ -147,6 +148,7 @@ export default async function RootLayout({
                 <ScrollToTopBtn />
                 <DeferredUiStyles />
                 <DeferredToasts />
+                <GoodDollarVerifyModal />
                 <Toaster
                   position="top-center"
                   containerStyle={{

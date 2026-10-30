@@ -11,6 +11,7 @@ import {
 import { resolveChainForBackend } from "@/lib/utils/chain";
 import { generateGameCode } from "@/lib/utils/games";
 import { apiClient } from "@/lib/api";
+import { extractGoodDollarVerify } from "@/lib/goodDollarVerifyPrompt";
 import {
   useIsRegistered,
   useGetUsername,
@@ -155,6 +156,8 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
 
         router.push(board3DUrl ? `${board3DUrl}${gameCode}` : `/board-3d-mobile?gameCode=${gameCode}`);
       } catch (err: any) {
+        // apiClient interceptor already popped the GoodDollar Verify modal; skip the toast.
+        if (extractGoodDollarVerify(err)) return;
         const msg = err?.response?.data?.message ?? err?.message ?? "Failed to create AI game.";
         fail(msg);
       }

@@ -22,6 +22,7 @@ import { toast } from "react-toastify";
 import { generateGameCode } from "@/lib/utils/games";
 import { GamePieces } from "@/lib/constants/games";
 import { apiClient } from "@/lib/api";
+import { extractGoodDollarVerify } from "@/lib/goodDollarVerifyPrompt";
 import Erc20Abi from "@/context/abi/ERC20abi.json";
 import {
   useIsRegistered,
@@ -306,6 +307,12 @@ export default function CreateGameMobile({
             onClose: () => router.push(`${redirectToWaitingRoom}?gameCode=${code}`),
           });
         } catch (err: unknown) {
+          // apiClient interceptor already popped the GoodDollar Verify modal; skip the toast.
+          if (extractGoodDollarVerify(err)) {
+            toast.dismiss(toastId);
+            setIsStarting(false);
+            return;
+          }
           const msg =
             (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data
               ?.message ??
