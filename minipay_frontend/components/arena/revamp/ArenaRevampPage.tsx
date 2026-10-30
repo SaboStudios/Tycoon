@@ -43,6 +43,8 @@ export interface ArenaRevampPageProps {
   onToggleOpponent: (id: number) => void;
   onReplaceOpponents: (ids: number[]) => void;
   maxOpponentSlots: number;
+  /** Staked matches force 1v1 selection + hint in opponents panel. */
+  stakedOneVOne?: boolean;
   challengerAgentId: number | null;
   onChallengerChange: (id: number) => void;
   stakeAmount: string;
@@ -90,6 +92,7 @@ export function ArenaRevampPage({
   onToggleOpponent,
   onReplaceOpponents,
   maxOpponentSlots,
+  stakedOneVOne = false,
   challengerAgentId,
   onChallengerChange,
   stakeAmount,
@@ -289,6 +292,7 @@ export function ArenaRevampPage({
                       maxSlots={maxOpponentSlots}
                       onToggle={onToggleOpponent}
                       onReplace={onReplaceOpponents}
+                      stakedOneVOne={stakedOneVOne}
                     />
                     <ArenaMatchSettings
                       matchType={matchType}

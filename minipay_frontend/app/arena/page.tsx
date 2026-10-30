@@ -8,6 +8,7 @@ import { useAccount, useSignMessage } from "wagmi";
 import { apiClient, ONCHAIN_BATCH_REQUEST_TIMEOUT_MS, ApiError } from "@/lib/api";
 import { ArenaOnchainModal, type ArenaOnchainBusyPayload } from "@/components/arena/arena-onchain-modal";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
+import { isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
 import { ApiResponse } from "@/types/api";
 import styles from "./arena.module.css";
 import { isAgentStyleTournament, tournamentDetailPath } from "@/lib/tournamentRoutes";
@@ -166,12 +167,30 @@ export default function ArenaPage() {
   const isAuthed = Boolean(guestUser) || walletConnected;
 
   /**
-   * Called from the launch flow when the user has a wagmi wallet but no backend session.
-   * Prompts one wallet signature then calls POST /auth/login-by-wallet. Returns true on success.
-   * Idempotent per click — launchLoginRef prevents re-prompting on fast double-tap.
+   * Arena start-game needs a backend JWT (requireAuth). MiniPay has no signature-free login API —
+   * JWT comes from localStorage `token` (prior loginByWallet / email) or a wallet signature via
+   * POST /auth/login-by-wallet (same path as agents-page-mobile). Never prompt on page load.
    */
   const ensureBackendSessionForLaunch = useCallback(async (): Promise<boolean> => {
     if (guestUser) return true;
+
+    // Token may exist while guestUser is still null — hydrate first (no signature).
+    try {
+      const token =
+        typeof window !== "undefined" && window.localStorage
+          ? window.localStorage.getItem("token")
+          : null;
+      if (token?.trim() && guestCtx?.refetchGuest) {
+        await guestCtx.refetchGuest();
+        // guestUser in this closure is stale; re-check storage + /auth/me via refetch side effect.
+        // Callers re-read guestCtx after await; also probe token success via a fresh /auth/me.
+        const me = await apiClient.get<{ success?: boolean; data?: { id?: number } }>("auth/me");
+        if (me?.data?.data?.id) return true;
+      }
+    } catch {
+      /* fall through to wallet sign-in */
+    }
+
     if (!walletConnected || !walletAddress) return false;
     if (!guestCtx?.loginByWallet || !signMessageAsync) return false;
     if (launchLoginRef.current) return false;
@@ -206,7 +225,7 @@ export default function ArenaPage() {
     },
     [router]
   );
-  const [matchType, setMatchType] = useState<MatchType>("agentVsAgent");
+  const [matchType, setMatchType] = useState<MatchType>("agentVsAi");
   const [agents, setAgents] = useState<Agent[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [myAgents, setMyAgents] = useState<Agent[]>([]);
@@ -231,22 +250,20 @@ export default function ArenaPage() {
   const [tournamentPerms, setTournamentPerms] = useState<Record<number, { enabled: boolean; max_entry_fee_usdc: string; daily_cap_usdc: string | null; chain: string | null }>>({});
   const [challengesLoading, setChallengesLoading] = useState(false);
 
+  const stakeNumForSlots = stakeAmountUsdc.trim() ? parseFloat(stakeAmountUsdc) : 0;
+  const stakedOneVOne =
+    Number.isFinite(stakeNumForSlots) && stakeNumForSlots > 0;
+
   const maxOpponentPicks =
     activeTab === "discover"
-      ? matchType === "agentVsAi"
+      ? matchType === "agentVsAi" || stakedOneVOne
         ? 1
         : MAX_DISCOVER_OPPONENTS
       : MAX_CHALLENGES_OPPONENTS;
 
   useEffect(() => {
-    const max =
-      activeTab === "discover"
-        ? matchType === "agentVsAi"
-          ? 1
-          : MAX_DISCOVER_OPPONENTS
-        : MAX_CHALLENGES_OPPONENTS;
-    setSelectedOpponents((prev) => (prev.length > max ? prev.slice(0, max) : prev));
-  }, [activeTab, matchType]);
+    setSelectedOpponents((prev) => (prev.length > maxOpponentPicks ? prev.slice(0, maxOpponentPicks) : prev));
+  }, [maxOpponentPicks]);
 
   const mergeTournamentPermsFromApiResponse = useCallback((permsRes: unknown) => {
     const list =
@@ -552,14 +569,9 @@ export default function ArenaPage() {
   const toggleOpponentSelect = (agentId: number) => {
     setSelectedOpponents((prev) => {
       if (prev.includes(agentId)) return prev.filter((id) => id !== agentId);
-      if (prev.length >= maxOpponentPicks) {
-        alert(
-          maxOpponentPicks === 1
-            ? "Challenges allow only one opponent per game. Clear your pick or use Discover for multi-opponent games."
-            : `You can select up to ${maxOpponentPicks} opponents per batch in Discover.`
-        );
-        return prev;
-      }
+      // Single-select (You vs Agent or staked 1v1): replace the previous pick.
+      if (maxOpponentPicks === 1) return [agentId];
+      if (prev.length >= maxOpponentPicks) return prev;
       return [...prev, agentId];
     });
   };
@@ -666,11 +678,18 @@ export default function ArenaPage() {
       setError("Staked matches are 1-vs-1. Pick exactly one opponent or set stake to Free.");
       return;
     }
-    // If backend session is missing, prompt for a signature now (not on page load).
+    // If backend session is missing, hydrate JWT or prompt signature on launch (not on page load).
     if (!guestUser) {
       const ok = await ensureBackendSessionForLaunch();
       if (!ok) {
-        setError("Couldn't sign you in. Open Tycoon from MiniPay or try again.");
+        const inMiniPay = isMiniPayEmbeddedWallet();
+        setError(
+          !walletConnected
+            ? "Connect your wallet, then try again."
+            : inMiniPay
+              ? "Couldn't sign you in. Go Home, finish Connect / Register, then return to Arena."
+              : "Couldn't sign you in. Approve the wallet signature, or register on Home first."
+        );
         return;
       }
     }
@@ -773,6 +792,7 @@ export default function ArenaPage() {
         onToggleOpponent={toggleOpponentSelect}
         onReplaceOpponents={handleReplaceOpponents}
         maxOpponentSlots={maxOpponentPicks}
+        stakedOneVOne={stakedOneVOne}
         challengerAgentId={challengerAgentId}
         onChallengerChange={handleChallengerChange}
         stakeAmount={stakeAmountUsdc}

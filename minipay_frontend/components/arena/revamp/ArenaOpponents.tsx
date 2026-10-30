@@ -12,6 +12,8 @@ type Props = {
   maxSlots: number;
   onToggle: (id: number) => void;
   onReplace: (ids: number[]) => void;
+  /** When true, show 1v1 stake hint and keep Quick match at 1 pick. */
+  stakedOneVOne?: boolean;
 };
 
 function winRate(wins: number, losses: number): number | null {
@@ -20,10 +22,20 @@ function winRate(wins: number, losses: number): number | null {
   return Math.round((wins / total) * 100);
 }
 
-export function ArenaOpponents({ discoverAgents, loading, selectedIds, maxSlots, onToggle, onReplace }: Props) {
+export function ArenaOpponents({
+  discoverAgents,
+  loading,
+  selectedIds,
+  maxSlots,
+  onToggle,
+  onReplace,
+  stakedOneVOne = false,
+}: Props) {
   const selectedCount = selectedIds.length;
   const atMax = selectedCount >= maxSlots;
+  const singleSelect = maxSlots === 1;
 
+  // Always pick exactly 1 opponent for Quick match (Free + staked).
   const quickMatch = useMemo(() => {
     return () => {
       if (discoverAgents.length === 0) return;
@@ -32,10 +44,9 @@ export function ArenaOpponents({ discoverAgents, loading, selectedIds, maxSlots,
         const j = Math.floor(Math.random() * (i + 1));
         [pool[i], pool[j]] = [pool[j], pool[i]];
       }
-      const pickCount = Math.min(maxSlots, pool.length);
-      onReplace(pool.slice(0, pickCount).map((a) => a.id));
+      onReplace([pool[0].id]);
     };
-  }, [discoverAgents, maxSlots, onReplace]);
+  }, [discoverAgents, onReplace]);
 
   return (
     <section className={styles.sectionCard} aria-labelledby="opponents-heading">
@@ -43,6 +54,12 @@ export function ArenaOpponents({ discoverAgents, loading, selectedIds, maxSlots,
         <h2 id="opponents-heading" className={styles.sectionTitle}>Opponents</h2>
         <span className={styles.sectionStep}>2 of 3</span>
       </div>
+
+      {(stakedOneVOne || singleSelect) && (
+        <p className={styles.inlineEmpty} style={{ marginTop: 0, marginBottom: "0.5rem" }}>
+          {stakedOneVOne ? "Staked matches are 1v1" : "Pick one opponent"}
+        </p>
+      )}
 
       <div className={styles.opponentsBar}>
         <span className={styles.opponentsCount}>
@@ -68,7 +85,7 @@ export function ArenaOpponents({ discoverAgents, loading, selectedIds, maxSlots,
         <ul className={styles.opponentList}>
           {discoverAgents.map((agent) => {
             const selected = selectedIds.includes(agent.id);
-            const disabled = !selected && atMax;
+            const disabled = !selected && atMax && !singleSelect;
             const wr = winRate(agent.wins, agent.losses);
             return (
               <li key={agent.id}>
