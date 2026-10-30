@@ -339,14 +339,25 @@ export default function AgentsPageMobile({
     fetchAgents();
   }, [fetchAgents]);
 
+  const suggestedAgentName = () => {
+    const u = guestAuth?.guestUser?.username?.trim();
+    return u ? `${u} Agent` : "";
+  };
+
+  const openCreateForm = () => {
+    setEditingId(null);
+    setFormName(suggestedAgentName());
+    setShowForm(true);
+  };
+
   // Deep link: /agents?create=1 opens the create form once.
   React.useEffect(() => {
     if (createDeepLinkHandledRef.current) return;
     if (createParam !== "1") return;
     if (loading || authFailed) return;
     createDeepLinkHandledRef.current = true;
-    setEditingId(null);
-    setShowForm(true);
+    openCreateForm();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- open once when auth ready
   }, [createParam, loading, authFailed]);
 
   // On form load: AppKit address or injected EOA (registration uses injected EOA).
@@ -959,7 +970,7 @@ export default function AgentsPageMobile({
                   <p className="text-xs text-gray-400 mt-1 mb-4">Build an AI that plays Tycoon for you. Takes a name and a tap.</p>
                   <button
                     type="button"
-                    onClick={() => { setEditingId(null); setShowForm(true); }}
+                    onClick={openCreateForm}
                     className="w-full py-3 bg-[#00F0FF] text-[#010F10] font-orbitron font-bold rounded-xl text-sm flex items-center justify-center gap-2 border-2 border-[#00F0FF]/50 shadow-[0_0_18px_rgba(0,240,255,0.35)]"
                   >
                     <Sparkles className="w-4 h-4" />
@@ -1157,7 +1168,11 @@ export default function AgentsPageMobile({
                     type="text"
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
-                    placeholder="My Tycoon Bot"
+                    placeholder={
+                      guestAuth?.guestUser?.username?.trim()
+                        ? `${guestAuth.guestUser.username.trim()} Agent`
+                        : undefined
+                    }
                     className="w-full px-3 py-2.5 rounded-xl bg-black/70 border-2 border-cyan-500/40 text-white text-sm focus:border-cyan-400 outline-none"
                     required
                   />
@@ -1568,7 +1583,7 @@ export default function AgentsPageMobile({
               </form>
             ) : (
               <button
-                onClick={() => setShowForm(true)}
+                onClick={openCreateForm}
                 className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-dashed border-cyan-500/50 text-cyan-400 text-sm font-orbitron font-semibold hover:border-cyan-400 hover:bg-cyan-500/10"
               >
                 <Plus className="w-4 h-4" />

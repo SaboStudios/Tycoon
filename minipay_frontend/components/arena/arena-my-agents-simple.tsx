@@ -27,6 +27,7 @@ interface ArenaMyAgentsSimpleProps {
   onRefresh: () => void | Promise<void>;
   onGoPlay: () => void;
   onTogglePublic: (agentId: number, currentValue: boolean) => void;
+  playerUsername?: string | null;
 }
 
 export function ArenaMyAgentsSimple({
@@ -35,8 +36,10 @@ export function ArenaMyAgentsSimple({
   onRefresh,
   onGoPlay,
   onTogglePublic,
+  playerUsername,
 }: ArenaMyAgentsSimpleProps) {
-  const [name, setName] = useState("");
+  const nameSuggestion = (playerUsername || "").trim() ? `${(playerUsername || "").trim()} Agent` : "";
+  const [name, setName] = useState(nameSuggestion);
   const [listInDiscover, setListInDiscover] = useState(true);
   const [showStrategy, setShowStrategy] = useState(false);
   const [behaviorProfile, setBehaviorProfile] = useState<AgentBehaviorProfile>(defaultBehaviorProfile());
@@ -46,7 +49,7 @@ export function ArenaMyAgentsSimple({
   const [justCreated, setJustCreated] = useState(false);
 
   const resetCreateForm = () => {
-    setName("");
+    setName(nameSuggestion);
     setBehaviorProfile(defaultBehaviorProfile());
     setShowStrategy(false);
     setCreateError(null);
@@ -146,7 +149,7 @@ export function ArenaMyAgentsSimple({
               id="agent-name"
               type="text"
               className={styles.input}
-              placeholder="e.g. TradeBot, Alpha"
+              placeholder={nameSuggestion || undefined}
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={48}

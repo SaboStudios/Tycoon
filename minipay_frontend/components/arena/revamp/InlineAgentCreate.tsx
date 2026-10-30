@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Bot, Sparkles, Loader2 } from "lucide-react";
 import { toast } from "react-toastify";
 import { apiClient, ApiError } from "@/lib/api";
@@ -10,9 +10,17 @@ import styles from "./arena-revamp.module.css";
 type CreatedAgent = { id: number; name: string };
 
 type Props = {
+  /** Player username — preferred default is `${username} Agent`. */
   defaultName?: string;
+  playerUsername?: string | null;
   onCreated: (agent: CreatedAgent) => void;
 };
+
+function agentNameFromUsername(username: string | null | undefined): string {
+  const u = (username || "").trim();
+  if (!u) return "";
+  return `${u} Agent`;
+}
 
 const STRATEGY_PROMPT_LIMIT = 500;
 
@@ -44,12 +52,23 @@ function buildCustomPrompt(name: string, custom: string): string {
   ].join("\n");
 }
 
-export function InlineAgentCreate({ defaultName, onCreated }: Props) {
-  const suggestedName = useMemo(() => defaultName && defaultName.trim() ? defaultName : "My First Agent", [defaultName]);
+export function InlineAgentCreate({ defaultName, playerUsername, onCreated }: Props) {
+  const suggestedName = useMemo(() => {
+    if (defaultName && defaultName.trim()) return defaultName.trim();
+    return agentNameFromUsername(playerUsername);
+  }, [defaultName, playerUsername]);
   const [name, setName] = useState(suggestedName);
   const [mode, setMode] = useState<"default" | "custom">("default");
   const [custom, setCustom] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [touchedName, setTouchedName] = useState(false);
+
+  // When username loads after mount, fill only if the player hasn't edited the field.
+  useEffect(() => {
+    if (touchedName) return;
+    if (!suggestedName) return;
+    setName(suggestedName);
+  }, [suggestedName, touchedName]);
 
   const customOverLimit = custom.length > STRATEGY_PROMPT_LIMIT;
   const customTooShort = mode === "custom" && custom.trim().length < 10;
@@ -121,7 +140,11 @@ export function InlineAgentCreate({ defaultName, onCreated }: Props) {
           type="text"
           className={styles.input}
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => {
+            setTouchedName(true);
+            setName(e.target.value);
+          }}
+          placeholder={suggestedName || undefined}
           maxLength={48}
           autoComplete="off"
         />

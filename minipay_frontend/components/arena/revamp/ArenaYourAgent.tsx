@@ -11,11 +11,18 @@ type Props = {
   challengerAgentId: number | null;
   onChallengerChange: (id: number) => void;
   onCreated: (agent: { id: number; name: string }) => void;
+  playerUsername?: string | null;
 };
 
-export function ArenaYourAgent({ agents, challengerAgentId, onChallengerChange, onCreated }: Props) {
+export function ArenaYourAgent({
+  agents,
+  challengerAgentId,
+  onChallengerChange,
+  onCreated,
+  playerUsername,
+}: Props) {
   if (agents.length === 0) {
-    return <InlineAgentCreate onCreated={onCreated} />;
+    return <InlineAgentCreate playerUsername={playerUsername} onCreated={onCreated} />;
   }
 
   const active = agents.find((a) => a.id === challengerAgentId) ?? agents[0];

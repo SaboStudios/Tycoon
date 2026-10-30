@@ -59,6 +59,7 @@ export interface ArenaRevampPageProps {
   onDismissError?: () => void;
   onAgentCreated?: (agent: { id: number; name: string }) => void;
   onRefreshMyAgents?: () => void;
+  playerUsername?: string | null;
 }
 
 const TABS: {
@@ -107,6 +108,7 @@ export function ArenaRevampPage({
   onDismissError,
   onAgentCreated,
   onRefreshMyAgents,
+  playerUsername,
 }: ArenaRevampPageProps) {
   const [tipDismissed, setTipDismissed] = useState(true);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -277,6 +279,7 @@ export function ArenaRevampPage({
                   agents={playingAsOptions}
                   challengerAgentId={challengerAgentId}
                   onChallengerChange={onChallengerChange}
+                  playerUsername={playerUsername}
                   onCreated={(agent) => {
                     onAgentCreated?.(agent);
                     onRefreshMyAgents?.();

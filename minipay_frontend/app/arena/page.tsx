@@ -775,6 +775,7 @@ export default function ArenaPage() {
         onRefresh={() => fetchMyAgents({ silent: true })}
         onGoPlay={() => setArenaTab("discover")}
         onTogglePublic={toggleAgentPublic}
+        playerUsername={guestUser?.username ?? null}
       />
     ),
   };
@@ -807,6 +808,7 @@ export default function ArenaPage() {
         onDismissError={dismissError}
         onAgentCreated={handleAgentCreated}
         onRefreshMyAgents={() => fetchMyAgents({ silent: true })}
+        playerUsername={guestUser?.username ?? null}
       />
       <ArenaOnchainModal
         open={arenaTxModalOpen}
