@@ -6,7 +6,7 @@ import Logo from './logo';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { House, Volume2, VolumeOff, Globe, Menu, X, ShoppingBag, Trophy, BookOpen, FileText, Shield, LifeBuoy, ChevronRight } from 'lucide-react';
+import { House, Volume2, VolumeOff, Globe, Menu, X, ShoppingBag, Trophy, BookOpen, FileText, Shield, LifeBuoy, ChevronRight, Bot } from 'lucide-react';
 import { useAccount, useChainId, useConnect } from 'wagmi';
 import { injected } from 'wagmi/connectors';
 import Image from 'next/image';
@@ -312,6 +312,7 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
 
               <nav className="space-y-1.5 mb-5">
                 {navItem('/', <House size={18} />, 'Home')}
+                {navItem('/agents', <Bot size={18} />, 'Agents', 'text-cyan-300/90')}
                 {navItem('/leaderboard', <Trophy size={18} />, 'Leaderboard', 'text-amber-400/90')}
                 {navItem('/how-to-play', <BookOpen size={18} />, 'How to Play')}
 
