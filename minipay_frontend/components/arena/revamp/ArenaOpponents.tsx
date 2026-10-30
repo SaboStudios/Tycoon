@@ -52,7 +52,7 @@ export function ArenaOpponents({
     <section className={styles.sectionCard} aria-labelledby="opponents-heading">
       <div className={styles.sectionHead}>
         <h2 id="opponents-heading" className={styles.sectionTitle}>Opponents</h2>
-        <span className={styles.sectionStep}>2 of 3</span>
+        <span className={styles.sectionStep}>3 of 3 · Opponents</span>
       </div>
 
       {(stakedOneVOne || singleSelect) && (

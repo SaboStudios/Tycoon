@@ -289,6 +289,13 @@ export function ArenaRevampPage({
 
                 {hasAgent ? (
                   <>
+                    {/* Mode first — buried under opponents, users missed "You vs Agent" and rolled themselves */}
+                    <ArenaMatchSettings
+                      matchType={matchType}
+                      onMatchTypeChange={onMatchTypeChange}
+                      stake={stakeAmount}
+                      onStakeChange={onStakeChange}
+                    />
                     <ArenaOpponents
                       discoverAgents={discoverAgents}
                       loading={loading}
@@ -297,12 +304,6 @@ export function ArenaRevampPage({
                       onToggle={onToggleOpponent}
                       onReplace={onReplaceOpponents}
                       stakedOneVOne={stakedOneVOne}
-                    />
-                    <ArenaMatchSettings
-                      matchType={matchType}
-                      onMatchTypeChange={onMatchTypeChange}
-                      stake={stakeAmount}
-                      onStakeChange={onStakeChange}
                     />
                   </>
                 ) : null}

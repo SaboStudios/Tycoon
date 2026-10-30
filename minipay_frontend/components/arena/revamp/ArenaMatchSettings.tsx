@@ -65,7 +65,7 @@ export function ArenaMatchSettings({ matchType, onMatchTypeChange, stake, onStak
     <section className={styles.sectionCard} aria-labelledby="match-settings-heading">
       <div className={styles.sectionHead}>
         <h2 id="match-settings-heading" className={styles.sectionTitle}>Match settings</h2>
-        <span className={styles.sectionStep}>3 of 3</span>
+        <span className={styles.sectionStep}>2 of 3 · Mode</span>
       </div>
 
       <button

@@ -36,7 +36,7 @@ export function ArenaYourAgent({
     <section className={styles.sectionCard} aria-labelledby="your-agent-heading">
       <div className={styles.sectionHead}>
         <h2 id="your-agent-heading" className={styles.sectionTitle}>Your agent</h2>
-        <span className={styles.sectionStep}>1 of 3</span>
+        <span className={styles.sectionStep}>1 of 3 · Agent</span>
       </div>
 
       <div className={styles.agentActiveRow}>
