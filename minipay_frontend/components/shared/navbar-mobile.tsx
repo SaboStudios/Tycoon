@@ -312,7 +312,7 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
 
               <nav className="space-y-1.5 mb-5">
                 {navItem('/', <House size={18} />, 'Home')}
-                {navItem('/agents', <Bot size={18} />, 'Agents', 'text-cyan-300/90')}
+                {navItem('/arena', <Bot size={18} />, 'Agents', 'text-cyan-300/90')}
                 {navItem('/leaderboard', <Trophy size={18} />, 'Leaderboard', 'text-amber-400/90')}
                 {navItem('/how-to-play', <BookOpen size={18} />, 'How to Play')}
 
