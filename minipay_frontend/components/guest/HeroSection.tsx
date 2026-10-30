@@ -6,7 +6,6 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import HeroMarketingContent from "@/components/guest/HeroMarketingContent";
 import HeroNoticeBanner from "@/components/guest/HeroNoticeBanner";
-import { JulyBogoPromoBanner } from "@/components/promos/JulyBogoPromoBanner";
 
 const ParticleBackground = dynamic(
   () => import("@/components/hero/ParticleBackground").then((m) => ({ default: m.ParticleBackground })),
@@ -152,7 +151,6 @@ const HeroSection: React.FC = () => {
           )}
         </div>
 
-        <JulyBogoPromoBanner variant="compact" dismissible className="mt-4 w-full max-w-sm" />
       </main>
 
       <div className="hero-overlay-fade-in">

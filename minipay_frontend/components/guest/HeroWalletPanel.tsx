@@ -33,6 +33,7 @@ import { ApiResponse } from "@/types/api";
 import { useUserLevel } from "@/hooks/useUserLevel";
 import GoodDollarStatusCard from "@/components/gooddollar/GoodDollarStatusCard";
 import { DailyClaim } from "@/components/rewards/DailyClaim";
+import { JulyBogoPromoBanner } from "@/components/promos/JulyBogoPromoBanner";
 
 function chainIdToBackendChain(chainId: number): string {
   return "CELO";
@@ -538,20 +539,6 @@ const HeroWalletPanel: React.FC<HeroWalletPanelProps> = ({ onReturningPlayerChan
               </motion.div>
             )}
 
-            {/* Core G$ gate — visible on home so reviewers see identity before Challenge AI */}
-            <GoodDollarStatusCard
-              variant="hero"
-              chain="CELO"
-              playAddress={getGuestUserPlayAddress(guestUser) ?? address ?? undefined}
-            />
-
-            {/* Daily TYC claim + G$ citizen bonus — visible when returning players land on home */}
-            <DailyClaim
-              variant="hero"
-              chain="CELO"
-              playAddress={getGuestUserPlayAddress(guestUser) ?? address ?? undefined}
-            />
-
           </div>
         )}
 
@@ -736,11 +723,15 @@ const HeroWalletPanel: React.FC<HeroWalletPanelProps> = ({ onReturningPlayerChan
           {/* Action buttons: require Privy for EOA; guest/Privy. Show when fully set up (hasSmartWallet preferred, but allow linked/registered users to try). */}
           {!isConnecting && ((address && registrationStatus === "fully-registered" && walletSessionReady) || (registrationStatus === "privy" && (guestUser || walletSessionReady))) ? (
             <motion.div
-              className="flex flex-wrap justify-center items-center gap-2 mb-20"
+              className="flex w-full max-w-sm flex-col items-center gap-3 mb-20"
               initial={false}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: 0 }}
             >
+              {/* Primary promo — Buy 1 Get 1 sits with the play CTAs */}
+              <JulyBogoPromoBanner variant="hero" className="mt-0" />
+
+              <div className="flex flex-wrap justify-center items-center gap-2 w-full">
               {/* Continue Previous Game - Highlighted (wallet: from contract; guest: from my-games) */}
               {((address && gameCode && (contractGame?.status == 1) && (!backendGame || (backendGame.status !== "FINISHED" && backendGame.status !== "COMPLETED" && backendGame.status !== "CANCELLED"))) ||
                 (guestUser && guestLastGame && guestLastGame.status !== "COMPLETED" && guestLastGame.status !== "CANCELLED")) && (
@@ -913,7 +904,21 @@ const HeroWalletPanel: React.FC<HeroWalletPanelProps> = ({ onReturningPlayerChan
                   </motion.button>
                 </div>
               )}
+              </div>
 
+              {/* Secondary: G$ + daily claim — small, below the promo + play buttons */}
+              <div className="flex w-full flex-col items-center gap-1.5 opacity-90">
+                <GoodDollarStatusCard
+                  variant="hero"
+                  chain="CELO"
+                  playAddress={getGuestUserPlayAddress(guestUser) ?? address ?? undefined}
+                />
+                <DailyClaim
+                  variant="hero"
+                  chain="CELO"
+                  playAddress={getGuestUserPlayAddress(guestUser) ?? address ?? undefined}
+                />
+              </div>
             </motion.div>
           ) : null}
 

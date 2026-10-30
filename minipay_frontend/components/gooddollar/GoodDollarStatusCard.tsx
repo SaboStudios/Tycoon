@@ -40,10 +40,10 @@ export default function GoodDollarStatusCard({
     if (variant === "hero") {
       return (
         <div
-          className={`w-full max-w-sm rounded-lg border border-[#003B3E]/50 bg-[#0E1415]/40 px-3 py-2 flex items-center gap-2 ${className}`}
+          className={`w-full max-w-[240px] flex items-center justify-center gap-1.5 py-0.5 ${className}`}
         >
-          <Loader2 className="w-3.5 h-3.5 text-slate-400 animate-spin shrink-0" />
-          <span className="text-[11px] text-slate-400">Checking GoodDollar…</span>
+          <Loader2 className="w-3 h-3 text-slate-500 animate-spin shrink-0" />
+          <span className="text-[10px] text-slate-500">G$…</span>
         </div>
       );
     }
@@ -88,20 +88,18 @@ export default function GoodDollarStatusCard({
     if (data.verified) {
       return (
         <div
-          className={`w-full max-w-sm rounded-lg border border-emerald-500/30 bg-emerald-950/25 px-3 py-2 flex items-center gap-2 ${className}`}
+          className={`w-full max-w-[240px] flex items-center justify-center gap-1.5 px-1 py-0.5 ${className}`}
         >
-          <ShieldCheck className="w-4 h-4 text-emerald-300 shrink-0" />
-          <p className="flex-1 min-w-0 text-[11px] font-orbitron font-semibold text-emerald-100 truncate">
-            G$ verified
-          </p>
+          <ShieldCheck className="w-3 h-3 text-emerald-400/80 shrink-0" />
+          <p className="text-[10px] font-orbitron text-emerald-200/80 truncate">G$ verified</p>
           <button
             type="button"
             onClick={() => refetch()}
             disabled={isFetching}
-            className="p-1 rounded text-slate-400 hover:text-cyan-300 disabled:opacity-50"
+            className="p-0.5 rounded text-slate-500 hover:text-cyan-300 disabled:opacity-50"
             aria-label="Recheck verification"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? "animate-spin" : ""}`} />
+            <RefreshCw className={`w-3 h-3 ${isFetching ? "animate-spin" : ""}`} />
           </button>
         </div>
       );
@@ -109,34 +107,20 @@ export default function GoodDollarStatusCard({
 
     return (
       <div
-        className={`w-full max-w-sm rounded-lg border border-cyan-500/25 bg-[#0E1415]/55 px-3 py-2.5 ${className}`}
+        className={`w-full max-w-[240px] flex items-center gap-2 rounded-md border border-cyan-500/20 bg-[#0E1415]/40 px-2 py-1 ${className}`}
       >
-        <div className="flex items-center gap-2 mb-2">
-          <Shield className="w-4 h-4 text-cyan-300 shrink-0" />
-          <p className="flex-1 min-w-0 text-[11px] font-orbitron font-semibold text-white truncate">
-            GoodDollar required to play
-          </p>
-          <button
-            type="button"
-            onClick={() => refetch()}
-            disabled={isFetching}
-            className="p-1 rounded text-slate-400 hover:text-cyan-300 disabled:opacity-50"
-            aria-label="Recheck verification"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? "animate-spin" : ""}`} />
-          </button>
-        </div>
+        <Shield className="w-3 h-3 text-cyan-300/80 shrink-0" />
+        <p className="flex-1 min-w-0 text-[10px] text-slate-300 truncate">G$ needed to play</p>
         <button
           type="button"
           onClick={() => {
             void startVerification();
           }}
           disabled={!sdkReady}
-          className="w-full py-2 rounded-lg bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] text-[#010F10] font-orbitron font-bold text-[11px] uppercase tracking-wide flex items-center justify-center gap-1.5 hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="shrink-0 rounded px-2 py-0.5 text-[10px] font-orbitron font-semibold uppercase tracking-wide border border-cyan-400/35 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
           title={sdkReady ? undefined : "Connect your MiniPay wallet on Celo"}
         >
-          <ExternalLink className="w-3.5 h-3.5" />
-          {sdkReady ? "Verify with GoodDollar" : "Connect wallet to verify"}
+          Verify
         </button>
       </div>
     );
