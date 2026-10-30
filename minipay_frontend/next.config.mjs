@@ -40,25 +40,37 @@ const nextConfig = {
    * Browserslist/SWC only affect syntax downleveling — not this file. Stub it for MiniPay.
    */
   webpack(config, { isServer, webpack }) {
-    // CDP / Base Account optional peers — MiniPay only uses injected wallet.
-    // Without these aliases, `wagmi/connectors` barrel → @base-org/account →
-    // @coinbase/cdp-sdk fails the Vercel build with "Can't resolve '@x402/*'".
-    const x402Stub = emptyPolyfill;
+    // Optional peers pulled by the wagmi/connectors + AppKit barrel that MiniPay
+    // never uses (injected only). Without stubs, Vercel fails "Can't resolve …"
+    // because this repo has no package-lock and npm picks newer nested connectors.
+    const optionalPeerStub = path.join(__dirname, "lib/empty-module-stub.js");
     config.resolve.alias = {
       ...config.resolve.alias,
-      "@x402/evm": x402Stub,
-      "@x402/svm": x402Stub,
-      "@x402/svm/exact/client": x402Stub,
-      "@x402/fetch": x402Stub,
+      "@x402/evm": optionalPeerStub,
+      "@x402/svm": optionalPeerStub,
+      "@x402/svm/exact/client": optionalPeerStub,
+      "@x402/fetch": optionalPeerStub,
+      "@metamask/connect-evm": optionalPeerStub,
+      "@base-org/account": optionalPeerStub,
+      "@coinbase/wallet-sdk": optionalPeerStub,
+      "@coinbase/cdp-sdk": optionalPeerStub,
+      "@safe-global/safe-apps-sdk": optionalPeerStub,
+      "@safe-global/safe-apps-provider": optionalPeerStub,
+      // Tempo Accounts SDK (bare package name imported by @wagmi/core tempo exports)
+      accounts: optionalPeerStub,
       ...(isServer
         ? {}
         : {
             [nextPolyfillModule]: emptyPolyfill,
           }),
     };
-    // Catch nested subpaths webpack may not match via alias keys alone.
     config.plugins.push(
-      new webpack.NormalModuleReplacementPlugin(/^@x402\//, emptyPolyfill)
+      new webpack.NormalModuleReplacementPlugin(/^@x402\//, optionalPeerStub),
+      new webpack.NormalModuleReplacementPlugin(
+        /^@metamask\/connect-evm$/,
+        optionalPeerStub
+      ),
+      new webpack.NormalModuleReplacementPlugin(/^accounts$/, optionalPeerStub)
     );
     if (!isServer) {
       config.plugins.push(
