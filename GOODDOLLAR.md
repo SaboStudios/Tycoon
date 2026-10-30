@@ -80,12 +80,37 @@ one RPC round-trip.
 5. **On the web app (same backend):** create an AI game as usual — no modal,
    no gate (the body does not set `is_minipay: true`).
 
+## How to see verification status (without triggering the play gate)
+
+The Profile tab in the MiniPay app shows a GoodDollar status row backed by
+the same `isUserGoodDollarVerified(user)` check the play gate uses.
+
+- Endpoint: `GET /api/gooddollar/status` (auth required)
+- Response: `{ success, enabled, verified, checkedAddresses, verifyUrl }`
+- `checkedAddresses` lists every wallet the backend tested (linked →
+  smart → primary → wallet), so a reviewer can confirm which account was
+  checked — the Profile card displays the first one as the primary and
+  mentions the count of extras.
+- Query stale-time is 60s (matches the server identity cache). A small
+  recheck icon on the card forces a refetch when a reviewer just finished
+  verifying.
+- If `GD_IDENTITY_ENABLED=false` or the identity env is missing, the card
+  renders a muted "verification isn't available on this environment"
+  rather than a misleading "Not verified" + CTA.
+
 ## Where to look in code
 
 - Backend gate: `backend/controllers/gameController.js` — grep
   `GOODID_REQUIRED`.
-- Identity read: `backend/services/goodDollarIdentity.js`.
+- Backend status endpoint: `backend/controllers/goodDollarController.js`
+  (`GET /api/gooddollar/status`, wired in `backend/server.js`).
+- Identity read: `backend/services/goodDollarIdentity.js`
+  (`getUserGoodDollarVerificationDetail` is the shared source of truth;
+  `isUserGoodDollarVerified` is now a thin wrapper over it).
 - Frontend modal: `minipay_frontend/components/gooddollar/GoodDollarVerifyModal.tsx`.
+- Frontend status card: `minipay_frontend/components/gooddollar/GoodDollarStatusCard.tsx`
+  (mounted in `components/profile/profile-mobile.tsx`).
+- Frontend status hook: `minipay_frontend/hooks/useGoodDollarStatus.ts`.
 - Error → event bridge: `minipay_frontend/lib/goodDollarVerifyPrompt.ts`.
 - Central interceptor: `minipay_frontend/lib/api.ts`
   (`handleGoodDollarVerifyError` call).
