@@ -33,14 +33,16 @@ export default function OnboardingModal({ onDismiss }: OnboardingModalProps) {
   const [isMiniPay, setIsMiniPay] = useState(false);
 
   useEffect(() => {
-    if (hasSeenOnboarding()) return;
-    setOpen(true);
-  }, []);
-
-  useEffect(() => {
     if (typeof window === "undefined") return;
     const eth = (window as Window & { ethereum?: { isMiniPay?: boolean } }).ethereum;
-    setIsMiniPay(Boolean(eth?.isMiniPay));
+    const miniPay = Boolean(eth?.isMiniPay);
+    setIsMiniPay(miniPay);
+    // MiniPay auto-connects via useMinipayAutoConnect — the sign-in/connect
+    // ceremony this modal pitches doesn't apply (no email login, wallet is
+    // already there). Skip entirely so reviewers don't see a stale CTA.
+    if (miniPay) return;
+    if (hasSeenOnboarding()) return;
+    setOpen(true);
   }, []);
 
   const handleDismiss = () => {

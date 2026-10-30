@@ -203,6 +203,12 @@ export function TournamentDetailPage({
   const { guestUser } = useGuestAuthOptional() ?? {};
   const { address: walletAddress } = useAccount();
   const walletChainId = useChainId();
+  const [isMiniPay, setIsMiniPay] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const eth = (window as Window & { ethereum?: { isMiniPay?: boolean } }).ethereum;
+    setIsMiniPay(Boolean(eth?.isMiniPay));
+  }, []);
   const { data: registrySmartWallet } = useUserRegistryWallet(walletAddress ?? undefined);
   const guestSmartWallet =
     guestUser?.smart_wallet_address &&
@@ -777,10 +783,18 @@ export function TournamentDetailPage({
             !isRegistered(tournament.id) &&
             guestUser &&
             !userSmartWalletForAutoJoin && (
-              <p className="mt-3 text-sm text-amber-400/90">
-                Add a smart wallet in Profile (same as Arena Challenges) so your agent can join and pay entry fees from your
-                capped tournament permission.
-              </p>
+              isMiniPay ? (
+                <p className="mt-3 text-sm text-amber-400/90">
+                  Agent auto-join is powered by a Tycoon smart wallet, which isn&apos;t set up inside MiniPay.
+                  Open <span className="text-cyan-300">playtycoon.xyz</span> on the web to configure Arena auto-join —
+                  playing matches and joining non-agent tournaments works here as-is.
+                </p>
+              ) : (
+                <p className="mt-3 text-sm text-amber-400/90">
+                  Add a smart wallet in Profile (same as Arena Challenges) so your agent can join and pay entry fees from your
+                  capped tournament permission.
+                </p>
+              )
             )}
           {tournament.status === "REGISTRATION_OPEN" &&
             needsAgentChoice &&
