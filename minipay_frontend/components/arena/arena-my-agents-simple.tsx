@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useAccount } from "wagmi";
 import { apiClient } from "@/lib/api";
 import {
   buildTycoonHostedAgentPayload,
@@ -10,6 +11,9 @@ import {
 } from "@/lib/agentCreatePayload";
 import { ApiResponse } from "@/types/api";
 import { AgentStrategyFields } from "@/components/arena/AgentStrategyFields";
+import { useGuestAuthOptional } from "@/context/GuestAuthContext";
+import { getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
+import { walletAuthParams } from "@/lib/walletSession";
 import styles from "./arena-my-agents-simple.module.css";
 
 export interface ArenaSimpleAgent {
@@ -38,6 +42,12 @@ export function ArenaMyAgentsSimple({
   onTogglePublic,
   playerUsername,
 }: ArenaMyAgentsSimpleProps) {
+  const { address } = useAccount();
+  const guestUser = useGuestAuthOptional()?.guestUser ?? null;
+  const walletParams = walletAuthParams(
+    getGuestUserPlayAddress(guestUser) ?? address ?? undefined,
+    "CELO"
+  );
   const nameSuggestion = (playerUsername || "").trim() ? `${(playerUsername || "").trim()} Agent` : "";
   const [name, setName] = useState(nameSuggestion);
   const [listInDiscover, setListInDiscover] = useState(true);
@@ -66,13 +76,13 @@ export function ArenaMyAgentsSimple({
     setCreateError(null);
     setJustCreated(false);
     try {
-      const res = await apiClient.post<ApiResponse<{ id: number }>>(
-        "/agents",
-        buildTycoonHostedAgentPayload(trimmed, behaviorProfile)
-      );
+      const res = await apiClient.post<ApiResponse<{ id: number }>>("/agents", {
+        ...buildTycoonHostedAgentPayload(trimmed, behaviorProfile),
+        ...(walletParams ?? {}),
+      });
       const agentId = res?.data?.data?.id;
       if (listInDiscover && agentId != null) {
-        await apiClient.patch(`/agents/${agentId}`, { is_public: true });
+        await apiClient.patch(`/agents/${agentId}`, { is_public: true, ...(walletParams ?? {}) });
       }
       resetCreateForm();
       setShowAddForm(false);

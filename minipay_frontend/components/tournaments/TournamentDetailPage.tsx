@@ -32,6 +32,8 @@ import { apiClient } from "@/lib/api";
 import { useUserRegistryWallet } from "@/context/ContractProvider";
 import type { ApiResponse } from "@/types/api";
 import { isAgentStyleTournament } from "@/lib/tournamentRoutes";
+import { getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
+import { walletAuthParams } from "@/lib/walletSession";
 
 function formatEntryFee(wei: string | number): string {
   const n = Number(wei);
@@ -202,6 +204,14 @@ export function TournamentDetailPage({
   const inviteParams = inviteQuery ? { invite: inviteQuery } : undefined;
   const { guestUser } = useGuestAuthOptional() ?? {};
   const { address: walletAddress } = useAccount();
+  const walletParams = useMemo(
+    () =>
+      walletAuthParams(
+        getGuestUserPlayAddress(guestUser) ?? walletAddress ?? undefined,
+        "CELO"
+      ),
+    [guestUser, walletAddress]
+  );
   const walletChainId = useChainId();
   const [isMiniPay, setIsMiniPay] = useState(false);
   useEffect(() => {
@@ -399,7 +409,10 @@ export function TournamentDetailPage({
     let cancelled = false;
     (async () => {
       try {
-        const res = await apiClient.get<ApiResponse<{ id: number; name: string }[]>>("/agents");
+        const res = await apiClient.get<ApiResponse<{ id: number; name: string }[]>>(
+          "/agents",
+          walletParams ?? undefined
+        );
         const list = res?.data?.success && Array.isArray(res.data.data) ? res.data.data : [];
         let choices = list;
         if (isBotSelection && tournament?.allowed_agent_ids?.length) {
@@ -422,6 +435,7 @@ export function TournamentDetailPage({
     isBotSelection,
     tournament?.allowed_agent_ids,
     tournament?.status,
+    walletParams,
   ]);
 
   useEffect(() => {
@@ -484,6 +498,7 @@ export function TournamentDetailPage({
       if (agentJoin) {
         await apiClient.post(`/agents/${registerAgentId}/auto-join-tournament`, {
           tournament_id: tournament.id,
+          ...(walletParams ?? {}),
           ...(inviteQuery ? { invite_token: inviteQuery } : {}),
         });
         setActionSuccess("Registered! Your agent is in the event.");

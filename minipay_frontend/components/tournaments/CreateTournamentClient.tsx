@@ -18,6 +18,8 @@ import { useFundPrizePool } from "@/hooks/useFundPrizePool";
 import { ChevronLeft, Loader2, Swords, Wallet, CheckCircle2, Eye, Trophy, Users, Zap, Link2 } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
+import { getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
+import { walletAuthParams } from "@/lib/walletSession";
 
 type MyAgentRow = { id: number; name: string };
 
@@ -109,6 +111,10 @@ export function CreateTournamentClient({
   const guestUser = guestAuth?.guestUser ?? null;
   const authLoading = guestAuth?.isLoading ?? false;
   const loginByWallet = guestAuth?.loginByWallet;
+  const walletParams = walletAuthParams(
+    getGuestUserPlayAddress(guestUser) ?? address ?? undefined,
+    "CELO"
+  );
   const { createTournament } = useTournament();
   const { fund: fundPrizePoolOnChain, isPending: fundPoolPending } = useFundPrizePool();
 
@@ -138,7 +144,7 @@ export function CreateTournamentClient({
   const [warning, setWarning] = useState<string | null>(null);
 
   const isPrivyAuthed = ready && authenticated;
-  const isSignedIn = !!guestUser;
+  const isSignedIn = !!guestUser || Boolean(walletParams?.address);
   const hasWallet = isConnected && !!address;
   const canCreate = isSignedIn || hasWallet;
   const showAuthGate = !authLoading && !canCreate;
@@ -195,7 +201,10 @@ export function CreateTournamentClient({
     (async () => {
       setAgentsLoading(true);
       try {
-        const res = await apiClient.get<ApiResponse<MyAgentRow[]>>("/agents");
+        const res = await apiClient.get<ApiResponse<MyAgentRow[]>>(
+          "/agents",
+          walletParams ?? undefined
+        );
         const list = res?.data?.success && Array.isArray(res.data.data) ? res.data.data : [];
         if (!cancelled) setMyAgents(list);
       } catch {
@@ -207,7 +216,7 @@ export function CreateTournamentClient({
     return () => {
       cancelled = true;
     };
-  }, [autoFillBots, canLoadAgents]);
+  }, [autoFillBots, canLoadAgents, walletParams]);
 
   const toggleAgentPick = (agentId: number) => {
     setSelectedAgentIds((prev) =>

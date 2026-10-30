@@ -2,9 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Bot, Sparkles, Loader2 } from "lucide-react";
+import { useAccount } from "wagmi";
 import { toast } from "react-toastify";
 import { apiClient, ApiError } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
+import { useGuestAuthOptional } from "@/context/GuestAuthContext";
+import { getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
+import { walletAuthParams } from "@/lib/walletSession";
 import styles from "./arena-revamp.module.css";
 
 type CreatedAgent = { id: number; name: string };
@@ -53,6 +57,11 @@ function buildCustomPrompt(name: string, custom: string): string {
 }
 
 export function InlineAgentCreate({ defaultName, playerUsername, onCreated }: Props) {
+  const { address } = useAccount();
+  const guestUser = useGuestAuthOptional()?.guestUser ?? null;
+  const playAddress = getGuestUserPlayAddress(guestUser) ?? address ?? undefined;
+  const walletParams = walletAuthParams(playAddress, "CELO");
+
   const suggestedName = useMemo(() => {
     if (defaultName && defaultName.trim()) return defaultName.trim();
     return agentNameFromUsername(playerUsername);
@@ -105,6 +114,7 @@ export function InlineAgentCreate({ defaultName, playerUsername, onCreated }: Pr
         use_tycoon_key: true,
         chain_id: 42220,
         config,
+        ...(walletParams ?? {}),
       });
       const created = res.data?.data;
       if (!created?.id) throw new Error("No agent returned");

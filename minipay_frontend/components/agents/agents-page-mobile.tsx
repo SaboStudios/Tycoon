@@ -19,6 +19,8 @@ import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { useRegisterAgentERC8004, useVerifyErc8004AgentId } from "@/context/ContractProvider";
 import { getInjectedEoaAddress } from "@/lib/utils/erc8004InjectedEoa";
 import { useAgentSettings, TradeBehavior, BuildStyle, BuyStyle } from "@/hooks/useAgentSettings";
+import { getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
+import { walletAuthParams } from "@/lib/walletSession";
 
 function chainIdToBackendChain(chainId: number): string {
   return "CELO";
@@ -180,6 +182,14 @@ export default function AgentsPageMobile({
   const chainId = useChainId();
   const { signMessageAsync } = useSignMessage();
   const guestAuth = useGuestAuthOptional();
+  const walletParams = React.useMemo(
+    () =>
+      walletAuthParams(
+        getGuestUserPlayAddress(guestAuth?.guestUser) ?? address ?? undefined,
+        "CELO"
+      ),
+    [guestAuth?.guestUser, address]
+  );
   const triedWalletAutoLogin = React.useRef(false);
   const tournamentJumpHandledRef = React.useRef<number | null>(null);
   const [walletLinkRetry, setWalletLinkRetry] = useState(0);
@@ -235,16 +245,22 @@ export default function AgentsPageMobile({
     setAuthFailed(false);
     setWalletNotRegistered(false);
     try {
-      const res = await apiClient.get<ApiResponse<UserAgent[]>>("/agents");
+      const res = await apiClient.get<ApiResponse<UserAgent[]>>("/agents", walletParams ?? undefined);
       if (res.data?.success && Array.isArray(res.data.data)) {
         setAgents(res.data.data);
       } else {
         setAgents([]);
       }
-      const credRes = await apiClient.get<ApiResponse<HostedCreditsData>>("/agents/hosted-credits");
+      const credRes = await apiClient.get<ApiResponse<HostedCreditsData>>(
+        "/agents/hosted-credits",
+        walletParams ?? undefined
+      );
       if (credRes.data?.success && credRes.data.data) setHostedCredits(credRes.data.data);
       else setHostedCredits(null);
-      const permRes = await apiClient.get<ApiResponse<TournamentPermission[]>>("/agents/tournament-permissions");
+      const permRes = await apiClient.get<ApiResponse<TournamentPermission[]>>(
+        "/agents/tournament-permissions",
+        walletParams ?? undefined
+      );
       const list = (permRes as any)?.data?.data?.data;
       if (Array.isArray(list)) {
         const map: Record<number, TournamentPermission> = {};
@@ -270,7 +286,7 @@ export default function AgentsPageMobile({
     } finally {
       setLoading(false);
     }
-  }, [embeddedInArena]);
+  }, [embeddedInArena, walletParams]);
 
   const openTournamentPerms = React.useCallback((a: UserAgent) => {
     const p = tournamentPerms[a.id];
@@ -318,7 +334,10 @@ export default function AgentsPageMobile({
         daily_cap_usdc: permDailyCap.trim() ? permDailyCap.trim() : null,
       };
       if (permEnabled) payload.pin = permPin;
-      const res = await apiClient.post(`/agents/${permModalAgent.id}/tournament-permissions`, payload);
+      const res = await apiClient.post(`/agents/${permModalAgent.id}/tournament-permissions`, {
+        ...payload,
+        ...(walletParams ?? {}),
+      });
       if ((res as any)?.data?.success) {
         toast.success("Saved");
         await fetchAgents();
@@ -423,7 +442,7 @@ export default function AgentsPageMobile({
           if (embeddedInArena) setArenaWalletSignInRequested(false);
           setLoading(true);
           try {
-            const r = await apiClient.get<ApiResponse<UserAgent[]>>("/agents");
+            const r = await apiClient.get<ApiResponse<UserAgent[]>>("/agents", walletParams ?? undefined);
             if (r.data?.success && Array.isArray(r.data.data)) setAgents(r.data.data);
           } finally {
             setLoading(false);
@@ -569,12 +588,19 @@ export default function AgentsPageMobile({
       }
       payload.config = Object.keys(safeConfig).length > 0 ? safeConfig : null;
       if (editingId) {
-        await apiClient.patch<ApiResponse<UserAgent>>(`/agents/${editingId}`, payload);
+        await apiClient.patch<ApiResponse<UserAgent>>(`/agents/${editingId}`, {
+          ...payload,
+          ...(walletParams ?? {}),
+        });
         toast.success("Agent updated");
         resetForm();
         await fetchAgents();
       } else {
-        const res = await apiClient.post<ApiResponse<UserAgent>>("/agents", { ...payload, chain_id: 42220 });
+        const res = await apiClient.post<ApiResponse<UserAgent>>("/agents", {
+          ...payload,
+          chain_id: 42220,
+          ...(walletParams ?? {}),
+        });
         const newId = res.data?.data?.id ?? null;
         toast.success("Agent created — ready to battle");
         resetForm();
@@ -598,7 +624,7 @@ export default function AgentsPageMobile({
     if (!confirm("Delete this agent?")) return;
     setDeletingId(id);
     try {
-      await apiClient.delete(`/agents/${id}`);
+      await apiClient.delete(`/agents/${id}`, walletParams ?? undefined);
       toast.success("Agent deleted");
       await fetchAgents();
     } catch {
@@ -612,7 +638,10 @@ export default function AgentsPageMobile({
     const next = !a.is_public;
     setTogglingDiscoverId(a.id);
     try {
-      await apiClient.patch<ApiResponse<UserAgent>>(`/agents/${a.id}`, { is_public: next });
+      await apiClient.patch<ApiResponse<UserAgent>>(`/agents/${a.id}`, {
+        is_public: next,
+        ...(walletParams ?? {}),
+      });
       toast.success(next ? "Listed in Discover" : "Hidden from Discover");
       await fetchAgents();
     } catch (err: unknown) {
@@ -646,7 +675,10 @@ export default function AgentsPageMobile({
     try {
       const newAgentId = await registerOnCelo(a.id);
       if (newAgentId != null) {
-        await apiClient.patch<ApiResponse<UserAgent>>(`/agents/${a.id}`, { erc8004_agent_id: String(newAgentId) });
+        await apiClient.patch<ApiResponse<UserAgent>>(`/agents/${a.id}`, {
+          erc8004_agent_id: String(newAgentId),
+          ...(walletParams ?? {}),
+        });
         toast.success(
           existingId ? `Re-linked on Celo. New ID: ${newAgentId}` : `Registered on Celo. ID: ${newAgentId}`
         );
@@ -682,7 +714,10 @@ export default function AgentsPageMobile({
     try {
       const newAgentId = await registerOnCelo(editingId);
       if (newAgentId != null) {
-        await apiClient.patch<ApiResponse<UserAgent>>(`/agents/${editingId}`, { erc8004_agent_id: String(newAgentId) });
+        await apiClient.patch<ApiResponse<UserAgent>>(`/agents/${editingId}`, {
+          erc8004_agent_id: String(newAgentId),
+          ...(walletParams ?? {}),
+        });
         setFormErc8004Id(String(newAgentId));
         setErc8004VerifyResult({ valid: true, isOwner: true });
         toast.success(`Created on Celo. ID: ${newAgentId}`);

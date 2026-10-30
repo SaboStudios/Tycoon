@@ -3,11 +3,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
+import { useAccount } from "wagmi";
 import { apiClient, ONCHAIN_BATCH_REQUEST_TIMEOUT_MS } from "@/lib/api";
 import type { ApiResponse } from "@/types/api";
 import { Loader2, Bot, Plus, House, QrCode } from "lucide-react";
 import { toast } from "react-toastify";
 import { QRCodeSVG } from "qrcode.react";
+import { useGuestAuthOptional } from "@/context/GuestAuthContext";
+import { getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
+import { walletAuthParams } from "@/lib/walletSession";
 
 type UserAgent = {
   id: number;
@@ -50,6 +54,16 @@ function autoAssignAgentIds(agents: UserAgent[], desiredLen: number): number[] {
 export default function AgentBattlesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { address } = useAccount();
+  const guestUser = useGuestAuthOptional()?.guestUser ?? null;
+  const walletParams = useMemo(
+    () =>
+      walletAuthParams(
+        getGuestUserPlayAddress(guestUser) ?? address ?? undefined,
+        "CELO"
+      ),
+    [guestUser, address]
+  );
   const [loadingAgents, setLoadingAgents] = useState(true);
   const [agents, setAgents] = useState<UserAgent[]>([]);
   const [mode, setMode] = useState<"agent_vs_agent" | "agent_vs_ai">("agent_vs_agent");
@@ -74,7 +88,7 @@ export default function AgentBattlesPage() {
     let mounted = true;
     setLoadingAgents(true);
     apiClient
-      .get<ApiResponse<UserAgent[]>>("/agents")
+      .get<ApiResponse<UserAgent[]>>("/agents", walletParams ?? undefined)
       .then((res) => {
         const list = (res as any)?.data?.data;
         const usable = Array.isArray(list)
@@ -104,7 +118,7 @@ export default function AgentBattlesPage() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [walletParams]);
 
   useEffect(() => {
     let mounted = true;

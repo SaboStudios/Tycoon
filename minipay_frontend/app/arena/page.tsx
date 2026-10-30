@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import Link from "next/link";
 import { ARENA_TOURNAMENTS_COMING_SOON } from "@/constants/arena";
 import { useRouter } from "next/navigation";
@@ -8,7 +8,8 @@ import { useAccount, useSignMessage } from "wagmi";
 import { apiClient, ONCHAIN_BATCH_REQUEST_TIMEOUT_MS, ApiError } from "@/lib/api";
 import { ArenaOnchainModal, type ArenaOnchainBusyPayload } from "@/components/arena/arena-onchain-modal";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
-import { isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
+import { getGuestUserPlayAddress, isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
+import { walletAuthParams } from "@/lib/walletSession";
 import { ApiResponse } from "@/types/api";
 import styles from "./arena.module.css";
 import { isAgentStyleTournament, tournamentDetailPath } from "@/lib/tournamentRoutes";
@@ -143,6 +144,15 @@ export default function ArenaPage() {
   const authLoadingRaw = guestCtx?.isLoading ?? false;
   const { address: walletAddress, isConnected: walletConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
+  const walletParams = useMemo(
+    () =>
+      walletAuthParams(
+        getGuestUserPlayAddress(guestUser) ?? walletAddress ?? undefined,
+        "CELO"
+      ),
+    [guestUser, walletAddress]
+  );
+  const canFetchMyAgents = Boolean(guestUser) || Boolean(walletParams?.address);
   /** Capped so the UI can't spin indefinitely if /auth/me stalls. */
   const [authSkeletonExpired, setAuthSkeletonExpired] = useState(false);
   const silentRetryRef = useRef(false);
@@ -285,20 +295,19 @@ export default function ArenaPage() {
 
   const refreshArenaTournamentPerms = useCallback(async () => {
     try {
-      const permsRes = await apiClient.get("/agents/tournament-permissions");
+      const permsRes = await apiClient.get("/agents/tournament-permissions", walletParams ?? undefined);
       mergeTournamentPermsFromApiResponse(permsRes);
     } catch (e) {
       console.error("Refresh tournament permissions:", e);
     }
-  }, [mergeTournamentPermsFromApiResponse]);
+  }, [mergeTournamentPermsFromApiResponse, walletParams]);
 
-  // Only fire /agents when the backend session is actually ready — avoids 401 spam
-  // for MiniPay users whose silent wallet-login hasn't finished yet.
+  // Wallet address alone is enough (requireAuthOrWallet); JWT guest session optional.
   useEffect(() => {
-    if (guestUser) {
+    if (canFetchMyAgents) {
       fetchMyAgents();
     }
-  }, [guestUser]);
+  }, [canFetchMyAgents, walletParams]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -311,10 +320,10 @@ export default function ArenaPage() {
   }, []);
 
   useEffect(() => {
-    if (activeTab === "discover" && guestUser) {
+    if (activeTab === "discover" && canFetchMyAgents) {
       fetchMyAgents();
     }
-  }, [activeTab, guestUser]);
+  }, [activeTab, canFetchMyAgents, walletParams]);
 
   useEffect(() => {
     if (ARENA_TOURNAMENTS_COMING_SOON) return;
@@ -423,14 +432,17 @@ export default function ArenaPage() {
   }, [activeTab]);
 
   useEffect(() => {
-    if (activeTab !== "challenges" || !guestUser) return;
+    if (activeTab !== "challenges" || !canFetchMyAgents) return;
     let cancelled = false;
     setChallengesLoading(true);
     (async () => {
       try {
         const [agentsRes, permsRes] = await Promise.all([
-          apiClient.get<ApiResponse<Agent[]>>("/agents"),
-          apiClient.get<{ success: boolean; data?: { data?: Array<{ user_agent_id: number; enabled: boolean; max_entry_fee_usdc: string; daily_cap_usdc: string | null; chain: string | null }> } }>("/agents/tournament-permissions"),
+          apiClient.get<ApiResponse<Agent[]>>("/agents", walletParams ?? undefined),
+          apiClient.get<{ success: boolean; data?: { data?: Array<{ user_agent_id: number; enabled: boolean; max_entry_fee_usdc: string; daily_cap_usdc: string | null; chain: string | null }> } }>(
+            "/agents/tournament-permissions",
+            walletParams ?? undefined
+          ),
         ]);
         if (cancelled) return;
         if (agentsRes?.data?.success && agentsRes.data.data) setMyAgents(agentsRes.data.data);
@@ -444,14 +456,14 @@ export default function ArenaPage() {
     return () => {
       cancelled = true;
     };
-  }, [activeTab, guestUser, mergeTournamentPermsFromApiResponse]);
+  }, [activeTab, canFetchMyAgents, walletParams, mergeTournamentPermsFromApiResponse]);
 
   useEffect(() => {
-    if (activeTab !== "discover" || !guestUser) return;
+    if (activeTab !== "discover" || !canFetchMyAgents) return;
     let cancelled = false;
     (async () => {
       try {
-        const permsRes = await apiClient.get("/agents/tournament-permissions");
+        const permsRes = await apiClient.get("/agents/tournament-permissions", walletParams ?? undefined);
         if (!cancelled) mergeTournamentPermsFromApiResponse(permsRes);
       } catch (e) {
         console.error("Discover tournament permissions:", e);
@@ -460,16 +472,16 @@ export default function ArenaPage() {
     return () => {
       cancelled = true;
     };
-  }, [activeTab, guestUser, mergeTournamentPermsFromApiResponse]);
+  }, [activeTab, canFetchMyAgents, walletParams, mergeTournamentPermsFromApiResponse]);
 
   useEffect(() => {
-    if (activeTab !== "my-agents" || !guestUser) return;
+    if (activeTab !== "my-agents" || !canFetchMyAgents) return;
     let cancelled = false;
     (async () => {
       try {
         const [agentsRes, permsRes] = await Promise.all([
-          apiClient.get<ApiResponse<Agent[]>>("/agents"),
-          apiClient.get("/agents/tournament-permissions"),
+          apiClient.get<ApiResponse<Agent[]>>("/agents", walletParams ?? undefined),
+          apiClient.get("/agents/tournament-permissions", walletParams ?? undefined),
         ]);
         if (cancelled) return;
         if (agentsRes?.data?.success && agentsRes.data.data) {
@@ -483,7 +495,7 @@ export default function ArenaPage() {
     return () => {
       cancelled = true;
     };
-  }, [activeTab, guestUser, mergeTournamentPermsFromApiResponse]);
+  }, [activeTab, canFetchMyAgents, walletParams, mergeTournamentPermsFromApiResponse]);
 
   const fetchPublicAgents = async (pageNum: number, opts?: { approvedToSpend?: boolean }) => {
     try {
@@ -530,7 +542,7 @@ export default function ArenaPage() {
         setLoading(true);
         setError(null);
       }
-      const res = await apiClient.get<ApiResponse<Agent[]>>("/agents");
+      const res = await apiClient.get<ApiResponse<Agent[]>>("/agents", walletParams ?? undefined);
       if (res?.data?.success && res.data.data) {
         setMyAgents(res.data.data);
       } else {
@@ -552,6 +564,7 @@ export default function ArenaPage() {
     try {
       const res = await apiClient.patch<any>(`/agents/${agentId}`, {
         is_public: !currentValue,
+        ...(walletParams ?? {}),
       });
       if (res?.success && res?.data?.data) {
         const updatedAgent = res.data.data;

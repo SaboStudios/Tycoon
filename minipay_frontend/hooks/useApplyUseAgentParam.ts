@@ -2,7 +2,11 @@
 
 import { useEffect, useRef } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import { useAccount } from "wagmi";
 import { apiClient } from "@/lib/api";
+import { useGuestAuthOptional } from "@/context/GuestAuthContext";
+import { getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
+import { walletAuthParams } from "@/lib/walletSession";
 
 /**
  * If the URL has ?useAgent=ID (agent id from My Agents), call use-my-agent for this game
@@ -18,6 +22,8 @@ export function useApplyUseAgentParam(
   const router = useRouter();
   const pathname = usePathname();
   const appliedRef = useRef(false);
+  const { address } = useAccount();
+  const guestUser = useGuestAuthOptional()?.guestUser ?? null;
 
   useEffect(() => {
     const useAgentRaw = searchParams.get("useAgent");
@@ -26,9 +32,16 @@ export function useApplyUseAgentParam(
     if (Number.isNaN(agentId) || agentId < 1) return;
 
     appliedRef.current = true;
+    const walletParams = walletAuthParams(
+      getGuestUserPlayAddress(guestUser) ?? address ?? undefined,
+      "CELO"
+    );
 
     apiClient
-      .post(`/games/${gameId}/use-my-agent`, { user_agent_id: agentId })
+      .post(`/games/${gameId}/use-my-agent`, {
+        user_agent_id: agentId,
+        ...(walletParams ?? {}),
+      })
       .then(() => {
         refetchAgentBindings();
         const next = new URLSearchParams(searchParams.toString());
@@ -39,5 +52,5 @@ export function useApplyUseAgentParam(
       .catch(() => {
         appliedRef.current = false;
       });
-  }, [gameId, isInGame, searchParams, pathname, router, refetchAgentBindings]);
+  }, [gameId, isInGame, searchParams, pathname, router, refetchAgentBindings, guestUser, address]);
 }
