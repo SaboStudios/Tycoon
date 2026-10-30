@@ -2,6 +2,7 @@
 
 import { ExternalLink, Loader2, RefreshCw, Shield, ShieldCheck } from "lucide-react";
 import { useGoodDollarStatus } from "@/hooks/useGoodDollarStatus";
+import { useGoodDollarVerify } from "@/hooks/useGoodDollarVerify";
 import type { WalletChain } from "@/lib/walletSession";
 
 function shorten(addr?: string | null): string | null {
@@ -28,6 +29,7 @@ export default function GoodDollarStatusCard({
 }: GoodDollarStatusCardProps) {
   const { data, isLoading, isFetching, isError, isUnauthorized, canCallApi, refetch } =
     useGoodDollarStatus({ chain, playAddress });
+  const { startVerification, sdkReady } = useGoodDollarVerify();
 
   // No wallet + no token → there's nothing to check. Hero: hide entirely so we
   // don't nag unconnected visitors. Card: show a muted sign-in hint.
@@ -138,14 +140,14 @@ export default function GoodDollarStatusCard({
         <button
           type="button"
           onClick={() => {
-            if (typeof window !== "undefined") {
-              window.open(data.verifyUrl, "_blank", "noopener,noreferrer");
-            }
+            void startVerification();
           }}
-          className="w-full py-2 rounded-lg bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] text-[#010F10] font-orbitron font-bold text-[11px] uppercase tracking-wide flex items-center justify-center gap-1.5 hover:opacity-95"
+          disabled={!sdkReady}
+          className="w-full py-2 rounded-lg bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] text-[#010F10] font-orbitron font-bold text-[11px] uppercase tracking-wide flex items-center justify-center gap-1.5 hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed"
+          title={sdkReady ? undefined : "Connect your MiniPay wallet on Celo"}
         >
           <ExternalLink className="w-3.5 h-3.5" />
-          Verify with GoodDollar
+          {sdkReady ? "Verify with GoodDollar" : "Connect wallet to verify"}
         </button>
       </div>
     );
@@ -179,9 +181,7 @@ export default function GoodDollarStatusCard({
   }
 
   const handleVerify = () => {
-    if (typeof window !== "undefined") {
-      window.open(data.verifyUrl, "_blank", "noopener,noreferrer");
-    }
+    void startVerification();
   };
 
   return (
@@ -211,10 +211,12 @@ export default function GoodDollarStatusCard({
       <button
         type="button"
         onClick={handleVerify}
-        className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] text-[#010F10] font-semibold flex items-center justify-center gap-2 hover:opacity-95 transition-opacity text-sm"
+        disabled={!sdkReady}
+        className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] text-[#010F10] font-semibold flex items-center justify-center gap-2 hover:opacity-95 transition-opacity text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+        title={sdkReady ? undefined : "Connect your MiniPay wallet on Celo"}
       >
         <ExternalLink className="w-4 h-4" />
-        Verify with GoodDollar
+        {sdkReady ? "Verify with GoodDollar" : "Connect wallet to verify"}
       </button>
       <p className="mt-2 text-[11px] text-slate-500">
         May take up to a minute to update here after you verify.

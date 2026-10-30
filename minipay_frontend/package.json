@@ -18,6 +18,7 @@
     "@goat-sdk/adapter-vercel-ai": "^0.2.10",
     "@goat-sdk/core": "^0.5.0",
     "@goat-sdk/wallet-viem": "^0.3.0",
+    "@goodsdks/citizen-sdk": "^1.2.5",
     "@privy-io/react-auth": "^1.99.1",
     "@radix-ui/react-select": "^2.2.5",
     "@radix-ui/react-switch": "^1.2.5",

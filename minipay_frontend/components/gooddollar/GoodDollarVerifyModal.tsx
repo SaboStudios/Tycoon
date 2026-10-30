@@ -6,6 +6,7 @@ import {
   GOODDOLLAR_VERIFY_EVENT,
   type GoodDollarVerifyDetail,
 } from "@/lib/goodDollarVerifyPrompt";
+import { useGoodDollarVerify } from "@/hooks/useGoodDollarVerify";
 
 const DEFAULT_MESSAGE =
   "Verify your humanity with GoodDollar to play on MiniPay. It's a quick one-time check and uses your connected wallet.";
@@ -13,6 +14,7 @@ const DEFAULT_MESSAGE =
 export default function GoodDollarVerifyModal() {
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState<GoodDollarVerifyDetail | null>(null);
+  const { startVerification, sdkReady } = useGoodDollarVerify();
 
   useEffect(() => {
     const onEvent = (e: Event) => {
@@ -26,7 +28,6 @@ export default function GoodDollarVerifyModal() {
 
   if (!open) return null;
 
-  const verifyUrl = detail?.verifyUrl || "https://goodid.gooddollar.org/";
   const message = detail?.message || DEFAULT_MESSAGE;
 
   const handleClose = () => {
@@ -34,9 +35,7 @@ export default function GoodDollarVerifyModal() {
   };
 
   const handleVerify = () => {
-    if (typeof window !== "undefined") {
-      window.open(verifyUrl, "_blank", "noopener,noreferrer");
-    }
+    void startVerification();
   };
 
   return (
@@ -77,10 +76,12 @@ export default function GoodDollarVerifyModal() {
             <button
               type="button"
               onClick={handleVerify}
-              className="w-full py-4 rounded-xl bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] text-[#010F10] font-orbitron font-bold flex items-center justify-center gap-2 hover:opacity-95 transition-opacity"
+              disabled={!sdkReady}
+              className="w-full py-4 rounded-xl bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] text-[#010F10] font-orbitron font-bold flex items-center justify-center gap-2 hover:opacity-95 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+              title={sdkReady ? undefined : "Connect your MiniPay wallet on Celo"}
             >
               <ExternalLink className="w-5 h-5" />
-              Verify with GoodDollar
+              {sdkReady ? "Verify with GoodDollar" : "Connect wallet to verify"}
             </button>
             <button
               type="button"
@@ -92,8 +93,9 @@ export default function GoodDollarVerifyModal() {
           </div>
 
           <p className="mt-4 text-xs text-slate-500 font-dmSans">
-            GoodDollar runs a short face-match in a new tab. Your Tycoon wallet stays
-            connected — come back here and tap Play again when it&apos;s done.
+            GoodDollar runs a short face-match. Your Tycoon wallet stays
+            connected — you&apos;ll be sent back here when it&apos;s done, then tap
+            Play again.
           </p>
         </div>
       </div>

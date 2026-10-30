@@ -111,6 +111,11 @@ the same `isUserGoodDollarVerified(user)` check the play gate uses.
 - Frontend status card: `minipay_frontend/components/gooddollar/GoodDollarStatusCard.tsx`
   (mounted in `components/profile/profile-mobile.tsx`).
 - Frontend status hook: `minipay_frontend/hooks/useGoodDollarStatus.ts`.
+- Frontend verify hook: `minipay_frontend/hooks/useGoodDollarVerify.ts`
+  — wraps `IdentitySDK.generateFVLink` from `@goodsdks/citizen-sdk` so the
+  Verify CTA sends players to a signed Face Verification link via
+  `window.location.assign` (not the bare `goodid.gooddollar.org/` URL, which
+  lands on `FVFlowError` without a login payload).
 - Error → event bridge: `minipay_frontend/lib/goodDollarVerifyPrompt.ts`.
 - Central interceptor: `minipay_frontend/lib/api.ts`
   (`handleGoodDollarVerifyError` call).
