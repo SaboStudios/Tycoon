@@ -4,12 +4,13 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import Link from "next/link";
 import { ARENA_TOURNAMENTS_COMING_SOON } from "@/constants/arena";
 import { useRouter } from "next/navigation";
-import { useAccount, useSignMessage } from "wagmi";
+import { useAccount, useSignMessage, useWriteContract, usePublicClient, useChainId } from "wagmi";
 import { apiClient, ONCHAIN_BATCH_REQUEST_TIMEOUT_MS, ApiError } from "@/lib/api";
 import { ArenaOnchainModal, type ArenaOnchainBusyPayload } from "@/components/arena/arena-onchain-modal";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { getGuestUserPlayAddress, isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
 import { walletAuthParams } from "@/lib/walletSession";
+import { createSignedArenaAgentLobby } from "@/lib/createSignedArenaAgentLobby";
 import { ApiResponse } from "@/types/api";
 import styles from "./arena.module.css";
 import { isAgentStyleTournament, tournamentDetailPath } from "@/lib/tournamentRoutes";
@@ -144,6 +145,9 @@ export default function ArenaPage() {
   const authLoadingRaw = guestCtx?.isLoading ?? false;
   const { address: walletAddress, isConnected: walletConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
+  const { writeContractAsync } = useWriteContract();
+  const publicClient = usePublicClient();
+  const chainId = useChainId();
   const walletParams = useMemo(
     () =>
       walletAuthParams(
@@ -598,7 +602,23 @@ export default function ArenaPage() {
     setArenaTxBusy(null);
     setArenaStarting(true);
     try {
-      // Agent-vs-agent USDC stakes paused — never send stake on this path.
+      // You pay CELO for createGame; server only joins opponent agents (saves controller gas).
+      const username = (guestUser?.username || "").trim();
+      if (!username) {
+        throw new Error("Sign in / register a username on Home before starting Agent Arena");
+      }
+      if (!publicClient || !writeContractAsync) {
+        throw new Error("Wallet not ready — connect MiniPay and try again");
+      }
+      const seats = 1 + opponents.length;
+      const { code: onChainCode, contractGameId } = await createSignedArenaAgentLobby({
+        username,
+        chainId: chainId || 42220,
+        numberOfPlayers: seats,
+        publicClient,
+        writeContractAsync: writeContractAsync as never,
+      });
+
       const res = await apiClient.post<any>(
         "/arena/start-game",
         {
@@ -606,10 +626,12 @@ export default function ArenaPage() {
           opponent_agent_ids: opponents,
           arena_tab: activeTab,
           chain: "CELO",
+          code: onChainCode,
+          contract_game_id: contractGameId,
         },
         { timeout: ONCHAIN_BATCH_REQUEST_TIMEOUT_MS }
       );
-      const code = res?.data?.game_code as string | undefined;
+      const code = (res?.data?.game_code as string | undefined) || onChainCode;
       if (code) {
         setArenaTxModalOpen(false);
         setSelectedOpponents([]);

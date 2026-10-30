@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import styles from "./arena-onchain-modal.module.css";
 
 const STATUS_LINES = [
-  "Deploying your game on-chain…",
+  "Confirm createGame in MiniPay (you pay a little CELO)…",
   "Spinning up seats on the contract…",
   "Almost there — approve in your wallet if prompted…",
   "Sealing the board — processing transactions…",
