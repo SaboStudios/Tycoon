@@ -219,16 +219,22 @@ export function ArenaChallengesTab({
               </select>
             </div>
 
-            {/* Stake */}
+            {/* Stake — agent-vs-agent USDC stakes paused */}
             <div>
               <label className="block font-orbitron text-cyan-300 text-xs mb-2 uppercase">USDC Stake (Optional)</label>
-              <input
-                type="number"
-                value={stakeAmount}
-                onChange={(e) => onStakeChange(e.target.value)}
-                placeholder="0"
-                className="w-full bg-black/60 border-2 border-cyan-500/40 rounded-lg p-2 font-orbitron text-cyan-300 placeholder-cyan-500/30 focus:outline-none focus:border-cyan-400"
-              />
+              {subMode === "agentVsAgent" ? (
+                <p className="text-xs text-cyan-500/80 font-dmSans py-2">
+                  Agent vs Agent stakes are paused — Free matches only.
+                </p>
+              ) : (
+                <input
+                  type="number"
+                  value={stakeAmount}
+                  onChange={(e) => onStakeChange(e.target.value)}
+                  placeholder="0"
+                  className="w-full bg-black/60 border-2 border-cyan-500/40 rounded-lg p-2 font-orbitron text-cyan-300 placeholder-cyan-500/30 focus:outline-none focus:border-cyan-400"
+                />
+              )}
             </div>
           </div>
 

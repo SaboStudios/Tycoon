@@ -1,12 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, Wallet } from "lucide-react";
 import { useAccount, useBalance } from "wagmi";
 import { celo } from "wagmi/chains";
 import { USDC_TOKEN_ADDRESS } from "@/constants/contracts";
 import type { MatchType } from "./ArenaRevampPage";
 import styles from "./arena-revamp.module.css";
+
+/** Agent-vs-agent USDC stakes paused until escrow / G$ path is ready. */
+export const AGENT_VS_AGENT_STAKES_ENABLED = false;
 
 type Props = {
   matchType: MatchType;
@@ -51,6 +54,12 @@ export function ArenaMatchSettings({ matchType, onMatchTypeChange, stake, onStak
     query: { enabled: !!address && !!usdc },
   });
 
+  const agentStakeBlocked = matchType === "agentVsAgent" && !AGENT_VS_AGENT_STAKES_ENABLED;
+
+  useEffect(() => {
+    if (agentStakeBlocked && stake.trim()) onStakeChange("");
+  }, [agentStakeBlocked, stake, onStakeChange]);
+
   const stakeNum = stake.trim() ? parseFloat(stake) : 0;
   const balanceDisplay = balance.data ? fmtBalance(balance.data.value, balance.data.decimals) : null;
   const balanceNum = balance.data ? Number(balance.data.value) / 10 ** balance.data.decimals : null;
@@ -58,8 +67,9 @@ export function ArenaMatchSettings({ matchType, onMatchTypeChange, stake, onStak
 
   const summary = useMemo(() => {
     const mode = matchType === "agentVsAgent" ? "Agent vs Agent" : "You vs Agent";
-    return `${mode} · ${stakeLabel(stake)}`;
-  }, [matchType, stake]);
+    const stakePart = agentStakeBlocked ? "Free (stakes paused)" : stakeLabel(stake);
+    return `${mode} · ${stakePart}`;
+  }, [matchType, stake, agentStakeBlocked]);
 
   return (
     <section className={styles.sectionCard} aria-labelledby="match-settings-heading">
@@ -108,53 +118,61 @@ export function ArenaMatchSettings({ matchType, onMatchTypeChange, stake, onStak
           <div className={styles.settingsField}>
             <div className={styles.stakeHeader}>
               <span className={styles.fieldLabel}>Stake (USDC)</span>
-              {address ? (
+              {address && !agentStakeBlocked ? (
                 <span className={styles.balanceChip}>
                   <Wallet aria-hidden className={styles.balanceIcon} />
                   {balance.isLoading ? "…" : balanceDisplay != null ? `${balanceDisplay} USDC` : "—"}
                 </span>
               ) : null}
             </div>
-            <div className={styles.stakeChips}>
-              {STAKE_PRESETS.map((p) => (
-                <button
-                  key={p.value || "free"}
-                  type="button"
-                  className={stake === p.value ? styles.stakeChipActive : styles.stakeChip}
-                  onClick={() => onStakeChange(p.value)}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-            <input
-              type="number"
-              inputMode="decimal"
-              min={0}
-              step="0.01"
-              className={`${styles.input} ${styles.mono}`}
-              placeholder="Custom amount"
-              value={stake}
-              onChange={(e) => {
-                const raw = e.target.value;
-                if (raw === "") return onStakeChange("");
-                // Strip non-numeric except a single dot; cap at 2 decimals; drop leading minus.
-                const cleaned = raw.replace(/[^0-9.]/g, "");
-                const firstDot = cleaned.indexOf(".");
-                const normalized =
-                  firstDot === -1
-                    ? cleaned
-                    : cleaned.slice(0, firstDot + 1) +
-                      cleaned.slice(firstDot + 1).replace(/\./g, "").slice(0, 2);
-                onStakeChange(normalized);
-              }}
-            />
-            {insufficient ? (
-              <p className={styles.fieldHelpError}>
-                Not enough USDC — top up or pick a smaller stake.
+            {agentStakeBlocked ? (
+              <p className={styles.fieldHelp}>
+                Agent vs Agent stakes are paused for now — matches are Free only.
               </p>
             ) : (
-              <p className={styles.fieldHelp}>Free = practice match, no USDC moved.</p>
+              <>
+                <div className={styles.stakeChips}>
+                  {STAKE_PRESETS.map((p) => (
+                    <button
+                      key={p.value || "free"}
+                      type="button"
+                      className={stake === p.value ? styles.stakeChipActive : styles.stakeChip}
+                      onClick={() => onStakeChange(p.value)}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  step="0.01"
+                  className={`${styles.input} ${styles.mono}`}
+                  placeholder="Custom amount"
+                  value={stake}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    if (raw === "") return onStakeChange("");
+                    // Strip non-numeric except a single dot; cap at 2 decimals; drop leading minus.
+                    const cleaned = raw.replace(/[^0-9.]/g, "");
+                    const firstDot = cleaned.indexOf(".");
+                    const normalized =
+                      firstDot === -1
+                        ? cleaned
+                        : cleaned.slice(0, firstDot + 1) +
+                          cleaned.slice(firstDot + 1).replace(/\./g, "").slice(0, 2);
+                    onStakeChange(normalized);
+                  }}
+                />
+                {insufficient ? (
+                  <p className={styles.fieldHelpError}>
+                    Not enough USDC — top up or pick a smaller stake.
+                  </p>
+                ) : (
+                  <p className={styles.fieldHelp}>Free = practice match, no USDC moved.</p>
+                )}
+              </>
             )}
           </div>
         </div>

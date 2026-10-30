@@ -598,7 +598,7 @@ export default function ArenaPage() {
     setArenaTxBusy(null);
     setArenaStarting(true);
     try {
-      const stakeNum = stakeAmountUsdc.trim() ? parseFloat(stakeAmountUsdc) : 0;
+      // Agent-vs-agent USDC stakes paused — never send stake on this path.
       const res = await apiClient.post<any>(
         "/arena/start-game",
         {
@@ -606,7 +606,6 @@ export default function ArenaPage() {
           opponent_agent_ids: opponents,
           arena_tab: activeTab,
           chain: "CELO",
-          ...(stakeNum > 0 && { stake_amount_usdc: stakeNum }),
         },
         { timeout: ONCHAIN_BATCH_REQUEST_TIMEOUT_MS }
       );
