@@ -11,6 +11,7 @@ import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { getGuestUserPlayAddress, isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
 import { walletAuthParams } from "@/lib/walletSession";
 import { createSignedArenaAgentLobby } from "@/lib/createSignedArenaAgentLobby";
+import { extractGoodDollarVerify, promptGoodDollarVerify } from "@/lib/goodDollarVerifyPrompt";
 import { ApiResponse } from "@/types/api";
 import styles from "./arena.module.css";
 import { isAgentStyleTournament, tournamentDetailPath } from "@/lib/tournamentRoutes";
@@ -594,14 +595,52 @@ export default function ArenaPage() {
     });
   };
 
+  /**
+   * Same G$ Identity pre-check as Challenge AI — block Arena before the user spends CELO on createGame.
+   * Returns false if the Verify modal was shown (caller should abort).
+   */
+  const ensureGoodDollarVerifiedForArena = useCallback(async (): Promise<boolean> => {
+    const playAddr =
+      getGuestUserPlayAddress(guestUser) ?? walletAddress ?? walletParams?.address ?? undefined;
+    if (!playAddr) return true; // no wallet yet — later steps will fail with a clearer error
+    try {
+      const gdRes = await apiClient.get<{
+        enabled?: boolean;
+        verified?: boolean;
+        verifyUrl?: string;
+        message?: string;
+      }>("gooddollar/status", walletAuthParams(playAddr, "CELO"));
+      const gd = (gdRes as { data?: { enabled?: boolean; verified?: boolean; verifyUrl?: string; message?: string } })
+        ?.data;
+      if (gd?.enabled !== false && gd?.verified !== true) {
+        promptGoodDollarVerify({
+          verifyUrl: gd?.verifyUrl || "https://goodid.gooddollar.org/",
+          message: gd?.message || "Verify your humanity with GoodDollar to play on MiniPay.",
+        });
+        return false;
+      }
+      return true;
+    } catch (gdErr: unknown) {
+      if (extractGoodDollarVerify(gdErr)) return false;
+      // Status unreachable — backend still enforces on /arena/start-*.
+      return true;
+    }
+  }, [guestUser, walletAddress, walletParams?.address]);
+
   const startArenaGame = async (opponentIds?: number[]) => {
     const opponents = opponentIds ?? selectedOpponents;
     if (!isAuthed || !challengerAgentId || opponents.length === 0) return;
     setError(null);
-    setArenaTxModalOpen(true);
-    setArenaTxBusy(null);
     setArenaStarting(true);
     try {
+      // Gate before opening the tx modal / spending gas (same as Challenge AI).
+      if (!(await ensureGoodDollarVerifiedForArena())) {
+        return;
+      }
+
+      setArenaTxModalOpen(true);
+      setArenaTxBusy(null);
+
       // You pay CELO for createGame; server only joins opponent agents (saves controller gas).
       const username = (guestUser?.username || "").trim();
       if (!username) {
@@ -628,6 +667,7 @@ export default function ArenaPage() {
           chain: "CELO",
           code: onChainCode,
           contract_game_id: contractGameId,
+          is_minipay: true,
         },
         { timeout: ONCHAIN_BATCH_REQUEST_TIMEOUT_MS }
       );
@@ -641,6 +681,11 @@ export default function ArenaPage() {
       }
     } catch (err) {
       const e = err as ApiError;
+      // apiClient interceptor already popped the GoodDollar Verify modal.
+      if (extractGoodDollarVerify(err)) {
+        setArenaTxModalOpen(false);
+        return;
+      }
       if (e.status === 409 && e.data?.code === "AGENT_BUSY_IN_ARENA") {
         setArenaTxBusy({ message: e.message });
       } else {
@@ -656,10 +701,15 @@ export default function ArenaPage() {
     const oppId = opponentId ?? humanVsOpponentId;
     if (!isAuthed || !oppId) return;
     setError(null);
-    setArenaTxModalOpen(true);
-    setArenaTxBusy(null);
     setHumanVsStarting(true);
     try {
+      if (!(await ensureGoodDollarVerifiedForArena())) {
+        return;
+      }
+
+      setArenaTxModalOpen(true);
+      setArenaTxBusy(null);
+
       // You pay CELO for createGame; server only joins the opponent agent (no controller create).
       const username = (guestUser?.username || "").trim();
       if (!username) {
@@ -683,6 +733,7 @@ export default function ArenaPage() {
           chain: "CELO",
           code: onChainCode,
           contract_game_id: contractGameId,
+          is_minipay: true,
         },
         { timeout: ONCHAIN_BATCH_REQUEST_TIMEOUT_MS }
       );
@@ -697,6 +748,10 @@ export default function ArenaPage() {
       }
     } catch (err) {
       const e = err as ApiError;
+      if (extractGoodDollarVerify(err)) {
+        setArenaTxModalOpen(false);
+        return;
+      }
       if (e.status === 409 && e.data?.code === "AGENT_BUSY_IN_ARENA") {
         setArenaTxBusy({ message: e.message });
       } else {
