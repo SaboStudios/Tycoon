@@ -150,7 +150,7 @@ export default function ArenaPage() {
     },
     [router]
   );
-  const [matchType, setMatchType] = useState<MatchType>("agentVsAgent");
+  const [matchType, setMatchType] = useState<MatchType>("agentVsAi");
   const [agents, setAgents] = useState<Agent[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [myAgents, setMyAgents] = useState<Agent[]>([]);
@@ -228,8 +228,10 @@ export default function ArenaPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const tab = new URLSearchParams(window.location.search).get("tab");
-    if (tab && ARENA_TABS.includes(tab as ArenaTab)) {
-      setActiveTab(tab as ArenaTab);
+    if (!tab) return;
+    const alias = tab === "play" ? "discover" : tab;
+    if (ARENA_TABS.includes(alias as ArenaTab)) {
+      setActiveTab(alias as ArenaTab);
     }
   }, []);
 

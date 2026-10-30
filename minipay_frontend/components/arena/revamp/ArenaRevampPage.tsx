@@ -8,8 +8,10 @@ import {
   Target,
   Bot,
   ChevronRight,
+  Sparkles,
   type LucideIcon,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import styles from "./arena-revamp.module.css";
 import type { DiscoverAgent } from "./map-api-agents";
 
@@ -403,6 +405,39 @@ function DiscoverPanel({
   launchHint: string | null;
   onLaunch: () => void;
 }) {
+  const router = useRouter();
+  if (isAuthed && !hasAgent) {
+    return (
+      <div className={styles.stepSection} aria-live="polite">
+        <div className={styles.callout} style={{ textAlign: "center" }}>
+          <Bot aria-hidden style={{ margin: "0 auto 12px", width: 44, height: 44, color: "var(--arena-accent, #00F0FF)" }} />
+          <p className={styles.calloutText} style={{ fontWeight: 700, fontSize: 15 }}>
+            Create an agent first
+          </p>
+          <p className={styles.calloutText} style={{ opacity: 0.8, marginTop: 4 }}>
+            You need one agent before you can battle. It takes a name and a tap.
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 16 }}>
+            <button
+              type="button"
+              className={styles.launchBtn}
+              onClick={() => router.push("/agents?create=1")}
+            >
+              <Sparkles aria-hidden style={{ width: 16, height: 16, marginRight: 6, verticalAlign: "middle" }} />
+              Create your first agent
+            </button>
+            <button
+              type="button"
+              className={styles.calloutBtn}
+              onClick={() => onTabChange("my-agents")}
+            >
+              Or manage in My Agents
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
     <>
       <ol className={styles.stepper} aria-label="How to start a match">
@@ -578,7 +613,15 @@ function DiscoverPanel({
             disabled={!canLaunch}
             onClick={onLaunch}
           >
-            {isLaunching ? "Starting match…" : "Start match →"}
+            {isLaunching
+              ? "Starting match…"
+              : !isAuthed
+                ? "Sign in to start"
+                : !hasAgent
+                  ? "Create an agent first"
+                  : selectedOpponentIds.length === 0
+                    ? "Pick an opponent"
+                    : "Start match →"}
           </button>
         </div>
       </div>

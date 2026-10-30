@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState, useMemo } from "react";
-import { Gamepad2 } from "lucide-react";
+import { Gamepad2, Bot } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useAccount, useChainId, useConnect, useSignMessage, usePublicClient, useSwitchChain } from "wagmi";
@@ -802,6 +802,45 @@ const HeroWalletPanel: React.FC<HeroWalletPanelProps> = ({ onReturningPlayerChan
                 </svg>
                 <span className="absolute inset-0 flex items-center justify-center text-[#010F10] uppercase text-[16px] -tracking-[2%] font-orbitron font-[700] z-2">
                   Challenge AI
+                </span>
+              </motion.button>
+
+              {/* Agent Arena */}
+              <motion.button
+                onClick={() => router.push("/arena")}
+                className="relative group w-[240px] h-[48px] bg-transparent border-none p-0 overflow-hidden cursor-pointer transition-transform duration-300 group-hover:scale-105"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.98 }}
+                animate={{
+                  boxShadow: [
+                    "0 0 10px rgba(0, 240, 255, 0)",
+                    "0 0 20px rgba(0, 240, 255, 0.6)",
+                    "0 0 10px rgba(0, 240, 255, 0)",
+                  ]
+                }}
+                transition={{ duration: 3, repeat: Infinity, delay: 1.5 }}
+              >
+                <svg
+                  width="260"
+                  height="52"
+                  viewBox="0 0 260 52"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="absolute top-0 left-0 w-full h-full group-hover:animate-pulse"
+                >
+                  <path
+                    d="M10 1H250C254.373 1 256.996 6.85486 254.601 10.5127L236.167 49.5127C235.151 51.0646 233.42 52 231.565 52H10C6.96244 52 4.5 49.5376 4.5 46.5V9.5C4.5 6.46243 6.96243 4 10 4Z"
+                    fill="#00F0FF"
+                    stroke="#0E282A"
+                    strokeWidth={1}
+                    style={{
+                      filter: "drop-shadow(0 0 6px rgba(0, 240, 255, 0.8))"
+                    }}
+                  />
+                </svg>
+                <span className="absolute inset-0 flex items-center justify-center text-[#010F10] uppercase text-[16px] -tracking-[2%] font-orbitron font-[700] z-2">
+                  <Bot className="mr-1.5 w-5 h-5" />
+                  Agent Arena
                 </span>
               </motion.button>
 
