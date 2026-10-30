@@ -31,6 +31,7 @@ import { getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
 import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
 import { useUserLevel } from "@/hooks/useUserLevel";
+import GoodDollarStatusCard from "@/components/gooddollar/GoodDollarStatusCard";
 
 function chainIdToBackendChain(chainId: number): string {
   return "CELO";
@@ -473,7 +474,7 @@ const HeroWalletPanel: React.FC<HeroWalletPanelProps> = ({ onReturningPlayerChan
     <>
         {/* Welcome Message */}
         {isReturningPlayer && (
-          <div className="flex w-full max-w-sm flex-col items-center gap-4 px-2">
+          <div className="flex w-full max-w-sm md:max-w-md flex-col items-center gap-3 px-2">
             <motion.p
               initial={false}
               animate={{ opacity: 1, y: 0 }}
@@ -488,7 +489,7 @@ const HeroWalletPanel: React.FC<HeroWalletPanelProps> = ({ onReturningPlayerChan
 
             {levelInfo && (
               <motion.div
-                className="flex flex-col items-center gap-3 bg-gradient-to-b from-[#0E282A]/80 to-[#0A1719]/80 rounded-lg p-4 border border-[#00F0FF]/40 backdrop-blur-sm"
+                className="flex flex-col items-center gap-3 bg-gradient-to-b from-[#0E282A]/80 to-[#0A1719]/80 rounded-lg p-4 border border-[#00F0FF]/40 backdrop-blur-sm w-full"
                 initial={false}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.3, delay: 0 }}
@@ -535,6 +536,9 @@ const HeroWalletPanel: React.FC<HeroWalletPanelProps> = ({ onReturningPlayerChan
                 )}
               </motion.div>
             )}
+
+            {/* Core G$ gate — visible on home so reviewers see identity before Challenge AI */}
+            <GoodDollarStatusCard variant="hero" />
           </div>
         )}
 

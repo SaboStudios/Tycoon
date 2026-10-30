@@ -10,13 +10,32 @@ function shorten(addr?: string | null): string | null {
   return `${s.slice(0, 6)}…${s.slice(-4)}`;
 }
 
-export default function GoodDollarStatusCard() {
+type GoodDollarStatusCardProps = {
+  /** `hero` = slim strip for home; `card` = full Profile block (default). */
+  variant?: "card" | "hero";
+  className?: string;
+};
+
+export default function GoodDollarStatusCard({
+  variant = "card",
+  className = "",
+}: GoodDollarStatusCardProps) {
   const { data, isLoading, isFetching, isError, refetch } = useGoodDollarStatus();
 
   // Don't flash "Not verified" while the first fetch is in flight.
   if (isLoading || (!data && !isError)) {
+    if (variant === "hero") {
+      return (
+        <div
+          className={`w-full max-w-sm rounded-lg border border-[#003B3E]/50 bg-[#0E1415]/40 px-3 py-2 flex items-center gap-2 ${className}`}
+        >
+          <Loader2 className="w-3.5 h-3.5 text-slate-400 animate-spin shrink-0" />
+          <span className="text-[11px] text-slate-400">Checking GoodDollar…</span>
+        </div>
+      );
+    }
     return (
-      <div className="rounded-xl border border-[#003B3E]/60 bg-[#0E1415]/50 p-4 flex items-center gap-3 min-h-[80px]">
+      <div className={`rounded-xl border border-[#003B3E]/60 bg-[#0E1415]/50 p-4 flex items-center gap-3 min-h-[80px] ${className}`}>
         <Loader2 className="w-5 h-5 text-slate-400 animate-spin" />
         <span className="text-sm text-slate-400">Checking GoodDollar verification…</span>
       </div>
@@ -25,8 +44,10 @@ export default function GoodDollarStatusCard() {
 
   if (isError || !data) {
     return (
-      <div className="rounded-xl border border-[#003B3E]/60 bg-[#0E1415]/50 p-4 text-sm text-slate-400 flex items-center justify-between gap-3">
-        <span>Couldn&apos;t load GoodDollar status.</span>
+      <div
+        className={`rounded-xl border border-[#003B3E]/60 bg-[#0E1415]/50 p-3 text-sm text-slate-400 flex items-center justify-between gap-3 ${className}`}
+      >
+        <span className="text-xs sm:text-sm">Couldn&apos;t load GoodDollar status.</span>
         <button
           type="button"
           onClick={() => refetch()}
@@ -39,8 +60,9 @@ export default function GoodDollarStatusCard() {
   }
 
   if (!data.enabled) {
+    if (variant === "hero") return null;
     return (
-      <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-slate-400">
+      <div className={`rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-slate-400 ${className}`}>
         GoodDollar verification isn&apos;t available on this environment.
       </div>
     );
@@ -49,9 +71,68 @@ export default function GoodDollarStatusCard() {
   const primary = shorten(data.checkedAddresses[0]);
   const extraCount = Math.max(0, data.checkedAddresses.length - 1);
 
+  if (variant === "hero") {
+    if (data.verified) {
+      return (
+        <div
+          className={`w-full max-w-sm rounded-lg border border-emerald-500/30 bg-emerald-950/25 px-3 py-2 flex items-center gap-2 ${className}`}
+        >
+          <ShieldCheck className="w-4 h-4 text-emerald-300 shrink-0" />
+          <p className="flex-1 min-w-0 text-[11px] font-orbitron font-semibold text-emerald-100 truncate">
+            G$ verified{primary ? ` · ${primary}` : ""}
+          </p>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="p-1 rounded text-slate-400 hover:text-cyan-300 disabled:opacity-50"
+            aria-label="Recheck verification"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? "animate-spin" : ""}`} />
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div
+        className={`w-full max-w-sm rounded-lg border border-cyan-500/25 bg-[#0E1415]/55 px-3 py-2.5 ${className}`}
+      >
+        <div className="flex items-center gap-2 mb-2">
+          <Shield className="w-4 h-4 text-cyan-300 shrink-0" />
+          <p className="flex-1 min-w-0 text-[11px] font-orbitron font-semibold text-white truncate">
+            GoodDollar required to play
+            {primary ? ` · ${primary}` : ""}
+          </p>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="p-1 rounded text-slate-400 hover:text-cyan-300 disabled:opacity-50"
+            aria-label="Recheck verification"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? "animate-spin" : ""}`} />
+          </button>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            if (typeof window !== "undefined") {
+              window.open(data.verifyUrl, "_blank", "noopener,noreferrer");
+            }
+          }}
+          className="w-full py-2 rounded-lg bg-gradient-to-r from-[#00F0FF] to-[#0DD6E0] text-[#010F10] font-orbitron font-bold text-[11px] uppercase tracking-wide flex items-center justify-center gap-1.5 hover:opacity-95"
+        >
+          <ExternalLink className="w-3.5 h-3.5" />
+          Verify with GoodDollar
+        </button>
+      </div>
+    );
+  }
+
   if (data.verified) {
     return (
-      <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-4 flex items-center gap-3">
+      <div className={`rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-4 flex items-center gap-3 ${className}`}>
         <div className="rounded-lg bg-emerald-500/20 p-2 border border-emerald-400/30 flex-shrink-0">
           <ShieldCheck className="w-5 h-5 text-emerald-300" />
         </div>
@@ -83,7 +164,7 @@ export default function GoodDollarStatusCard() {
   };
 
   return (
-    <div className="rounded-xl border border-cyan-500/20 bg-[#0E1415]/50 p-4">
+    <div className={`rounded-xl border border-cyan-500/20 bg-[#0E1415]/50 p-4 ${className}`}>
       <div className="flex items-center gap-3 mb-3">
         <div className="rounded-lg bg-cyan-500/10 p-2 border border-cyan-400/20 flex-shrink-0">
           <Shield className="w-5 h-5 text-cyan-300" />
