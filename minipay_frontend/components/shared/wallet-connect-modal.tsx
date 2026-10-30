@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import { X } from "lucide-react";
 import { useAccount, useConnect } from "wagmi";
-import { injected } from "@wagmi/connectors/injected";
+import { injected } from "wagmi/connectors";
 import AnimationWrapper from "@/animation/animation-wrapper";
 
 interface WalletConnectModalProps {

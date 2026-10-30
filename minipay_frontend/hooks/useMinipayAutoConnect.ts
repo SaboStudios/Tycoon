@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { connect as wagmiConnect, disconnect, getAccount } from "@wagmi/core";
-import { injected } from "@wagmi/connectors/injected";
+import { injected } from "wagmi/connectors";
 import { useAccount, useConnect, useConnectors } from "wagmi";
 import { getWagmiConfig } from "@/config";
 import {

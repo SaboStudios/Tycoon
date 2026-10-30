@@ -4,7 +4,7 @@ import { Gamepad2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useAccount, useChainId, useConnect, useSignMessage, usePublicClient, useSwitchChain } from "wagmi";
-import { injected } from "@wagmi/connectors/injected";
+import { injected } from "wagmi/connectors";
 import {
   useIsRegistered,
   useGetUsername,

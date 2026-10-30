@@ -8,7 +8,7 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { House, Volume2, VolumeOff, Globe, Menu, X, ShoppingBag, Trophy, BookOpen, FileText, Shield, LifeBuoy, ChevronRight } from 'lucide-react';
 import { useAccount, useChainId, useConnect } from 'wagmi';
-import { injected } from '@wagmi/connectors/injected';
+import { injected } from 'wagmi/connectors';
 import Image from 'next/image';
 import ThemeSoundPlayer from './ThemeSoundPlayer';
 import { JulyBogoPromoBanner } from '@/components/promos/JulyBogoPromoBanner';

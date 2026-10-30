@@ -56,6 +56,10 @@ const nextConfig = {
             [nextPolyfillModule]: emptyPolyfill,
           }),
     };
+    // Catch nested subpaths webpack may not match via alias keys alone.
+    config.plugins.push(
+      new webpack.NormalModuleReplacementPlugin(/^@x402\//, emptyPolyfill)
+    );
     if (!isServer) {
       config.plugins.push(
         new webpack.NormalModuleReplacementPlugin(
