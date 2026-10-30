@@ -22,7 +22,8 @@ import { toast } from "react-toastify";
 import { generateGameCode } from "@/lib/utils/games";
 import { GamePieces } from "@/lib/constants/games";
 import { apiClient } from "@/lib/api";
-import { extractGoodDollarVerify } from "@/lib/goodDollarVerifyPrompt";
+import { extractGoodDollarVerify, promptGoodDollarVerify } from "@/lib/goodDollarVerifyPrompt";
+import { walletAuthParams } from "@/lib/walletSession";
 import Erc20Abi from "@/context/abi/ERC20abi.json";
 import {
   useIsRegistered,
@@ -373,6 +374,33 @@ export default function CreateGameMobile({
           }
         }
 
+        // MiniPay registered path uses POST /games (not guest). Check G$ before gas.
+        try {
+          const gdRes = await apiClient.get<{
+            enabled?: boolean;
+            verified?: boolean;
+            verifyUrl?: string;
+            message?: string;
+          }>("gooddollar/status", walletAuthParams(address, "CELO"));
+          const gd = (gdRes as { data?: { enabled?: boolean; verified?: boolean; verifyUrl?: string; message?: string } })
+            ?.data;
+          if (gd?.enabled !== false && gd?.verified !== true) {
+            toast.dismiss(toastId);
+            promptGoodDollarVerify({
+              verifyUrl: gd?.verifyUrl || "https://goodid.gooddollar.org/",
+              message: gd?.message || "Verify your humanity with GoodDollar to play on MiniPay.",
+            });
+            setIsStarting(false);
+            return;
+          }
+        } catch (gdErr: unknown) {
+          if (extractGoodDollarVerify(gdErr)) {
+            toast.dismiss(toastId);
+            setIsStarting(false);
+            return;
+          }
+        }
+
         toast.update(toastId, { render: "Creating game on-chain (sign in wallet)..." });
         const onChainGameId = await createGame();
         if (onChainGameId == null) throw new Error("Failed to create game on-chain");
@@ -412,6 +440,11 @@ export default function CreateGameMobile({
           onClose: () => router.push(`${redirectToWaitingRoom}?gameCode=${code}`),
         });
       } catch (err: unknown) {
+        if (extractGoodDollarVerify(err)) {
+          toast.dismiss(toastId);
+          setIsStarting(false);
+          return;
+        }
         const message = getContractErrorMessage(err, "Failed to create game. Please try again.");
         toast.update(toastId, {
           render: message,

@@ -7,9 +7,10 @@ Short reference for reviewers (GoodBuilders Season 4 retest) and future contribu
 **Primary core flow:** creating a solo game vs AI opponents and creating a
 multiplayer lobby from inside MiniPay.
 
-- `POST /games/create-ai-as-guest` — AI-only solo game
-- `POST /games/create-as-guest` — human-lobby create (reached via the
-  `create-multiplayer-as-guest` shim too)
+- `POST /games/create-ai-as-guest` — AI-only solo game (guest path)
+- `POST /games/create-as-guest` — human-lobby create (guest path)
+- `POST /games` — **registered MiniPay wallets** (on-chain create then save).
+  MiniPay with an injected wallet usually hits this path, not `*-as-guest`.
 
 Both are the single entry point MiniPay players hit to actually start a match.
 If the gate rejects, no on-chain write happens — the DB game is never created

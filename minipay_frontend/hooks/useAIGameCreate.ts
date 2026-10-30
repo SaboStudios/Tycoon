@@ -11,7 +11,8 @@ import {
 import { resolveChainForBackend } from "@/lib/utils/chain";
 import { generateGameCode } from "@/lib/utils/games";
 import { apiClient } from "@/lib/api";
-import { extractGoodDollarVerify } from "@/lib/goodDollarVerifyPrompt";
+import { extractGoodDollarVerify, promptGoodDollarVerify } from "@/lib/goodDollarVerifyPrompt";
+import { walletAuthParams } from "@/lib/walletSession";
 import {
   useIsRegistered,
   useGetUsername,
@@ -213,6 +214,29 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
       }
     }
 
+    // MiniPay registered wallets use on-chain create + POST /games (not *-as-guest).
+    // Check G$ before spending gas; backend also gates POST /games.
+    try {
+      const gdRes = await apiClient.get<{
+        enabled?: boolean;
+        verified?: boolean;
+        verifyUrl?: string;
+        message?: string;
+      }>("gooddollar/status", walletAuthParams(address, "CELO"));
+      const gd = (gdRes as { data?: { enabled?: boolean; verified?: boolean; verifyUrl?: string; message?: string } })
+        ?.data;
+      if (gd?.enabled !== false && gd?.verified !== true) {
+        promptGoodDollarVerify({
+          verifyUrl: gd?.verifyUrl || "https://goodid.gooddollar.org/",
+          message: gd?.message || "Verify your humanity with GoodDollar to play on MiniPay.",
+        });
+        return;
+      }
+    } catch (gdErr: unknown) {
+      if (extractGoodDollarVerify(gdErr)) return;
+      // If status can't be loaded, continue — POST /games still enforces the gate.
+    }
+
     try {
       const onChainGameId = await createAiGame(usernameNow);
       if (!onChainGameId) throw new Error("Failed to create game on-chain");
@@ -250,6 +274,7 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
 
         if (!dbGameId) throw new Error("Backend did not return game ID");
       } catch (backendError: any) {
+        if (extractGoodDollarVerify(backendError)) return;
         console.error("Backend save error:", backendError);
         throw new Error(backendError.response?.data?.message || "Failed to save game on server");
       }
