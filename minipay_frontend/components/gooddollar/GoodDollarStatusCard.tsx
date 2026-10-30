@@ -2,6 +2,7 @@
 
 import { ExternalLink, Loader2, RefreshCw, Shield, ShieldCheck } from "lucide-react";
 import { useGoodDollarStatus } from "@/hooks/useGoodDollarStatus";
+import type { WalletChain } from "@/lib/walletSession";
 
 function shorten(addr?: string | null): string | null {
   if (!addr || typeof addr !== "string") return null;
@@ -14,13 +15,30 @@ type GoodDollarStatusCardProps = {
   /** `hero` = slim strip for home; `card` = full Profile block (default). */
   variant?: "card" | "hero";
   className?: string;
+  /** Pass guest/play address so the hook can send wallet auth params like DailyClaim. */
+  playAddress?: string | null;
+  chain?: WalletChain;
 };
 
 export default function GoodDollarStatusCard({
   variant = "card",
   className = "",
+  playAddress,
+  chain = "CELO",
 }: GoodDollarStatusCardProps) {
-  const { data, isLoading, isFetching, isError, refetch } = useGoodDollarStatus();
+  const { data, isLoading, isFetching, isError, isUnauthorized, canCallApi, refetch } =
+    useGoodDollarStatus({ chain, playAddress });
+
+  // No wallet + no token → there's nothing to check. Hero: hide entirely so we
+  // don't nag unconnected visitors. Card: show a muted sign-in hint.
+  if (!canCallApi) {
+    if (variant === "hero") return null;
+    return (
+      <div className={`rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-slate-400 ${className}`}>
+        Connect your wallet or sign in to check GoodDollar status.
+      </div>
+    );
+  }
 
   // Don't flash "Not verified" while the first fetch is in flight.
   if (isLoading || (!data && !isError)) {
@@ -43,11 +61,14 @@ export default function GoodDollarStatusCard({
   }
 
   if (isError || !data) {
+    const message = isUnauthorized
+      ? "Connect your wallet or sign in to check GoodDollar status."
+      : "Couldn't load GoodDollar status.";
     return (
       <div
         className={`rounded-xl border border-[#003B3E]/60 bg-[#0E1415]/50 p-3 text-sm text-slate-400 flex items-center justify-between gap-3 ${className}`}
       >
-        <span className="text-xs sm:text-sm">Couldn&apos;t load GoodDollar status.</span>
+        <span className="text-xs sm:text-sm">{message}</span>
         <button
           type="button"
           onClick={() => refetch()}

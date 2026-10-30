@@ -907,7 +907,7 @@ function GuestProfileViewMobile({
         </section>
 
         <div className="px-4 py-4 space-y-4">
-          <GoodDollarStatusCard />
+          <GoodDollarStatusCard chain="CELO" playAddress={getGuestUserPlayAddress(guestUser)} />
           <DailyClaim chain="CELO" playAddress={getGuestUserPlayAddress(guestUser)} />
           <ProfileReferralCard />
         </div>
@@ -1782,7 +1782,10 @@ export default function ProfilePageMobile() {
         </section>
 
         <div className="px-4 py-4 space-y-4">
-          <GoodDollarStatusCard />
+          <GoodDollarStatusCard
+            chain="CELO"
+            playAddress={getGuestUserPlayAddress(guestUser) ?? walletAddress ?? undefined}
+          />
           <DailyClaim
             chain="CELO"
             playAddress={getGuestUserPlayAddress(guestUser) ?? walletAddress ?? undefined}

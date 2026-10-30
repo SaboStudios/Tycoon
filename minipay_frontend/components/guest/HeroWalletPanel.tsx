@@ -538,7 +538,12 @@ const HeroWalletPanel: React.FC<HeroWalletPanelProps> = ({ onReturningPlayerChan
             )}
 
             {/* Core G$ gate — visible on home so reviewers see identity before Challenge AI */}
-            <GoodDollarStatusCard variant="hero" />
+            <GoodDollarStatusCard
+              variant="hero"
+              chain="CELO"
+              playAddress={getGuestUserPlayAddress(guestUser) ?? address ?? undefined}
+            />
+
           </div>
         )}
 
