@@ -1,8 +1,19 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useConnectWallet } from "@/hooks/useConnectWallet";
 import { usePrivy } from "@/hooks/usePrivy";
 import { Wallet, LogIn, X } from "lucide-react";
+
+function useIsMiniPay(): boolean {
+  const [isMiniPay, setIsMiniPay] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const eth = (window as Window & { ethereum?: { isMiniPay?: boolean } }).ethereum;
+    setIsMiniPay(Boolean(eth?.isMiniPay));
+  }, []);
+  return isMiniPay;
+}
 
 type StickyBarProps = {
   canAct: boolean;
@@ -13,14 +24,16 @@ type StickyBarProps = {
 export function JoinRoomAuthStickyBar({ canAct, authLoading }: StickyBarProps) {
   const connectWallet = useConnectWallet();
   const { ready, login } = usePrivy();
+  const isMiniPay = useIsMiniPay();
 
   if (authLoading || canAct) return null;
 
   return (
     <div className="sticky top-0 z-30 -mx-6 sm:-mx-8 lg:-mx-12 mb-6 rounded-xl border border-amber-500/40 bg-[#0A1214]/95 backdrop-blur-md px-4 py-3 shadow-lg shadow-black/40">
       <p className="text-amber-100/95 text-xs sm:text-sm font-orbitron text-center mb-3 leading-snug">
-        Connect a wallet or sign in free (email / social) to browse open games, continue a match, or host.
-        You can still enter a room code below without signing in.
+        {isMiniPay
+          ? "Connect your MiniPay wallet to browse open games, continue a match, or host. You can still enter a room code below without signing in."
+          : "Connect a wallet or sign in free (email / social) to browse open games, continue a match, or host. You can still enter a room code below without signing in."}
       </p>
       <div className="flex flex-col sm:flex-row gap-2 sm:justify-center sm:items-center">
         <button
@@ -31,15 +44,17 @@ export function JoinRoomAuthStickyBar({ canAct, authLoading }: StickyBarProps) {
           <Wallet className="w-4 h-4 shrink-0" />
           Connect wallet
         </button>
-        <button
-          type="button"
-          disabled={!ready}
-          onClick={() => void login()}
-          className="inline-flex items-center justify-center gap-2 min-h-[44px] rounded-xl border border-[#00F0FF]/60 bg-[#010F10]/80 px-4 py-2.5 font-orbitron font-bold text-[#00F0FF] hover:bg-[#00F0FF]/10 transition-colors disabled:opacity-50"
-        >
-          <LogIn className="w-4 h-4 shrink-0" />
-          Sign in free
-        </button>
+        {!isMiniPay && (
+          <button
+            type="button"
+            disabled={!ready}
+            onClick={() => void login()}
+            className="inline-flex items-center justify-center gap-2 min-h-[44px] rounded-xl border border-[#00F0FF]/60 bg-[#010F10]/80 px-4 py-2.5 font-orbitron font-bold text-[#00F0FF] hover:bg-[#00F0FF]/10 transition-colors disabled:opacity-50"
+          >
+            <LogIn className="w-4 h-4 shrink-0" />
+            Sign in free
+          </button>
+        )}
       </div>
     </div>
   );
@@ -54,6 +69,7 @@ type ModalProps = {
 export function JoinRoomAuthModal({ open, hint, onDismiss }: ModalProps) {
   const connectWallet = useConnectWallet();
   const { ready, login } = usePrivy();
+  const isMiniPay = useIsMiniPay();
 
   if (!open) return null;
 
@@ -74,7 +90,7 @@ export function JoinRoomAuthModal({ open, hint, onDismiss }: ModalProps) {
           <X className="w-5 h-5" />
         </button>
         <h2 id="join-room-auth-title" className="text-lg font-orbitron font-bold text-[#00F0FF] mb-2 pr-10">
-          Sign in to continue
+          {isMiniPay ? "Connect wallet to continue" : "Sign in to continue"}
         </h2>
         <p className="text-sm text-slate-300 mb-5 leading-relaxed">{hint}</p>
         <div className="flex flex-col sm:flex-row gap-2">
@@ -86,18 +102,20 @@ export function JoinRoomAuthModal({ open, hint, onDismiss }: ModalProps) {
             <Wallet className="w-4 h-4" />
             Connect wallet
           </button>
-          <button
-            type="button"
-            disabled={!ready}
-            onClick={() => void login()}
-            className="inline-flex flex-1 items-center justify-center gap-2 min-h-[44px] rounded-xl border border-[#00F0FF]/50 px-4 py-2.5 font-orbitron font-bold text-[#00F0FF] hover:bg-[#00F0FF]/10 disabled:opacity-50"
-          >
-            <LogIn className="w-4 h-4" />
-            Sign in free
-          </button>
+          {!isMiniPay && (
+            <button
+              type="button"
+              disabled={!ready}
+              onClick={() => void login()}
+              className="inline-flex flex-1 items-center justify-center gap-2 min-h-[44px] rounded-xl border border-[#00F0FF]/50 px-4 py-2.5 font-orbitron font-bold text-[#00F0FF] hover:bg-[#00F0FF]/10 disabled:opacity-50"
+            >
+              <LogIn className="w-4 h-4" />
+              Sign in free
+            </button>
+          )}
         </div>
         <p className="text-[0.65rem] text-slate-500 mt-4 leading-snug">
-          After you connect or sign in, we continue what you started. Cancel clears this step.
+          After you connect{isMiniPay ? "" : " or sign in"}, we continue what you started. Cancel clears this step.
         </p>
       </div>
     </div>
