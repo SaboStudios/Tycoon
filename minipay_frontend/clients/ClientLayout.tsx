@@ -9,6 +9,7 @@ import { MessageNotificationsProvider } from "@/context/MessageNotificationsCont
 import { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { isPublicPath } from "@/lib/publicPaths";
+import { APP_SHELL_WIDTH } from "@/lib/appShell";
 
 const AuthGuard = dynamic(() => import("@/components/auth/AuthGuard"), { ssr: false });
 
@@ -28,7 +29,7 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
   const needsMobileNavPadding = !isBoard3D && !isSelfHeaderSetup;
   const contentClassName = [
     needsMobileNavPadding ? "pt-below-mobile-nav" : "",
-    !isBoard3D ? "max-w-md mx-auto w-full" : "",
+    !isBoard3D ? APP_SHELL_WIDTH : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -47,9 +48,7 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
           {isBoard3D ? (
             <NavBarMobile minimal />
           ) : isSelfHeaderSetup ? null : (
-            <div className="max-w-md mx-auto w-full">
-              <NavBarMobile />
-            </div>
+            <NavBarMobile />
           )}
           {isPublic ? pageContent : <AuthGuard>{pageContent}</AuthGuard>}
         </div>

@@ -26,6 +26,7 @@ import { apiClient } from '@/lib/api';
 import { mergeProfilesFromGuestUser } from '@/lib/profile-storage';
 import type { User as UserType } from '@/lib/types/users';
 import { isAddress } from 'viem';
+import { APP_SHELL_WIDTH } from '@/lib/appShell';
 
 const SCROLL_TOP_THRESHOLD = 40;
 const SCROLL_SENSITIVITY = 8;
@@ -206,35 +207,37 @@ const NavBarMobile = ({ minimal = false }: NavBarMobileProps) => {
             initial={false}
             animate={{ y: pinHeader || navVisible ? 0 : -100 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="fixed top-0 left-0 right-0 h-[82px] pt-safe flex flex-col z-[1000]"
+            className="fixed top-0 left-0 right-0 h-[82px] pt-safe flex flex-col z-[1000] bg-gradient-to-b from-[#021a1b]/95 to-[#010F10]/98 backdrop-blur-xl border-b-2 border-[#00F0FF]/20 shadow-[0_4px_20px_rgba(0,0,0,0.4)]"
           >
-            <motion.div
-              className="h-1 origin-left shrink-0 rounded-r-full bg-gradient-to-r from-[#00F0FF] to-[#0FF0FC] shadow-[0_0_12px_rgba(0,240,255,0.6)]"
-              style={{ scaleX }}
-            />
-            <div className="flex-1 flex items-center gap-1.5 px-3 sm:px-4 bg-gradient-to-b from-[#021a1b]/95 to-[#010F10]/98 backdrop-blur-xl border-b-2 border-[#00F0FF]/20 shadow-[0_4px_20px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(0,240,255,0.08)]">
-              <Logo className="w-[40px] sm:w-[44px] shrink-0 drop-shadow-[0_0_8px_rgba(0,240,255,0.2)]" image="/logo.png" href="/" />
-              <div className="min-w-0 flex-1 flex items-center justify-center px-0.5">
-                <WhoIsOnlineControl username={displayName} />
-              </div>
-              <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-                <MessageNotificationBell username={displayName} />
-                <button
-                  type="button"
-                  onClick={toggleSound}
-                  aria-label={isSoundPlaying ? 'Sound on' : 'Sound off'}
-                  className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-b from-[#03383a] to-[#011112] border border-[#00F0FF]/25 flex items-center justify-center text-white/90 hover:border-[#00F0FF]/40 hover:shadow-[0_0_16px_rgba(0,240,255,0.12)] active:scale-[0.97] transition-all duration-200"
-                >
-                  {isSoundPlaying ? <Volume2 size={20} /> : <VolumeOff size={20} />}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsMobileMenuOpen(true)}
-                  aria-label="Open main menu"
-                  className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-b from-[#03383a] to-[#011112] border border-[#00F0FF]/35 flex items-center justify-center text-[#00F0FF] hover:border-[#00F0FF]/55 hover:shadow-[0_0_18px_rgba(0,240,255,0.2)] active:scale-[0.97] transition-all duration-200"
-                >
-                  <Menu size={21} strokeWidth={2.5} aria-hidden />
-                </button>
+            <div className={`${APP_SHELL_WIDTH} flex h-full flex-col`}>
+              <motion.div
+                className="h-1 origin-left shrink-0 rounded-r-full bg-gradient-to-r from-[#00F0FF] to-[#0FF0FC] shadow-[0_0_12px_rgba(0,240,255,0.6)]"
+                style={{ scaleX }}
+              />
+              <div className="flex-1 flex items-center gap-1.5 px-3 sm:px-4">
+                <Logo className="w-[40px] sm:w-[44px] shrink-0 drop-shadow-[0_0_8px_rgba(0,240,255,0.2)]" image="/logo.png" href="/" />
+                <div className="min-w-0 flex-1 flex items-center justify-center px-0.5">
+                  <WhoIsOnlineControl username={displayName} />
+                </div>
+                <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+                  <MessageNotificationBell username={displayName} />
+                  <button
+                    type="button"
+                    onClick={toggleSound}
+                    aria-label={isSoundPlaying ? 'Sound on' : 'Sound off'}
+                    className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-b from-[#03383a] to-[#011112] border border-[#00F0FF]/25 flex items-center justify-center text-white/90 hover:border-[#00F0FF]/40 hover:shadow-[0_0_16px_rgba(0,240,255,0.12)] active:scale-[0.97] transition-all duration-200"
+                  >
+                    {isSoundPlaying ? <Volume2 size={20} /> : <VolumeOff size={20} />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsMobileMenuOpen(true)}
+                    aria-label="Open main menu"
+                    className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-b from-[#03383a] to-[#011112] border border-[#00F0FF]/35 flex items-center justify-center text-[#00F0FF] hover:border-[#00F0FF]/55 hover:shadow-[0_0_18px_rgba(0,240,255,0.2)] active:scale-[0.97] transition-all duration-200"
+                  >
+                    <Menu size={21} strokeWidth={2.5} aria-hidden />
+                  </button>
+                </div>
               </div>
             </div>
           </motion.header>
