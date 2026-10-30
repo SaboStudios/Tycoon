@@ -5,13 +5,6 @@ import { useGoodDollarStatus } from "@/hooks/useGoodDollarStatus";
 import { useGoodDollarVerify } from "@/hooks/useGoodDollarVerify";
 import type { WalletChain } from "@/lib/walletSession";
 
-function shorten(addr?: string | null): string | null {
-  if (!addr || typeof addr !== "string") return null;
-  const s = addr.trim();
-  if (!/^0x[a-fA-F0-9]{40}$/.test(s)) return null;
-  return `${s.slice(0, 6)}…${s.slice(-4)}`;
-}
-
 type GoodDollarStatusCardProps = {
   /** `hero` = slim strip for home; `card` = full Profile block (default). */
   variant?: "card" | "hero";
@@ -91,9 +84,6 @@ export default function GoodDollarStatusCard({
     );
   }
 
-  const primary = shorten(data.checkedAddresses[0]);
-  const extraCount = Math.max(0, data.checkedAddresses.length - 1);
-
   if (variant === "hero") {
     if (data.verified) {
       return (
@@ -102,7 +92,7 @@ export default function GoodDollarStatusCard({
         >
           <ShieldCheck className="w-4 h-4 text-emerald-300 shrink-0" />
           <p className="flex-1 min-w-0 text-[11px] font-orbitron font-semibold text-emerald-100 truncate">
-            G$ verified{primary ? ` · ${primary}` : ""}
+            G$ verified
           </p>
           <button
             type="button"
@@ -125,7 +115,6 @@ export default function GoodDollarStatusCard({
           <Shield className="w-4 h-4 text-cyan-300 shrink-0" />
           <p className="flex-1 min-w-0 text-[11px] font-orbitron font-semibold text-white truncate">
             GoodDollar required to play
-            {primary ? ` · ${primary}` : ""}
           </p>
           <button
             type="button"
@@ -162,8 +151,7 @@ export default function GoodDollarStatusCard({
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-white">Verified with GoodDollar</p>
           <p className="text-xs text-slate-400 truncate">
-            {primary ? primary : "Verified wallet"}
-            {extraCount > 0 ? ` · +${extraCount} other${extraCount === 1 ? "" : "s"} checked` : ""}
+            Daily claim includes a G$ citizen TYC bonus
           </p>
         </div>
         <button
@@ -193,8 +181,7 @@ export default function GoodDollarStatusCard({
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-white">Not verified with GoodDollar</p>
           <p className="text-xs text-slate-400 truncate">
-            {primary ? `Checked ${primary}` : "No wallet linked yet"}
-            {extraCount > 0 ? ` · +${extraCount} other${extraCount === 1 ? "" : "s"}` : ""}
+            Verify to play on MiniPay and unlock the daily G$ TYC bonus
           </p>
         </div>
         <button

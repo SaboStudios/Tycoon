@@ -32,6 +32,7 @@ import { User as UserType } from "@/lib/types/users";
 import { ApiResponse } from "@/types/api";
 import { useUserLevel } from "@/hooks/useUserLevel";
 import GoodDollarStatusCard from "@/components/gooddollar/GoodDollarStatusCard";
+import { DailyClaim } from "@/components/rewards/DailyClaim";
 
 function chainIdToBackendChain(chainId: number): string {
   return "CELO";
@@ -539,6 +540,13 @@ const HeroWalletPanel: React.FC<HeroWalletPanelProps> = ({ onReturningPlayerChan
 
             {/* Core G$ gate — visible on home so reviewers see identity before Challenge AI */}
             <GoodDollarStatusCard
+              variant="hero"
+              chain="CELO"
+              playAddress={getGuestUserPlayAddress(guestUser) ?? address ?? undefined}
+            />
+
+            {/* Daily TYC claim + G$ citizen bonus — visible when returning players land on home */}
+            <DailyClaim
               variant="hero"
               chain="CELO"
               playAddress={getGuestUserPlayAddress(guestUser) ?? address ?? undefined}
