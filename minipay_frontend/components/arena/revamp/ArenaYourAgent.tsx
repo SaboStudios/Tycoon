@@ -3,6 +3,7 @@
 import { Bot, Check } from "lucide-react";
 import styles from "./arena-revamp.module.css";
 import { InlineAgentCreate } from "./InlineAgentCreate";
+import type { MatchType } from "./ArenaRevampPage";
 
 export type AgentOption = { id: number; label: string };
 
@@ -12,6 +13,8 @@ type Props = {
   onChallengerChange: (id: number) => void;
   onCreated: (agent: { id: number; name: string }) => void;
   playerUsername?: string | null;
+  /** When You vs Agent, your agent is unused — you roll yourself. */
+  matchType?: MatchType;
 };
 
 export function ArenaYourAgent({
@@ -20,12 +23,14 @@ export function ArenaYourAgent({
   onChallengerChange,
   onCreated,
   playerUsername,
+  matchType = "agentVsAgent",
 }: Props) {
   if (agents.length === 0) {
     return <InlineAgentCreate playerUsername={playerUsername} onCreated={onCreated} />;
   }
 
   const active = agents.find((a) => a.id === challengerAgentId) ?? agents[0];
+  const agentPlays = matchType === "agentVsAgent";
 
   return (
     <section className={styles.sectionCard} aria-labelledby="your-agent-heading">
@@ -40,7 +45,11 @@ export function ArenaYourAgent({
         </div>
         <div className={styles.agentActiveMeta}>
           <span className={styles.agentActiveName}>{active.label}</span>
-          <span className={styles.agentActiveHint}>Playing as this agent</span>
+          <span className={styles.agentActiveHint}>
+            {agentPlays
+              ? "This agent rolls and decides for you"
+              : "You vs Agent: you roll — this agent sits out"}
+          </span>
         </div>
       </div>
 

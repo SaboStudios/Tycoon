@@ -40,7 +40,8 @@ function fmtBalance(raw: bigint | undefined, decimals: number | undefined): stri
 }
 
 export function ArenaMatchSettings({ matchType, onMatchTypeChange, stake, onStakeChange }: Props) {
-  const [open, setOpen] = useState(false);
+  /** Open by default so match type (agent auto-play vs you roll) is obvious. */
+  const [open, setOpen] = useState(true);
   const { address } = useAccount();
   const usdc = USDC_TOKEN_ADDRESS[celo.id];
   const balance = useBalance({

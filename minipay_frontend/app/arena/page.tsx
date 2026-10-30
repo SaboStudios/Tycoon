@@ -235,7 +235,8 @@ export default function ArenaPage() {
     },
     [router]
   );
-  const [matchType, setMatchType] = useState<MatchType>("agentVsAi");
+  /** Default: agents auto-play. "You vs Agent" is opt-in (you roll dice). */
+  const [matchType, setMatchType] = useState<MatchType>("agentVsAgent");
   const [agents, setAgents] = useState<Agent[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [myAgents, setMyAgents] = useState<Agent[]>([]);

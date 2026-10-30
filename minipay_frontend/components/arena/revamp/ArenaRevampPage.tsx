@@ -280,6 +280,7 @@ export function ArenaRevampPage({
                   challengerAgentId={challengerAgentId}
                   onChallengerChange={onChallengerChange}
                   playerUsername={playerUsername}
+                  matchType={matchType}
                   onCreated={(agent) => {
                     onAgentCreated?.(agent);
                     onRefreshMyAgents?.();
@@ -341,6 +342,7 @@ export function ArenaRevampPage({
                 <span className={styles.launchDockHint}>{launchHint}</span>
               ) : (
                 <span className={styles.launchDockHint}>
+                  {matchType === "agentVsAgent" ? "Agents auto-play" : "You roll"} ·{" "}
                   {selectedOpponentIds.length} opponent{selectedOpponentIds.length !== 1 ? "s" : ""} · {stakeDisplay}
                 </span>
               )}
