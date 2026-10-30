@@ -54,7 +54,10 @@ export function ArenaMatchSettings({ matchType, onMatchTypeChange, stake, onStak
     query: { enabled: !!address && !!usdc },
   });
 
-  const agentStakeBlocked = matchType === "agentVsAgent" && !AGENT_VS_AGENT_STAKES_ENABLED;
+  /** Free-only for both modes while controller-sponsored stakes/create are paused. */
+  const agentStakeBlocked =
+    !AGENT_VS_AGENT_STAKES_ENABLED &&
+    (matchType === "agentVsAgent" || matchType === "agentVsAi");
 
   useEffect(() => {
     if (agentStakeBlocked && stake.trim()) onStakeChange("");
@@ -127,7 +130,7 @@ export function ArenaMatchSettings({ matchType, onMatchTypeChange, stake, onStak
             </div>
             {agentStakeBlocked ? (
               <p className={styles.fieldHelp}>
-                Agent vs Agent stakes are paused for now — matches are Free only.
+                Stakes are paused for now — Free matches only (you sign createGame in MiniPay).
               </p>
             ) : (
               <>

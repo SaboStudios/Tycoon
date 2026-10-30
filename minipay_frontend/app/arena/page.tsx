@@ -660,18 +660,33 @@ export default function ArenaPage() {
     setArenaTxBusy(null);
     setHumanVsStarting(true);
     try {
-      const stakeSource = matchType === "agentVsAi" ? stakeAmountUsdc : humanVsStakeUsdc;
-      const stakeNum = stakeSource.trim() ? parseFloat(stakeSource) : 0;
+      // You pay CELO for createGame; server only joins the opponent agent (no controller create).
+      const username = (guestUser?.username || "").trim();
+      if (!username) {
+        throw new Error("Sign in / register a username on Home before starting You vs Agent");
+      }
+      if (!publicClient || !writeContractAsync) {
+        throw new Error("Wallet not ready — connect MiniPay and try again");
+      }
+      const { code: onChainCode, contractGameId } = await createSignedArenaAgentLobby({
+        username,
+        chainId: chainId || 42220,
+        numberOfPlayers: 2,
+        publicClient,
+        writeContractAsync: writeContractAsync as never,
+      });
+
       const res = await apiClient.post<any>(
         "/arena/start-human-vs-agent",
         {
           opponent_agent_id: oppId,
           chain: "CELO",
-          ...(stakeNum > 0 && { stake_amount_usdc: stakeNum }),
+          code: onChainCode,
+          contract_game_id: contractGameId,
         },
         { timeout: ONCHAIN_BATCH_REQUEST_TIMEOUT_MS }
       );
-      const code = res?.data?.game_code as string | undefined;
+      const code = (res?.data?.game_code as string | undefined) || onChainCode;
       if (code) {
         setArenaTxModalOpen(false);
         setHumanVsOpponentId(null);
