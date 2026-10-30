@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { ARENA_TOURNAMENTS_COMING_SOON } from "@/constants/arena";
 import { useRouter } from "next/navigation";
+import { useAccount, useSignMessage } from "wagmi";
 import { apiClient, ONCHAIN_BATCH_REQUEST_TIMEOUT_MS, ApiError } from "@/lib/api";
 import { ArenaOnchainModal, type ArenaOnchainBusyPayload } from "@/components/arena/arena-onchain-modal";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
@@ -19,6 +20,11 @@ import {
   type MatchType,
 } from "@/components/arena/revamp/ArenaRevampPage";
 import { resolveDiscoverAgents } from "@/components/arena/revamp/map-api-agents";
+
+/** localStorage key for the last agent the user picked as challenger. */
+const LAST_AGENT_KEY = "tycoon-arena-last-agent-id";
+/** Max time to show the auth skeleton before giving up and showing the UI. */
+const AUTH_SKELETON_TIMEOUT_MS = 5000;
 
 /** Multi-opponent batch games from Discover tab. */
 const MAX_DISCOVER_OPPONENTS = 7;
@@ -133,9 +139,59 @@ export default function ArenaPage() {
   const router = useRouter();
   const guestCtx = useGuestAuthOptional();
   const guestUser = guestCtx?.guestUser ?? null;
-  const authLoading = guestCtx?.isLoading ?? false;
-  /** Backend JWT session (guest, wallet login, or after Web3Auth → web3auth-signin). Not the same as usePrivy().authenticated. */
-  const isAuthed = Boolean(guestUser);
+  const authLoadingRaw = guestCtx?.isLoading ?? false;
+  const { address: walletAddress, isConnected: walletConnected } = useAccount();
+  const { signMessageAsync } = useSignMessage();
+  /** Capped so the UI can't spin indefinitely if /auth/me stalls. */
+  const [authSkeletonExpired, setAuthSkeletonExpired] = useState(false);
+  const silentRetryRef = useRef(false);
+  const launchLoginRef = useRef(false);
+  useEffect(() => {
+    if (!authLoadingRaw) return;
+    const id = setTimeout(() => setAuthSkeletonExpired(true), AUTH_SKELETON_TIMEOUT_MS);
+    return () => clearTimeout(id);
+  }, [authLoadingRaw]);
+  useEffect(() => {
+    if (!authLoadingRaw) setAuthSkeletonExpired(false);
+  }, [authLoadingRaw]);
+  // Silent /auth/me retry after the skeleton timeout. Only once. Does NOT request a signature.
+  useEffect(() => {
+    if (!authSkeletonExpired || silentRetryRef.current) return;
+    silentRetryRef.current = true;
+    guestCtx?.refetchGuest?.();
+  }, [authSkeletonExpired, guestCtx]);
+  const authLoading = authLoadingRaw && !authSkeletonExpired;
+  // isAuthed = backend session confirmed (guestUser) OR we can prompt a signature on launch (walletConnected).
+  // We NEVER trigger a signature on page load — only on launch click (see ensureBackendSessionForLaunch).
+  const isAuthed = Boolean(guestUser) || walletConnected;
+
+  /**
+   * Called from the launch flow when the user has a wagmi wallet but no backend session.
+   * Prompts one wallet signature then calls POST /auth/login-by-wallet. Returns true on success.
+   * Idempotent per click — launchLoginRef prevents re-prompting on fast double-tap.
+   */
+  const ensureBackendSessionForLaunch = useCallback(async (): Promise<boolean> => {
+    if (guestUser) return true;
+    if (!walletConnected || !walletAddress) return false;
+    if (!guestCtx?.loginByWallet || !signMessageAsync) return false;
+    if (launchLoginRef.current) return false;
+    launchLoginRef.current = true;
+    try {
+      const message = `Sign in to Tycoon at ${Date.now()}`;
+      const chain = "CELO";
+      const signature = await signMessageAsync({ message });
+      const res = await guestCtx.loginByWallet({ address: walletAddress, chain, message, signature });
+      if (res?.success) {
+        await guestCtx.refetchGuest?.();
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    } finally {
+      launchLoginRef.current = false;
+    }
+  }, [guestUser, walletConnected, walletAddress, guestCtx, signMessageAsync]);
   const [activeTab, setActiveTab] = useState<ArenaTab>("discover");
 
   const setArenaTab = useCallback(
@@ -150,7 +206,7 @@ export default function ArenaPage() {
     },
     [router]
   );
-  const [matchType, setMatchType] = useState<MatchType>("agentVsAi");
+  const [matchType, setMatchType] = useState<MatchType>("agentVsAgent");
   const [agents, setAgents] = useState<Agent[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [myAgents, setMyAgents] = useState<Agent[]>([]);
@@ -219,11 +275,13 @@ export default function ArenaPage() {
     }
   }, [mergeTournamentPermsFromApiResponse]);
 
+  // Only fire /agents when the backend session is actually ready — avoids 401 spam
+  // for MiniPay users whose silent wallet-login hasn't finished yet.
   useEffect(() => {
-    if (isAuthed) {
+    if (guestUser) {
       fetchMyAgents();
     }
-  }, [isAuthed]);
+  }, [guestUser]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -236,10 +294,10 @@ export default function ArenaPage() {
   }, []);
 
   useEffect(() => {
-    if (activeTab === "discover" && isAuthed) {
+    if (activeTab === "discover" && guestUser) {
       fetchMyAgents();
     }
-  }, [activeTab, isAuthed]);
+  }, [activeTab, guestUser]);
 
   useEffect(() => {
     if (ARENA_TOURNAMENTS_COMING_SOON) return;
@@ -284,10 +342,47 @@ export default function ArenaPage() {
   }, [activeTab]);
 
   useEffect(() => {
-    if (myAgents.length > 0 && challengerAgentId == null) {
-      setChallengerAgentId(myAgents[0].id);
+    if (myAgents.length === 0 || challengerAgentId != null) return;
+    let preferred: number | null = null;
+    try {
+      const stored = window.localStorage.getItem(LAST_AGENT_KEY);
+      if (stored) {
+        const n = Number(stored);
+        if (Number.isFinite(n) && myAgents.some((a) => a.id === n)) preferred = n;
+      }
+    } catch {
+      /* ignore */
     }
+    setChallengerAgentId(preferred ?? myAgents[0].id);
   }, [myAgents, challengerAgentId]);
+
+  const handleChallengerChange = useCallback((id: number) => {
+    setChallengerAgentId(id);
+    try {
+      window.localStorage.setItem(LAST_AGENT_KEY, String(id));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const handleReplaceOpponents = useCallback(
+    (ids: number[]) => setSelectedOpponents(ids),
+    []
+  );
+
+  const handleAgentCreated = useCallback(
+    (agent: { id: number; name: string }) => {
+      setChallengerAgentId(agent.id);
+      try {
+        window.localStorage.setItem(LAST_AGENT_KEY, String(agent.id));
+      } catch {
+        /* ignore */
+      }
+    },
+    []
+  );
+
+  const dismissError = useCallback(() => setError(null), []);
 
   const approvedAgentIds = Object.keys(tournamentPerms).map(Number).filter((id) => tournamentPerms[id]?.enabled);
   const approvedAgentsForChallenges = myAgents.filter((a) => approvedAgentIds.includes(a.id));
@@ -311,7 +406,7 @@ export default function ArenaPage() {
   }, [activeTab]);
 
   useEffect(() => {
-    if (activeTab !== "challenges" || !isAuthed) return;
+    if (activeTab !== "challenges" || !guestUser) return;
     let cancelled = false;
     setChallengesLoading(true);
     (async () => {
@@ -332,10 +427,10 @@ export default function ArenaPage() {
     return () => {
       cancelled = true;
     };
-  }, [activeTab, isAuthed, mergeTournamentPermsFromApiResponse]);
+  }, [activeTab, guestUser, mergeTournamentPermsFromApiResponse]);
 
   useEffect(() => {
-    if (activeTab !== "discover" || !isAuthed) return;
+    if (activeTab !== "discover" || !guestUser) return;
     let cancelled = false;
     (async () => {
       try {
@@ -348,10 +443,10 @@ export default function ArenaPage() {
     return () => {
       cancelled = true;
     };
-  }, [activeTab, isAuthed, mergeTournamentPermsFromApiResponse]);
+  }, [activeTab, guestUser, mergeTournamentPermsFromApiResponse]);
 
   useEffect(() => {
-    if (activeTab !== "my-agents" || !isAuthed) return;
+    if (activeTab !== "my-agents" || !guestUser) return;
     let cancelled = false;
     (async () => {
       try {
@@ -371,7 +466,7 @@ export default function ArenaPage() {
     return () => {
       cancelled = true;
     };
-  }, [activeTab, isAuthed, mergeTournamentPermsFromApiResponse]);
+  }, [activeTab, guestUser, mergeTournamentPermsFromApiResponse]);
 
   const fetchPublicAgents = async (pageNum: number, opts?: { approvedToSpend?: boolean }) => {
     try {
@@ -471,18 +566,8 @@ export default function ArenaPage() {
 
   const startArenaGame = async (opponentIds?: number[]) => {
     const opponents = opponentIds ?? selectedOpponents;
-    if (!isAuthed) {
-      alert("Please log in (guest or Privy). If you use Privy, finish the username step if a modal is open.");
-      return;
-    }
-    if (!challengerAgentId) {
-      alert("Choose your agent");
-      return;
-    }
-    if (opponents.length === 0) {
-      alert("Select at least one opponent (Pick on each card).");
-      return;
-    }
+    if (!isAuthed || !challengerAgentId || opponents.length === 0) return;
+    setError(null);
     setArenaTxModalOpen(true);
     setArenaTxBusy(null);
     setArenaStarting(true);
@@ -512,7 +597,7 @@ export default function ArenaPage() {
         setArenaTxBusy({ message: e.message });
       } else {
         setArenaTxModalOpen(false);
-        alert(`Error: ${e.message || (err as Error).message}`);
+        setError(e?.message || (err as Error).message || "Could not start match. Try again.");
       }
     } finally {
       setArenaStarting(false);
@@ -521,22 +606,14 @@ export default function ArenaPage() {
 
   const startHumanVsAgentGame = async (opponentId?: number) => {
     const oppId = opponentId ?? humanVsOpponentId;
-    if (!isAuthed) {
-      alert("Please log in first.");
-      return;
-    }
-    if (!oppId) {
-      alert("Pick an opponent agent below.");
-      return;
-    }
+    if (!isAuthed || !oppId) return;
+    setError(null);
     setArenaTxModalOpen(true);
     setArenaTxBusy(null);
     setHumanVsStarting(true);
     try {
-      const stakeNum =
-        (matchType === "agentVsAi" ? stakeAmountUsdc : humanVsStakeUsdc).trim()
-          ? parseFloat(matchType === "agentVsAi" ? stakeAmountUsdc : humanVsStakeUsdc)
-          : 0;
+      const stakeSource = matchType === "agentVsAi" ? stakeAmountUsdc : humanVsStakeUsdc;
+      const stakeNum = stakeSource.trim() ? parseFloat(stakeSource) : 0;
       const res = await apiClient.post<any>(
         "/arena/start-human-vs-agent",
         {
@@ -560,7 +637,7 @@ export default function ArenaPage() {
         setArenaTxBusy({ message: e.message });
       } else {
         setArenaTxModalOpen(false);
-        alert(`Error: ${e.message || (err as Error).message}`);
+        setError(e?.message || (err as Error).message || "Could not start match. Try again.");
       }
     } finally {
       setHumanVsStarting(false);
@@ -573,12 +650,31 @@ export default function ArenaPage() {
     myAgents.map((m) => m.id)
   );
 
-  const handleRevampLaunch = () => {
-    if (matchType === "agentVsAi") {
-      if (selectedOpponents.length !== 1) {
-        alert("You vs Agent mode requires exactly one opponent.");
+  const handleRevampLaunch = async () => {
+    if (matchType === "agentVsAi" && selectedOpponents.length !== 1) {
+      setError("You vs Agent mode needs exactly one opponent.");
+      return;
+    }
+    // Staked matches (stake > 0) are 1v1 only — backend rejects multi-opponent staked matches.
+    const stakeNumForGuard = stakeAmountUsdc.trim() ? parseFloat(stakeAmountUsdc) : 0;
+    if (
+      matchType === "agentVsAgent" &&
+      Number.isFinite(stakeNumForGuard) &&
+      stakeNumForGuard > 0 &&
+      selectedOpponents.length !== 1
+    ) {
+      setError("Staked matches are 1-vs-1. Pick exactly one opponent or set stake to Free.");
+      return;
+    }
+    // If backend session is missing, prompt for a signature now (not on page load).
+    if (!guestUser) {
+      const ok = await ensureBackendSessionForLaunch();
+      if (!ok) {
+        setError("Couldn't sign you in. Open Tycoon from MiniPay or try again.");
         return;
       }
+    }
+    if (matchType === "agentVsAi") {
       void startHumanVsAgentGame(selectedOpponents[0]);
     } else {
       void startArenaGame();
@@ -670,13 +766,15 @@ export default function ArenaPage() {
         activeTab={activeTab}
         onTabChange={setArenaTab}
         isAuthed={isAuthed}
+        authLoading={authLoading}
         myAgents={myAgents}
         discoverAgents={discoverAgents}
         selectedOpponentIds={selectedOpponents}
         onToggleOpponent={toggleOpponentSelect}
+        onReplaceOpponents={handleReplaceOpponents}
         maxOpponentSlots={maxOpponentPicks}
         challengerAgentId={challengerAgentId}
-        onChallengerChange={setChallengerAgentId}
+        onChallengerChange={handleChallengerChange}
         stakeAmount={stakeAmountUsdc}
         onStakeChange={setStakeAmountUsdc}
         matchType={matchType}
@@ -686,6 +784,9 @@ export default function ArenaPage() {
         loading={loading && (activeTab === "discover" || activeTab === "challenges")}
         tabPanels={tabPanels}
         error={error}
+        onDismissError={dismissError}
+        onAgentCreated={handleAgentCreated}
+        onRefreshMyAgents={() => fetchMyAgents({ silent: true })}
       />
       <ArenaOnchainModal
         open={arenaTxModalOpen}

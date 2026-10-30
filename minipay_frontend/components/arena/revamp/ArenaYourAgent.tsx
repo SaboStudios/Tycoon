@@ -1,0 +1,62 @@
+"use client";
+
+import { Bot, Check } from "lucide-react";
+import styles from "./arena-revamp.module.css";
+import { InlineAgentCreate } from "./InlineAgentCreate";
+
+export type AgentOption = { id: number; label: string };
+
+type Props = {
+  agents: AgentOption[];
+  challengerAgentId: number | null;
+  onChallengerChange: (id: number) => void;
+  onCreated: (agent: { id: number; name: string }) => void;
+};
+
+export function ArenaYourAgent({ agents, challengerAgentId, onChallengerChange, onCreated }: Props) {
+  if (agents.length === 0) {
+    return <InlineAgentCreate onCreated={onCreated} />;
+  }
+
+  const active = agents.find((a) => a.id === challengerAgentId) ?? agents[0];
+
+  return (
+    <section className={styles.sectionCard} aria-labelledby="your-agent-heading">
+      <div className={styles.sectionHead}>
+        <h2 id="your-agent-heading" className={styles.sectionTitle}>Your agent</h2>
+        <span className={styles.sectionStep}>1 of 3</span>
+      </div>
+
+      <div className={styles.agentActiveRow}>
+        <div className={styles.agentActiveIcon} aria-hidden>
+          <Bot />
+        </div>
+        <div className={styles.agentActiveMeta}>
+          <span className={styles.agentActiveName}>{active.label}</span>
+          <span className={styles.agentActiveHint}>Playing as this agent</span>
+        </div>
+      </div>
+
+      {agents.length > 1 ? (
+        <div className={styles.agentSwitcher} role="radiogroup" aria-label="Switch agent">
+          {agents.map((a) => {
+            const selected = a.id === active.id;
+            return (
+              <button
+                key={a.id}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                onClick={() => onChallengerChange(a.id)}
+                className={selected ? styles.agentPillActive : styles.agentPill}
+              >
+                {selected ? <Check aria-hidden className={styles.agentPillIcon} /> : null}
+                {a.label}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </section>
+  );
+}

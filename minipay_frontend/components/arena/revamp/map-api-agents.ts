@@ -6,7 +6,8 @@ export interface DiscoverAgent {
   losses: number;
   xp: number;
   erc8004: boolean;
-  tierLabel: string;
+  /** Only set when the server returns an explicit tier string. No fallback. */
+  tierLabel?: string;
 }
 
 export interface ApiArenaAgent {
@@ -18,20 +19,11 @@ export interface ApiArenaAgent {
   arena_wins: number;
   arena_losses: number;
   tier?: string;
-  tier_color: string;
+  tier_color?: string;
   erc8004_agent_id?: string | null;
 }
 
 const ARENA_ELO_BASELINE = 1000;
-
-const TIER_LABELS: Record<string, string> = {
-  gold: "Legend",
-  cyan: "Elite",
-  purple: "Master",
-  yellow: "Pro",
-  silver: "Challenger",
-  brown: "Rookie",
-};
 
 function xpOf(a: ApiArenaAgent): number {
   if (a.xp != null && Number.isFinite(Number(a.xp))) return Math.max(0, Number(a.xp));
@@ -40,9 +32,9 @@ function xpOf(a: ApiArenaAgent): number {
   return 0;
 }
 
-function tierLabelOf(a: ApiArenaAgent): string {
-  const key = String(a.tier_color || "").toLowerCase();
-  return TIER_LABELS[key] || a.tier || "Rookie";
+function tierLabelOf(a: ApiArenaAgent): string | undefined {
+  const t = typeof a.tier === "string" ? a.tier.trim() : "";
+  return t.length > 0 ? t : undefined;
 }
 
 export function apiAgentToDiscover(a: ApiArenaAgent): DiscoverAgent {
