@@ -17,6 +17,9 @@ type PlatformMetrics = {
   totalPlayHistoryEvents: number;
   totalPropertiesOwned: number;
   flaggedReports: number;
+  agentsCreated: number;
+  agentCreators: number;
+  agentGames: number;
 };
 
 type GamesOverDay = { date: string; started: number; finished: number };
@@ -46,6 +49,21 @@ const metricCards: { key: keyof PlatformMetrics; label: string; hint?: string }[
   { key: "activePlayersToday", label: "Active players today", hint: "Users updated today (UTC)" },
   { key: "totalGames", label: "Total games" },
   { key: "gamesRunningNow", label: "Games running now", hint: "RUNNING or IN_PROGRESS" },
+  {
+    key: "agentsCreated",
+    label: "Agents created",
+    hint: "Rows in user_agents",
+  },
+  {
+    key: "agentCreators",
+    label: "People with agents",
+    hint: "Distinct users who created ≥1 agent",
+  },
+  {
+    key: "agentGames",
+    label: "Agent games",
+    hint: "Arena AvaA / You vs Agent / tournament agent matches",
+  },
   { key: "totalTokensDistributed", label: "Sum of total_earned", hint: "Across all users (DB)" },
   { key: "totalTrades", label: "Accepted trades" },
   { key: "totalPlayHistoryEvents", label: "Play history events" },
@@ -69,6 +87,9 @@ const PERIOD_AFFECTED_KEYS = new Set<keyof PlatformMetrics>([
   "totalTrades",
   "totalPlayHistoryEvents",
   "totalPropertiesOwned",
+  "agentsCreated",
+  "agentCreators",
+  "agentGames",
 ]);
 
 function formatMetric(key: keyof PlatformMetrics, v: number): string {

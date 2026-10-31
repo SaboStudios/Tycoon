@@ -23,12 +23,17 @@ type Trends = {
   gamesThisWeek?: number;
   gamesToday?: number;
   agentsThisWeek?: number;
+  agentCreatorsThisWeek?: number;
+  agentGamesThisWeek?: number;
+  agentGamesToday?: number;
   revenueThisWeekUsd?: number;
   transactionsThisWeek?: number;
   activeToday?: number;
   series?: {
     users?: SeriesPoint[];
     games?: SeriesPoint[];
+    agents?: SeriesPoint[];
+    agentGames?: SeriesPoint[];
   };
 };
 
@@ -37,6 +42,8 @@ type Headline = {
   transactions: number;
   gamesCreated: number;
   agents: number;
+  agentCreators?: number;
+  agentGames?: number;
   onchainRevenueUsd: number;
   activeToday?: number;
   trends?: Trends;
@@ -53,7 +60,21 @@ type MinipayStatsData = {
   minipayGames?: { total?: number; createdToday?: number; createdThisWeek?: number };
   gamesOverTime?: { date: string; started?: number }[];
   usersOverTime?: SeriesPoint[];
-  agents?: { total?: number; createdThisWeek?: number };
+  agents?: {
+    total?: number;
+    createdThisWeek?: number;
+    distinctCreators?: number;
+    creatorsThisWeek?: number;
+  };
+  agentsOverTime?: SeriesPoint[];
+  agentGames?: {
+    total?: number;
+    createdThisWeek?: number;
+    agentVsAgent?: number;
+    humanVsAgent?: number;
+    tournament?: number;
+  };
+  agentGamesOverTime?: { date: string; started?: number }[];
   generatedAt?: string;
 };
 
@@ -248,6 +269,9 @@ export default function MinipayStatsPublicPage() {
       transactions: data?.headline?.transactions ?? data?.transactions?.total ?? 0,
       gamesCreated: data?.headline?.gamesCreated ?? data?.minipayGames?.total ?? 0,
       agents: data?.headline?.agents ?? data?.agents?.total ?? 0,
+      agentCreators:
+        data?.headline?.agentCreators ?? data?.agents?.distinctCreators ?? 0,
+      agentGames: data?.headline?.agentGames ?? data?.agentGames?.total ?? 0,
       onchainRevenueUsd: data?.headline?.onchainRevenueUsd ?? 106,
       activeToday: data?.headline?.activeToday ?? data?.headline?.trends?.activeToday ?? 0,
       trends,
@@ -262,6 +286,14 @@ export default function MinipayStatsPublicPage() {
   const gameSeries =
     trends?.series?.games?.map((p) => p.count) ??
     data?.gamesOverTime?.map((p) => p.started ?? 0) ??
+    [];
+  const agentSeries =
+    trends?.series?.agents?.map((p) => p.count) ??
+    data?.agentsOverTime?.map((p) => p.count) ??
+    [];
+  const agentGameSeries =
+    trends?.series?.agentGames?.map((p) => p.count) ??
+    data?.agentGamesOverTime?.map((p) => p.started ?? 0) ??
     [];
 
   return (
@@ -328,7 +360,7 @@ export default function MinipayStatsPublicPage() {
                 delta={<Delta value={trends?.usersThisWeek ?? 0} />}
               />
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <StatCard
                 label="Transactions"
                 rawValue={headline.transactions}
@@ -345,16 +377,44 @@ export default function MinipayStatsPublicPage() {
                 delta={<Delta value={trends?.gamesThisWeek ?? data?.minipayGames?.createdThisWeek ?? 0} />}
               />
               <StatCard
-                label="Agents"
-                rawValue={headline.agents}
-                icon={Bot}
-                delta={<Delta value={trends?.agentsThisWeek ?? data?.agents?.createdThisWeek ?? 0} />}
-              />
-              <StatCard
                 label="Active today"
                 rawValue={headline.activeToday ?? 0}
                 icon={Zap}
                 delta={<span className="text-[11px] text-[#5d8589]">Accounts active today</span>}
+              />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <StatCard
+                label="Agents created"
+                rawValue={headline.agents}
+                icon={Bot}
+                series={agentSeries}
+                delta={<Delta value={trends?.agentsThisWeek ?? data?.agents?.createdThisWeek ?? 0} />}
+              />
+              <StatCard
+                label="People with agents"
+                rawValue={headline.agentCreators ?? 0}
+                icon={Users}
+                delta={
+                  <Delta
+                    value={trends?.agentCreatorsThisWeek ?? data?.agents?.creatorsThisWeek ?? 0}
+                    suffix=" creators this week"
+                  />
+                }
+              />
+              <StatCard
+                label="Agent games"
+                rawValue={headline.agentGames ?? 0}
+                icon={Gamepad2}
+                series={agentGameSeries}
+                delta={
+                  <span className="text-[11px] text-[#5d8589]">
+                    +{formatInt(trends?.agentGamesThisWeek ?? data?.agentGames?.createdThisWeek ?? 0)} this week
+                    {data?.agentGames
+                      ? ` · AvaA ${data.agentGames.agentVsAgent ?? 0} · HvA ${data.agentGames.humanVsAgent ?? 0}`
+                      : ""}
+                  </span>
+                }
               />
             </div>
           </div>

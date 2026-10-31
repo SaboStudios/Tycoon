@@ -17,6 +17,22 @@ type DashboardData = {
     createdThisWeek: number;
   };
   gamesOverTime: GamesOverDay[];
+  agents?: {
+    total: number;
+    createdToday: number;
+    createdThisWeek: number;
+    distinctCreators: number;
+    creatorsThisWeek: number;
+  };
+  agentGames?: {
+    total: number;
+    createdToday: number;
+    createdThisWeek: number;
+    byType: Record<string, number>;
+    agentVsAgent: number;
+    humanVsAgent: number;
+    tournament: number;
+  };
   events: Record<string, number>;
   generatedAt: string;
 };
@@ -606,6 +622,57 @@ export default function AdminAnalyticsPage() {
                   {k}: <strong className="text-cyan-200/90 tabular-nums">{v}</strong>
                 </span>
               ))}
+            </div>
+          </section>
+
+          <section className="mt-8 rounded-xl border border-cyan-900/40 bg-cyan-950/15 p-4 sm:p-5">
+            <h2 className="text-sm font-semibold text-cyan-100/95">Agents &amp; agent games</h2>
+            <p className="mt-1 text-xs text-cyan-200/60 max-w-2xl">
+              Agent registry (<code className="text-cyan-100/50">user_agents</code>) and Arena matches
+              (<code className="text-cyan-100/50">game_type</code> AvaA / You vs Agent / tournament).
+            </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2.5">
+                <p className="text-[10px] uppercase text-slate-500">Agents created</p>
+                <p className="text-xl font-semibold text-cyan-100 tabular-nums">
+                  {(dash.agents?.total ?? 0).toLocaleString()}
+                </p>
+                <p className="text-[10px] text-slate-600 mt-1">
+                  +{dash.agents?.createdThisWeek ?? 0} this week · {dash.agents?.createdToday ?? 0} today
+                </p>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2.5">
+                <p className="text-[10px] uppercase text-slate-500">People with agents</p>
+                <p className="text-xl font-semibold text-slate-200 tabular-nums">
+                  {(dash.agents?.distinctCreators ?? 0).toLocaleString()}
+                </p>
+                <p className="text-[10px] text-slate-600 mt-1">
+                  +{dash.agents?.creatorsThisWeek ?? 0} creators this week
+                </p>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2.5">
+                <p className="text-[10px] uppercase text-slate-500">Agent games</p>
+                <p className="text-xl font-semibold text-cyan-100 tabular-nums">
+                  {(dash.agentGames?.total ?? 0).toLocaleString()}
+                </p>
+                <p className="text-[10px] text-slate-600 mt-1">
+                  +{dash.agentGames?.createdThisWeek ?? 0} this week · {dash.agentGames?.createdToday ?? 0} today
+                </p>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2.5">
+                <p className="text-[10px] uppercase text-slate-500">By mode</p>
+                <p className="mt-1 text-xs text-slate-300 space-y-0.5">
+                  <span className="block">
+                    AvaA: <strong className="tabular-nums">{dash.agentGames?.agentVsAgent ?? 0}</strong>
+                  </span>
+                  <span className="block">
+                    You vs Agent: <strong className="tabular-nums">{dash.agentGames?.humanVsAgent ?? 0}</strong>
+                  </span>
+                  <span className="block">
+                    Tournament: <strong className="tabular-nums">{dash.agentGames?.tournament ?? 0}</strong>
+                  </span>
+                </p>
+              </div>
             </div>
           </section>
 

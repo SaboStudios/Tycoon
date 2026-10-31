@@ -7,6 +7,7 @@ import { apiClient, ApiError } from '@/lib/api';
 import { useGuestAuthOptional } from '@/context/GuestAuthContext';
 import { getGuestUserPlayAddress } from '@/lib/minipayGuestFlow';
 import { walletAuthParams, type WalletChain } from '@/lib/walletSession';
+import { extractGoodDollarVerify, promptGoodDollarVerify } from '@/lib/goodDollarVerifyPrompt';
 import toast from 'react-hot-toast';
 
 interface DailyClaimStatus {
@@ -14,6 +15,8 @@ interface DailyClaimStatus {
   streak: number;
   last_claim_at: string | null;
   verified_citizen?: boolean;
+  gd_identity_enabled?: boolean;
+  claim_requires_gd?: boolean;
   gd_verified_bonus_tyc?: number;
   estimated_reward_tyc?: number | null;
 }
@@ -41,6 +44,8 @@ function parseStatusPayload(res: { data?: unknown } | null | undefined): DailyCl
     streak: Number(inner.streak ?? 0),
     last_claim_at: (inner.last_claim_at as string | null) ?? null,
     verified_citizen: inner.verified_citizen === true,
+    gd_identity_enabled: inner.gd_identity_enabled === true,
+    claim_requires_gd: inner.claim_requires_gd === true,
     gd_verified_bonus_tyc: Number.isFinite(bonusRaw) ? bonusRaw : 0,
     estimated_reward_tyc:
       estRaw == null || estRaw === ''
@@ -150,12 +155,23 @@ export function DailyClaim({ chain = 'CELO', accountKey, playAddress, variant = 
     fetchStatus({ silent: hasLoadedRef.current });
   }, [walletKey, canCallApi, fetchStatus, walletConnecting]);
 
+  const needsGdVerify =
+    Boolean(status?.claim_requires_gd) ||
+    (Boolean(status?.gd_identity_enabled) && status?.verified_citizen !== true);
+
   const handleClaim = () => {
     if (!status?.can_claim || claiming || !canCallApi) return;
+    if (needsGdVerify) {
+      promptGoodDollarVerify({
+        verifyUrl: 'https://goodid.gooddollar.org/',
+        message: 'Verify your humanity with GoodDollar to claim the daily reward.',
+      });
+      return;
+    }
     setClaiming(true);
     const params = walletAuthParams(effectiveAddress, chain);
     apiClient
-      .post('rewards/daily-claim', params ? { ...params } : {})
+      .post('rewards/daily-claim', params ? { ...params, is_minipay: true } : { is_minipay: true })
       .then((r) => {
         const raw = (r?.data ?? {}) as Record<string, unknown>;
         const payload =
@@ -176,14 +192,21 @@ export function DailyClaim({ chain = 'CELO', accountKey, playAddress, variant = 
         }
       })
       .catch((err: unknown) => {
+        // apiClient interceptor already opens the Verify modal for GOODID_REQUIRED.
+        if (extractGoodDollarVerify(err)) return;
         toast.error(err instanceof ApiError ? err.message : 'Claim failed. Try again later.');
       })
       .finally(() => setClaiming(false));
   };
 
+  const claimEnabled = Boolean(status?.can_claim) && !claiming;
+
   const bonusLine = (() => {
     if (!status) return null;
     const bonus = status.gd_verified_bonus_tyc ?? 0;
+    if (needsGdVerify) {
+      return 'Verify with GoodDollar to claim daily TYC';
+    }
     if (status.verified_citizen && bonus > 0) {
       const est =
         status.estimated_reward_tyc != null && status.can_claim
@@ -255,6 +278,12 @@ export function DailyClaim({ chain = 'CELO', accountKey, playAddress, variant = 
     );
   }
 
+  const claimLabel = needsGdVerify
+    ? 'Verify to claim'
+    : status.can_claim
+      ? 'Claim'
+      : 'Done';
+
   if (variant === 'hero') {
     return (
       <div className="w-full max-w-[240px] flex items-center gap-2 px-1 py-0.5">
@@ -269,19 +298,17 @@ export function DailyClaim({ chain = 'CELO', accountKey, playAddress, variant = 
         <button
           type="button"
           onClick={handleClaim}
-          disabled={!status.can_claim || claiming}
+          disabled={!claimEnabled}
           className={`shrink-0 rounded px-2 py-0.5 text-[10px] font-orbitron font-semibold uppercase tracking-wide ${
-            status.can_claim && !claiming
+            claimEnabled
               ? 'border border-amber-400/35 bg-amber-500/15 text-amber-100 hover:bg-amber-500/25'
               : 'text-slate-600 cursor-not-allowed'
           }`}
         >
           {claiming ? (
             <Loader2 className="w-3 h-3 animate-spin" />
-          ) : status.can_claim ? (
-            'Claim'
           ) : (
-            'Done'
+            claimLabel
           )}
         </button>
       </div>
@@ -313,15 +340,17 @@ export function DailyClaim({ chain = 'CELO', accountKey, playAddress, variant = 
       <button
         type="button"
         onClick={handleClaim}
-        disabled={!status.can_claim || claiming}
+        disabled={!claimEnabled}
         className={`w-full py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all ${
-          status.can_claim && !claiming
+          claimEnabled
             ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-black hover:from-amber-400 hover:to-orange-400'
             : 'bg-slate-800/80 text-slate-500 cursor-not-allowed'
         }`}
       >
         {claiming ? (
           <Loader2 className="w-5 h-5 animate-spin" />
+        ) : needsGdVerify && status.can_claim ? (
+          'Verify with GoodDollar to claim'
         ) : status.can_claim ? (
           'Claim today’s reward'
         ) : (
