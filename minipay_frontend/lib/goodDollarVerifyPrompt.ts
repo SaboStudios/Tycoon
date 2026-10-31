@@ -48,3 +48,24 @@ export function handleGoodDollarVerifyError(err: unknown): boolean {
   promptGoodDollarVerify(detail);
   return true;
 }
+
+/** Shape of GET /gooddollar/status used by create-game / Arena pre-checks. */
+export type GoodDollarPlayStatus = {
+  enabled?: boolean;
+  verified?: boolean;
+  play_gate_exempt?: boolean;
+  verifyUrl?: string;
+  message?: string;
+};
+
+/**
+ * True when MiniPay may create games / Arena matches without prompting Verify.
+ * Allowlisted ops wallets return play_gate_exempt from the backend.
+ */
+export function canCreateWithoutGoodDollar(gd: GoodDollarPlayStatus | null | undefined): boolean {
+  if (!gd) return false;
+  if (gd.enabled === false) return true;
+  if (gd.verified === true) return true;
+  if (gd.play_gate_exempt === true) return true;
+  return false;
+}

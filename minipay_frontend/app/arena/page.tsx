@@ -11,7 +11,11 @@ import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { getGuestUserPlayAddress, isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
 import { walletAuthParams } from "@/lib/walletSession";
 import { createSignedArenaAgentLobby } from "@/lib/createSignedArenaAgentLobby";
-import { extractGoodDollarVerify, promptGoodDollarVerify } from "@/lib/goodDollarVerifyPrompt";
+import {
+  canCreateWithoutGoodDollar,
+  extractGoodDollarVerify,
+  promptGoodDollarVerify,
+} from "@/lib/goodDollarVerifyPrompt";
 import { ApiResponse } from "@/types/api";
 import styles from "./arena.module.css";
 import { isAgentStyleTournament, tournamentDetailPath } from "@/lib/tournamentRoutes";
@@ -607,12 +611,22 @@ export default function ArenaPage() {
       const gdRes = await apiClient.get<{
         enabled?: boolean;
         verified?: boolean;
+        play_gate_exempt?: boolean;
         verifyUrl?: string;
         message?: string;
       }>("gooddollar/status", walletAuthParams(playAddr, "CELO"));
-      const gd = (gdRes as { data?: { enabled?: boolean; verified?: boolean; verifyUrl?: string; message?: string } })
-        ?.data;
-      if (gd?.enabled !== false && gd?.verified !== true) {
+      const gd = (
+        gdRes as {
+          data?: {
+            enabled?: boolean;
+            verified?: boolean;
+            play_gate_exempt?: boolean;
+            verifyUrl?: string;
+            message?: string;
+          };
+        }
+      )?.data;
+      if (!canCreateWithoutGoodDollar(gd)) {
         promptGoodDollarVerify({
           verifyUrl: gd?.verifyUrl || "https://goodid.gooddollar.org/",
           message: gd?.message || "Verify your humanity with GoodDollar to play on MiniPay.",

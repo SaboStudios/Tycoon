@@ -11,6 +11,8 @@ import { walletAuthParams, type WalletChain } from "@/lib/walletSession";
 export interface GoodDollarStatus {
   enabled: boolean;
   verified: boolean;
+  /** Ops allowlist — may create games/Arena without G$ (not daily claim). */
+  playGateExempt: boolean;
   checkedAddresses: string[];
   verifyUrl: string;
 }
@@ -20,6 +22,7 @@ interface RawResponse {
     success?: boolean;
     enabled?: boolean;
     verified?: boolean;
+    play_gate_exempt?: boolean;
     checkedAddresses?: unknown;
     verifyUrl?: string;
   };
@@ -33,6 +36,7 @@ function parse(res: unknown): GoodDollarStatus {
   return {
     enabled: Boolean(d.enabled),
     verified: Boolean(d.verified),
+    playGateExempt: Boolean(d.play_gate_exempt),
     checkedAddresses: checked,
     verifyUrl: typeof d.verifyUrl === "string" ? d.verifyUrl : "https://goodid.gooddollar.org/",
   };

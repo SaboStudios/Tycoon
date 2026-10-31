@@ -22,7 +22,11 @@ import { toast } from "react-toastify";
 import { generateGameCode } from "@/lib/utils/games";
 import { GamePieces } from "@/lib/constants/games";
 import { apiClient } from "@/lib/api";
-import { extractGoodDollarVerify, promptGoodDollarVerify } from "@/lib/goodDollarVerifyPrompt";
+import {
+  canCreateWithoutGoodDollar,
+  extractGoodDollarVerify,
+  promptGoodDollarVerify,
+} from "@/lib/goodDollarVerifyPrompt";
 import { walletAuthParams } from "@/lib/walletSession";
 import Erc20Abi from "@/context/abi/ERC20abi.json";
 import {
@@ -379,12 +383,22 @@ export default function CreateGameMobile({
           const gdRes = await apiClient.get<{
             enabled?: boolean;
             verified?: boolean;
+            play_gate_exempt?: boolean;
             verifyUrl?: string;
             message?: string;
           }>("gooddollar/status", walletAuthParams(address, "CELO"));
-          const gd = (gdRes as { data?: { enabled?: boolean; verified?: boolean; verifyUrl?: string; message?: string } })
-            ?.data;
-          if (gd?.enabled !== false && gd?.verified !== true) {
+          const gd = (
+            gdRes as {
+              data?: {
+                enabled?: boolean;
+                verified?: boolean;
+                play_gate_exempt?: boolean;
+                verifyUrl?: string;
+                message?: string;
+              };
+            }
+          )?.data;
+          if (!canCreateWithoutGoodDollar(gd)) {
             toast.dismiss(toastId);
             promptGoodDollarVerify({
               verifyUrl: gd?.verifyUrl || "https://goodid.gooddollar.org/",

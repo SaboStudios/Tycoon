@@ -11,7 +11,11 @@ import {
 import { resolveChainForBackend } from "@/lib/utils/chain";
 import { generateGameCode } from "@/lib/utils/games";
 import { apiClient } from "@/lib/api";
-import { extractGoodDollarVerify, promptGoodDollarVerify } from "@/lib/goodDollarVerifyPrompt";
+import {
+  canCreateWithoutGoodDollar,
+  extractGoodDollarVerify,
+  promptGoodDollarVerify,
+} from "@/lib/goodDollarVerifyPrompt";
 import { walletAuthParams } from "@/lib/walletSession";
 import {
   useIsRegistered,
@@ -220,12 +224,22 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
       const gdRes = await apiClient.get<{
         enabled?: boolean;
         verified?: boolean;
+        play_gate_exempt?: boolean;
         verifyUrl?: string;
         message?: string;
       }>("gooddollar/status", walletAuthParams(address, "CELO"));
-      const gd = (gdRes as { data?: { enabled?: boolean; verified?: boolean; verifyUrl?: string; message?: string } })
-        ?.data;
-      if (gd?.enabled !== false && gd?.verified !== true) {
+      const gd = (
+        gdRes as {
+          data?: {
+            enabled?: boolean;
+            verified?: boolean;
+            play_gate_exempt?: boolean;
+            verifyUrl?: string;
+            message?: string;
+          };
+        }
+      )?.data;
+      if (!canCreateWithoutGoodDollar(gd)) {
         promptGoodDollarVerify({
           verifyUrl: gd?.verifyUrl || "https://goodid.gooddollar.org/",
           message: gd?.message || "Verify your humanity with GoodDollar to play on MiniPay.",
