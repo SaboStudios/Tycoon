@@ -238,18 +238,43 @@ export default function PublicStatsPage() {
     setLoading(true);
     setError(null);
     try {
-      const [mpRes, pubRes] = await Promise.all([
+      // Don't let a broken public/stats 500 blank the whole page — MiniPay analytics alone is enough.
+      const [mpSettled, pubSettled] = await Promise.allSettled([
         apiClient.get<{ success?: boolean; data?: MinipayStatsData }>("/analytics/minipay"),
         apiClient.get<{ success?: boolean; data?: PlatformStatsData }>("public/stats", {
           period: "all",
         }),
       ]);
-      const mpBody = mpRes?.data as { success?: boolean; data?: MinipayStatsData } | undefined;
-      const pubBody = pubRes?.data as { success?: boolean; data?: PlatformStatsData } | undefined;
-      const stats = mpBody?.data;
-      if (!stats) throw new Error("Failed to load stats");
+
+      let stats: MinipayStatsData | null = null;
+      if (mpSettled.status === "fulfilled") {
+        const mpBody = mpSettled.value?.data as
+          | { success?: boolean; data?: MinipayStatsData }
+          | undefined;
+        stats = mpBody?.data ?? null;
+      }
+
+      let platformData: PlatformStatsData | null = null;
+      if (pubSettled.status === "fulfilled") {
+        const pubBody = pubSettled.value?.data as
+          | { success?: boolean; data?: PlatformStatsData }
+          | undefined;
+        platformData = pubBody?.data ?? null;
+      }
+
+      if (!stats && !platformData) {
+        const err =
+          (mpSettled.status === "rejected" && mpSettled.reason) ||
+          (pubSettled.status === "rejected" && pubSettled.reason);
+        throw err instanceof Error ? err : new Error("Failed to load stats");
+      }
+
       setData(stats);
-      setPlatform(pubBody?.data ?? null);
+      setPlatform(platformData);
+      if (!platformData && pubSettled.status === "rejected") {
+        // Soft warning only — headline falls back to MiniPay analytics totals.
+        console.warn("public/stats unavailable; using MiniPay analytics totals", pubSettled.reason);
+      }
     } catch (e) {
       const msg =
         e instanceof ApiError
@@ -358,14 +383,14 @@ export default function PublicStatsPage() {
           </div>
         ) : null}
 
-        {loading && !data ? (
+        {loading && !data && !platform ? (
           <div className="flex items-center gap-2 py-16 text-[#9bc4c8]">
             <Loader2 className="h-5 w-5 animate-spin" />
             Loading stats…
           </div>
         ) : null}
 
-        {data ? (
+        {data || platform ? (
           <div className="space-y-3">
             <div className="grid gap-3 sm:grid-cols-2">
               <StatCard
@@ -441,9 +466,10 @@ export default function PublicStatsPage() {
                 delta={<span className="text-[11px] text-[#5d8589]">Accounts active today</span>}
               />
             </div>
-            {data.generatedAt ? (
+            {(platform?.generatedAt || data?.generatedAt) ? (
               <p className="pt-2 text-[11px] text-[#5d8589]">
-                Generated {new Date(data.generatedAt).toLocaleString()}
+                Generated{" "}
+                {new Date(platform?.generatedAt || data?.generatedAt || "").toLocaleString()}
               </p>
             ) : null}
           </div>
