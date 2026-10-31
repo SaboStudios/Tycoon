@@ -75,6 +75,21 @@ type MinipayStatsData = {
   generatedAt?: string;
 };
 
+/** Platform-wide totals (not MiniPay-tagged only) from GET /public/stats. */
+type PlatformStatsData = {
+  totals?: {
+    totalTransactions?: number;
+    totalGames?: number;
+    agentsCreated?: number;
+    agentCreators?: number;
+    agentGames?: number;
+  };
+  engagement?: {
+    totalPlayers?: number;
+  };
+  generatedAt?: string;
+};
+
 function formatInt(n: number) {
   return Math.round(n).toLocaleString();
 }
@@ -215,6 +230,7 @@ function StatCard({
 
 export default function PublicStatsPage() {
   const [data, setData] = useState<MinipayStatsData | null>(null);
+  const [platform, setPlatform] = useState<PlatformStatsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -222,13 +238,18 @@ export default function PublicStatsPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiClient.get<{ success?: boolean; data?: MinipayStatsData }>(
-        "/analytics/minipay"
-      );
-      const backend = res?.data as { success?: boolean; data?: MinipayStatsData } | undefined;
-      const stats = backend?.data;
+      const [mpRes, pubRes] = await Promise.all([
+        apiClient.get<{ success?: boolean; data?: MinipayStatsData }>("/analytics/minipay"),
+        apiClient.get<{ success?: boolean; data?: PlatformStatsData }>("public/stats", {
+          period: "all",
+        }),
+      ]);
+      const mpBody = mpRes?.data as { success?: boolean; data?: MinipayStatsData } | undefined;
+      const pubBody = pubRes?.data as { success?: boolean; data?: PlatformStatsData } | undefined;
+      const stats = mpBody?.data;
       if (!stats) throw new Error("Failed to load stats");
       setData(stats);
+      setPlatform(pubBody?.data ?? null);
     } catch (e) {
       const msg =
         e instanceof ApiError
@@ -238,6 +259,7 @@ export default function PublicStatsPage() {
             : "Failed to load stats";
       setError(msg);
       setData(null);
+      setPlatform(null);
     } finally {
       setLoading(false);
     }
@@ -249,22 +271,33 @@ export default function PublicStatsPage() {
 
   const headline = useMemo<Headline>(() => {
     const trends = data?.headline?.trends;
+    // Prefer platform-wide totals for users / games / txs (not MiniPay-tagged games only).
+    const totalPlayers = platform?.engagement?.totalPlayers;
+    const totalGames = platform?.totals?.totalGames;
+    const totalTx = platform?.totals?.totalTransactions;
     return {
       users:
+        totalPlayers ??
         data?.headline?.users ??
         data?.users?.registeredSinceCutoff ??
         data?.users?.distinctHumanPlayers ??
         data?.users?.distinctPlayers ??
         0,
-      transactions: data?.headline?.transactions ?? data?.transactions?.total ?? 0,
-      gamesCreated: data?.headline?.gamesCreated ?? data?.minipayGames?.total ?? 0,
-      agents: data?.headline?.agents ?? data?.agents?.total ?? 0,
-      agentCreators: data?.headline?.agentCreators ?? data?.agents?.distinctCreators ?? 0,
-      agentGames: data?.headline?.agentGames ?? data?.agentGames?.total ?? 0,
+      transactions: totalTx ?? data?.headline?.transactions ?? data?.transactions?.total ?? 0,
+      gamesCreated: totalGames ?? data?.headline?.gamesCreated ?? data?.minipayGames?.total ?? 0,
+      agents:
+        platform?.totals?.agentsCreated ?? data?.headline?.agents ?? data?.agents?.total ?? 0,
+      agentCreators:
+        platform?.totals?.agentCreators ??
+        data?.headline?.agentCreators ??
+        data?.agents?.distinctCreators ??
+        0,
+      agentGames:
+        platform?.totals?.agentGames ?? data?.headline?.agentGames ?? data?.agentGames?.total ?? 0,
       activeToday: data?.headline?.activeToday ?? data?.headline?.trends?.activeToday ?? 0,
       trends,
     };
-  }, [data]);
+  }, [data, platform]);
 
   const trends = headline.trends;
   const userSeries =
@@ -290,7 +323,8 @@ export default function PublicStatsPage() {
             </p>
             <h1 className="mt-1 font-orbitron text-2xl font-bold text-white">Stats</h1>
             <p className="mt-2 max-w-xl text-sm text-[#7aa8ad]">
-              Live MiniPay + Celo activity — users, games, agents created, and agent games played.
+              Live Celo platform totals — all users and games (not MiniPay-only), plus agents and
+              agent games.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -384,7 +418,12 @@ export default function PublicStatsPage() {
                 icon={Gamepad2}
                 series={gameSeries}
                 delta={
-                  <Delta value={trends?.gamesThisWeek ?? data?.minipayGames?.createdThisWeek ?? 0} />
+                  <span className="text-[11px] text-[#5d8589]">
+                    All-time platform total
+                    {data?.minipayGames?.total != null
+                      ? ` · MiniPay-tagged ${formatInt(data.minipayGames.total)}`
+                      : ""}
+                  </span>
                 }
               />
             </div>
