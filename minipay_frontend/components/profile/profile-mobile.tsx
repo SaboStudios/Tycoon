@@ -10,8 +10,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useAccount, useBalance, useReadContract, useWaitForTransactionReceipt } from 'wagmi';
-import { type Address, type Abi, parseUnits, isAddress } from 'viem';
-import Erc20Abi from '@/context/abi/ERC20abi.json';
+import { type Address } from 'viem';
 import { toast } from 'react-toastify';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useProfileForAddress } from '@/context/ProfileContext';
@@ -23,7 +22,7 @@ import { apiClient } from '@/lib/api';
 import { ApiResponse } from '@/types/api';
 import { useQuery } from '@tanstack/react-query';
 import { REWARD_CONTRACT_ADDRESSES, TYCOON_CONTRACT_ADDRESSES, GOODDOLLAR_TOKEN_ADDRESS } from '@/constants/contracts';
-import { formatGoodDollarWhole, GOODDOLLAR_SYMBOL, GOODDOLLAR_DECIMALS } from '@/lib/shop/goodDollarPayment';
+import { formatGoodDollarWhole } from '@/lib/shop/goodDollarPayment';
 import { useProfileOwner, useRewardTokenAddresses, useUserRegistryWallet } from '@/context/ContractProvider';
 import RewardABI from '@/context/abi/rewardabi.json';
 import TycoonABI from '@/context/abi/tycoonabi.json';
@@ -952,12 +951,8 @@ export default function ProfilePageMobile() {
   const [editingBio, setEditingBio] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { writeContract, writeContractAsync, data: txHash, isPending: isWriting, reset } = useWriteContract();
+  const { writeContract, data: txHash, isPending: isWriting, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: txSuccess } = useWaitForTransactionReceipt({ hash: txHash });
-  const [gdSendOpen, setGdSendOpen] = useState(false);
-  const [gdSendTo, setGdSendTo] = useState('');
-  const [gdSendAmount, setGdSendAmount] = useState('');
-  const [gdSending, setGdSending] = useState(false);
 
   const { data: ethBalance } = useBalance({ address: walletAddress });
 
@@ -1422,57 +1417,6 @@ export default function ProfilePageMobile() {
     );
   }
 
-  const handleSendGoodDollar = async () => {
-    if (!walletAddress) {
-      toast.error('Connect wallet first');
-      return;
-    }
-    if (!gdAddressSW) {
-      toast.error(`${GOODDOLLAR_SYMBOL} not configured on this network`);
-      return;
-    }
-    const to = gdSendTo.trim();
-    if (!isAddress(to)) {
-      toast.error('Enter a valid recipient address');
-      return;
-    }
-    const amt = Number(gdSendAmount);
-    if (!Number.isFinite(amt) || amt <= 0) {
-      toast.error('Enter a valid amount');
-      return;
-    }
-    let amountWei: bigint;
-    try {
-      amountWei = parseUnits(gdSendAmount, GOODDOLLAR_DECIMALS);
-    } catch {
-      toast.error('Invalid amount');
-      return;
-    }
-    const balWei = gdBalance.data?.value ?? BigInt(0);
-    if (balWei < amountWei) {
-      toast.error(`Insufficient ${GOODDOLLAR_SYMBOL} balance`);
-      return;
-    }
-    setGdSending(true);
-    try {
-      await writeContractAsync({
-        address: gdAddressSW,
-        abi: Erc20Abi as Abi,
-        functionName: 'transfer',
-        args: [to as Address, amountWei],
-      });
-      toast.success(`Sent ${gdSendAmount} ${GOODDOLLAR_SYMBOL}`);
-      setGdSendTo('');
-      setGdSendAmount('');
-      setGdSendOpen(false);
-      void gdBalance.refetch();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : `${GOODDOLLAR_SYMBOL} send failed`);
-    } finally {
-      setGdSending(false);
-    }
-  };
-
   return (
     <div className="min-h-screen text-[#F0F7F7] pb-24 profile-page">
       <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
@@ -1559,46 +1503,6 @@ export default function ProfilePageMobile() {
               </div>
             ))}
         </div>
-        {!!gdAddressSW && (
-          <div className="mt-2">
-            <button
-              type="button"
-              onClick={() => setGdSendOpen((v) => !v)}
-              className="w-full py-2 rounded-lg text-xs font-semibold bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600/30 transition"
-            >
-              {gdSendOpen ? 'Cancel' : `Send ${GOODDOLLAR_SYMBOL}`}
-            </button>
-            {gdSendOpen && (
-              <div className="mt-2 space-y-2 bg-slate-900/50 border border-emerald-500/20 rounded-lg p-3">
-                <input
-                  type="text"
-                  value={gdSendTo}
-                  onChange={(e) => setGdSendTo(e.target.value)}
-                  placeholder="Recipient address (0x…)"
-                  className="w-full px-2 py-1.5 rounded-md bg-black/40 border border-white/10 text-xs text-white placeholder:text-white/30 font-mono focus:outline-none focus:border-emerald-400/50"
-                />
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  min="0"
-                  step="any"
-                  value={gdSendAmount}
-                  onChange={(e) => setGdSendAmount(e.target.value)}
-                  placeholder={`Amount in ${GOODDOLLAR_SYMBOL}`}
-                  className="w-full px-2 py-1.5 rounded-md bg-black/40 border border-white/10 text-xs text-white placeholder:text-white/30 tabular-nums focus:outline-none focus:border-emerald-400/50"
-                />
-                <button
-                  type="button"
-                  onClick={handleSendGoodDollar}
-                  disabled={gdSending || !gdSendTo || !gdSendAmount}
-                  className="w-full py-2 rounded-md text-xs font-semibold bg-emerald-500 text-black disabled:bg-slate-700 disabled:text-slate-400 transition"
-                >
-                  {gdSending ? 'Sending…' : `Send ${GOODDOLLAR_SYMBOL}`}
-                </button>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Game stats | About you | My Perks | Reward Vouchers — tabs, content below */}
         <section className="pb-4">
