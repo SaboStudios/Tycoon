@@ -23,7 +23,7 @@ import {
   Send,
   Wallet,
 } from "lucide-react";
-import { REWARD_CONTRACT_ADDRESSES } from "@/constants/contracts";
+import { REWARD_CONTRACT_ADDRESSES, GOODDOLLAR_TOKEN_ADDRESS } from "@/constants/contracts";
 import RewardABI from "@/context/abi/rewardabi.json";
 import { useRewardTokenAddresses } from "@/context/ContractProvider";
 
@@ -63,6 +63,7 @@ export default function RewardTreasurySection() {
   const rewardAddress = REWARD_CONTRACT_ADDRESSES[chainId as keyof typeof REWARD_CONTRACT_ADDRESSES];
   const { tycAddress, usdcAddress, cusdcAddress, usdtAddress, isLoading: tokensLoading } =
     useRewardTokenAddresses();
+  const gdAddress = GOODDOLLAR_TOKEN_ADDRESS[chainId as keyof typeof GOODDOLLAR_TOKEN_ADDRESS];
 
   const { data: contractOwner } = useReadContract({
     address: rewardAddress,
@@ -104,8 +105,9 @@ export default function RewardTreasurySection() {
       { symbol: "USDC", tokenAddress: usdcAddress, decimals: 6 },
       { symbol: "cUSD", tokenAddress: cusdcAddress, decimals: 6 },
       { symbol: "TYC", tokenAddress: tycAddress, decimals: 18 },
+      { symbol: "G$", tokenAddress: gdAddress, decimals: 18 },
     ],
-    [usdtAddress, usdcAddress, cusdcAddress, tycAddress]
+    [usdtAddress, usdcAddress, cusdcAddress, tycAddress, gdAddress]
   );
 
   const usdtBal = useBalance({
@@ -128,12 +130,18 @@ export default function RewardTreasurySection() {
     token: tycAddress,
     query: { enabled: !!rewardAddress && !!tycAddress },
   });
+  const gdBal = useBalance({
+    address: rewardAddress,
+    token: gdAddress,
+    query: { enabled: !!rewardAddress && !!gdAddress },
+  });
 
   const balanceBySymbol: Record<string, ReturnType<typeof useBalance>> = {
     USDT: usdtBal,
     USDC: usdcBal,
     cUSD: cusdcBal,
     TYC: tycBal,
+    "G$": gdBal,
   };
 
   const ownerAddr = contractOwner as Address | undefined;
@@ -150,7 +158,8 @@ export default function RewardTreasurySection() {
     void usdcBal.refetch();
     void cusdcBal.refetch();
     void tycBal.refetch();
-  }, [usdtBal, usdcBal, cusdcBal, tycBal]);
+    void gdBal.refetch();
+  }, [usdtBal, usdcBal, cusdcBal, tycBal, gdBal]);
 
   const executeWithdraw = useCallback(
     async (token: Address, symbol: string, amount: bigint) => {
@@ -257,7 +266,7 @@ export default function RewardTreasurySection() {
 
   const anyBusy = busySymbol !== null || withdrawAllBusy;
   const balancesLoading =
-    tokensLoading || usdtBal.isLoading || usdcBal.isLoading || cusdcBal.isLoading || tycBal.isLoading;
+    tokensLoading || usdtBal.isLoading || usdcBal.isLoading || cusdcBal.isLoading || tycBal.isLoading || gdBal.isLoading;
 
   return (
     <div className="space-y-6">
@@ -267,7 +276,7 @@ export default function RewardTreasurySection() {
           TycoonRewardSystem · shop treasury
         </h2>
         <p className="text-xs text-slate-500 mt-2 max-w-3xl">
-          Perk and bundle payments (USDT, USDC, cUSD, TYC) accumulate on the reward contract. Only the contract{" "}
+          Perk and bundle payments (USDT, USDC, cUSD, TYC, G$) accumulate on the reward contract. Only the contract{" "}
           <code className="text-slate-400">owner</code> can call <code className="text-slate-400">withdrawFunds</code>.
           Naira / Flutterwave revenue is not held here.
         </p>
