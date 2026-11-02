@@ -21,7 +21,8 @@ import PrivyWalletProfilePrompt from '@/components/auth/PrivyWalletProfilePrompt
 import { apiClient } from '@/lib/api';
 import { ApiResponse } from '@/types/api';
 import { useQuery } from '@tanstack/react-query';
-import { REWARD_CONTRACT_ADDRESSES, TYCOON_CONTRACT_ADDRESSES } from '@/constants/contracts';
+import { REWARD_CONTRACT_ADDRESSES, TYCOON_CONTRACT_ADDRESSES, GOODDOLLAR_TOKEN_ADDRESS } from '@/constants/contracts';
+import { formatGoodDollarWhole } from '@/lib/shop/goodDollarPayment';
 import { useProfileOwner, useRewardTokenAddresses, useUserRegistryWallet } from '@/context/ContractProvider';
 import RewardABI from '@/context/abi/rewardabi.json';
 import TycoonABI from '@/context/abi/tycoonabi.json';
@@ -315,6 +316,13 @@ function GuestProfileViewMobile({
     address: linkedWalletAddress ?? undefined,
     chainId: CELO_CHAIN_ID,
     query: { enabled: !!linkedWalletAddress },
+  });
+  const gdTokenAddress = GOODDOLLAR_TOKEN_ADDRESS[CELO_CHAIN_ID];
+  const gdBalanceLinked = useBalance({
+    address: linkedWalletAddress ?? undefined,
+    token: gdTokenAddress,
+    chainId: CELO_CHAIN_ID,
+    query: { enabled: !!linkedWalletAddress && !!gdTokenAddress },
   });
 
   const tycBalanceSmart = useBalance({
@@ -622,6 +630,7 @@ function GuestProfileViewMobile({
                     {[
                       { label: 'TYC', value: tycBalanceLinked.isLoading ? '…' : Number(tycBalanceLinked.data?.formatted || 0).toFixed(2) },
                       { label: 'USDT', value: usdtBalanceLinked.isLoading ? '…' : Number(usdtBalanceLinked.data?.formatted || 0).toFixed(2) },
+                      { label: 'G$', value: gdBalanceLinked.isLoading ? '…' : formatGoodDollarWhole(gdBalanceLinked.data?.value ?? BigInt(0)) },
                     ].map(({ label, value }) => (
                       <div key={`gc-${label}`} className="flex-1 min-w-0 rounded-lg px-2 py-1.5 border border-white/10 bg-white/[0.04] text-center">
                         <p className="text-[8px] font-medium uppercase tracking-wider text-white/45 leading-none">{label}</p>
@@ -986,6 +995,8 @@ export default function ProfilePageMobile() {
   const usdcBalance = useBalance({ address: walletAddress, token: usdcTokenAddress, query: { enabled: !!walletAddress && !!usdcTokenAddress } });
   const cusdcBalance = useBalance({ address: walletAddress, token: cusdcAddress, query: { enabled: !!walletAddress && !!cusdcAddress } });
   const usdtBalance = useBalance({ address: walletAddress, token: usdtAddress, query: { enabled: !!walletAddress && !!usdtAddress } });
+  const gdAddressSW = GOODDOLLAR_TOKEN_ADDRESS[CELO_CHAIN_ID];
+  const gdBalance = useBalance({ address: walletAddress, token: gdAddressSW, query: { enabled: !!walletAddress && !!gdAddressSW } });
   const showDualBalances = !!smartWallet && !!walletAddress && smartWallet.toLowerCase() !== walletAddress.toLowerCase();
   const { data: ethBalanceSmart } = useBalance({ address: smartWallet, query: { enabled: !!smartWallet } });
   const tycBalanceSmart = useBalance({ address: smartWallet, token: tycTokenAddress, query: { enabled: !!smartWallet && !!tycTokenAddress } });
@@ -1480,10 +1491,11 @@ export default function ProfilePageMobile() {
         </motion.div>
 
         {/* Balances */}
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
             {[
               { label: 'TYC', value: tycBalance.isLoading ? '...' : Number(tycBalance.data?.formatted || 0).toFixed(2) },
               { label: 'USDT', value: usdtBalance.isLoading ? '...' : Number(usdtBalance.data?.formatted || 0).toFixed(2) },
+              { label: 'G$', value: gdBalance.isLoading ? '...' : formatGoodDollarWhole(gdBalance.data?.value ?? BigInt(0)) },
             ].map(({ label, value }) => (
               <div key={label} className="bg-slate-800/60 border border-cyan-500/20 rounded-xl p-3 text-center hover:border-cyan-500/40 transition-all">
                 <p className="text-[10px] font-medium text-cyan-400/60 uppercase tracking-wider">{label}</p>
