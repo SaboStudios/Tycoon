@@ -12,7 +12,7 @@ const Item = () => (
     </span>
     <Sparkles className="text-emerald-300/80" size={14} />
     <span className="text-slate-300/90 text-sm">
-      Pay from your MiniPay wallet in GoodDollar
+      Pay from your wallet in GoodDollar
     </span>
     <span className="text-emerald-300/60">•</span>
   </span>
