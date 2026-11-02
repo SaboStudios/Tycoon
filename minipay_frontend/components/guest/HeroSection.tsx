@@ -142,7 +142,7 @@ const HeroSection: React.FC = () => {
 
           {walletLoaded && (
             <div
-              className={`relative w-full transition-opacity duration-500 ease-out ${
+              className={`relative flex w-full flex-col items-center transition-opacity duration-500 ease-out ${
                 walletVisible ? "opacity-100" : "opacity-0"
               }`}
             >

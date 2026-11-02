@@ -476,12 +476,12 @@ const HeroWalletPanel: React.FC<HeroWalletPanelProps> = ({ onReturningPlayerChan
     <>
         {/* Welcome Message */}
         {isReturningPlayer && (
-          <div className="flex w-full max-w-sm md:max-w-md flex-col items-center gap-3 px-2">
+          <div className="mx-auto flex w-full max-w-sm md:max-w-md flex-col items-center gap-3 px-2">
             <motion.p
               initial={false}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
-              className="font-orbitron text-[18px] font-[700] text-[#00F0FF] text-center drop-shadow-lg"
+              className="w-full font-orbitron text-[18px] font-[700] text-[#00F0FF] text-center drop-shadow-lg"
               style={{
                 textShadow: "0 0 10px rgba(0, 240, 255, 0.8), 0 0 20px rgba(0, 240, 255, 0.4)",
               }}
@@ -491,7 +491,7 @@ const HeroWalletPanel: React.FC<HeroWalletPanelProps> = ({ onReturningPlayerChan
 
             {levelInfo && (
               <motion.div
-                className="flex flex-col items-center gap-3 bg-gradient-to-b from-[#0E282A]/80 to-[#0A1719]/80 rounded-lg p-4 border border-[#00F0FF]/40 backdrop-blur-sm w-full"
+                className="mx-auto flex w-full max-w-xs flex-col items-center gap-3 bg-gradient-to-b from-[#0E282A]/80 to-[#0A1719]/80 rounded-lg p-4 border border-[#00F0FF]/40 backdrop-blur-sm"
                 initial={false}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.3, delay: 0 }}
