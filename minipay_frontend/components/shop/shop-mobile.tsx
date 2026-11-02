@@ -46,17 +46,6 @@ import { getMinipayShopStable, type MinipayStableOption } from '@/lib/shop/prefe
 import { resolveShopUsdtPurchase } from '@/lib/shop/shopItemPayment';
 import { ensureErc20Allowance, SHOP_APPROVAL_CAP, waitForTxConfirmed } from '@/lib/ensureErc20Allowance';
 import {
-  GOODDOLLAR_TOKEN_ADDRESS,
-  GOODDOLLAR_SHOP_TREASURY_ADDRESSES,
-} from '@/constants/contracts';
-import {
-  GOODDOLLAR_DECIMALS,
-  GOODDOLLAR_SYMBOL,
-  usdToGoodDollarWei,
-  formatGoodDollarWhole,
-} from '@/lib/shop/goodDollarPayment';
-import { useWriteContract } from '@/hooks/useTaggedWriteContract';
-import {
   instantCashShopDescription,
   instantCashShopName,
   instantCashTierBadge,
@@ -222,7 +211,6 @@ export default function GameShopMobile() {
   const [ngnAvailable, setNgnAvailable] = useState(false);
   const [ngnLoadingBundleId, setNgnLoadingBundleId] = useState<number | null>(null);
   const [ngnLoadingTokenId, setNgnLoadingTokenId] = useState<string | null>(null);
-  const [gdLoadingTokenId, setGdLoadingTokenId] = useState<string | null>(null);
   const [bundleBuyingName, setBundleBuyingName] = useState<string | null>(null);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
 
@@ -337,23 +325,6 @@ export default function GameShopMobile() {
       }),
     [usdtAddress, usdtBalanceData?.formatted]
   );
-
-  const goodDollarAddress = GOODDOLLAR_TOKEN_ADDRESS[chainId];
-  const goodDollarTreasury = GOODDOLLAR_SHOP_TREASURY_ADDRESSES[chainId];
-  const { data: gdBalanceData, refetch: refetchGdBalance } = useBalance({
-    address: payerAddress,
-    token: goodDollarAddress,
-    query: { enabled: !!payerAddress && !!goodDollarAddress },
-  });
-  const gdBalanceWei = useMemo(() => {
-    try {
-      return gdBalanceData?.value ?? 0n;
-    } catch {
-      return 0n;
-    }
-  }, [gdBalanceData?.value]);
-  const gdShopReady = Boolean(goodDollarAddress && goodDollarTreasury);
-  const { writeContractAsync: gdWriteAsync } = useWriteContract();
 
   const activeStableLabel = 'USDT';
   const activeStableBalance = Number.isFinite(preferredStable.balance) ? preferredStable.balance : 0;
@@ -788,82 +759,6 @@ export default function GameShopMobile() {
     } catch (err: unknown) {
       notifyShopTxOutcome(err, 'Purchase failed');
       resetShopWrites();
-    }
-  };
-
-  const handleBuyPerkWithGoodDollar = async (item: (typeof shopItems)[0]) => {
-    if (!item.tokenId || item.stock <= 0) {
-      pageToastInfo(item.catalogOnly ? 'This perk is not stocked yet.' : 'Sold out');
-      return;
-    }
-    if (!hasPaymentMethod) {
-      pageToastError('Please connect your MiniPay wallet to pay with G$');
-      return;
-    }
-    if (!goodDollarAddress || !goodDollarTreasury) {
-      pageToastError('G$ shop is not configured on this network');
-      return;
-    }
-    if (!publicClient || !payerAddress) {
-      pageToastError('Network client not ready. Try again.');
-      return;
-    }
-    const priceUsd = item.usdtPurchase.displayPrice;
-    if (!Number.isFinite(priceUsd) || priceUsd <= 0) {
-      pageToastError('Price not available for this perk yet');
-      return;
-    }
-    const requiredWei = usdToGoodDollarWei(priceUsd);
-    if (requiredWei <= 0n) {
-      pageToastError('Unable to compute G$ price');
-      return;
-    }
-    if (gdBalanceWei < requiredWei) {
-      pageToastError(`Need ${formatGoodDollarWhole(requiredWei)} ${GOODDOLLAR_SYMBOL} — top up and try again`);
-      return;
-    }
-    const tokenIdStr = item.tokenId.toString();
-    if (gdLoadingTokenId) return;
-    setGdLoadingTokenId(tokenIdStr);
-    try {
-      const txHash = await gdWriteAsync({
-        address: goodDollarAddress,
-        abi: Erc20Abi as Abi,
-        functionName: 'transfer',
-        args: [goodDollarTreasury, requiredWei],
-      });
-      await waitForTxConfirmed(publicClient, txHash);
-      const res = await apiClient.post<{
-        success?: boolean;
-        message?: string;
-        data?: { delivery_tx_hash?: string; status?: string };
-      }>(
-        'shop/gooddollar/claim',
-        {
-          tx_hash: txHash,
-          token_id: tokenIdStr,
-          address: payerAddress,
-          chain: 'CELO',
-        },
-        { timeout: 90000 }
-      );
-      const status = res?.data?.data?.status;
-      if (status === 'completed') {
-        setSuccessBanner(`Paid with ${GOODDOLLAR_SYMBOL} — perk delivered to your wallet.`);
-      } else {
-        pageToastInfo(`Payment received — delivery pending (${status ?? 'processing'})`);
-      }
-      void refetchGdBalance();
-    } catch (err: unknown) {
-      const msg =
-        err instanceof ApiError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : 'G$ payment failed';
-      notifyShopTxOutcome(err, msg);
-    } finally {
-      setGdLoadingTokenId(null);
     }
   };
 
@@ -1360,33 +1255,6 @@ export default function GameShopMobile() {
                           <> Pay with {activeStableLabel} — {displayUsdt.toFixed(2)}</>
                         )}
                       </button>
-                      {gdShopReady && !soldOut && !!item.tokenId && !usdtNotReady && (() => {
-                        const requiredGd = usdToGoodDollarWei(displayUsdt);
-                        const insufficientGd = hasPaymentMethod && gdBalanceWei < requiredGd;
-                        const gdBusy = gdLoadingTokenId === item.tokenId.toString();
-                        return (
-                          <button
-                            onClick={() => (hasPaymentMethod ? handleBuyPerkWithGoodDollar(item) : connectWallet())}
-                            disabled={gdBusy || (hasPaymentMethod && insufficientGd)}
-                            className={`w-full mt-2 py-2.5 rounded-xl font-semibold text-xs transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E1415]
-                              ${gdBusy
-                                ? 'bg-emerald-700/80 text-white'
-                                : insufficientGd
-                                ? 'bg-slate-700/70 text-slate-400'
-                                : 'bg-gradient-to-r from-emerald-500/90 to-teal-500/90 text-black active:brightness-110 border border-emerald-300/40'}`}
-                          >
-                            {gdBusy ? (
-                              <Loader2 className="inline animate-spin mr-2" size={14} />
-                            ) : !hasPaymentMethod ? (
-                              `Pay with ${GOODDOLLAR_SYMBOL}`
-                            ) : insufficientGd ? (
-                              `Need ${formatGoodDollarWhole(requiredGd)} ${GOODDOLLAR_SYMBOL}`
-                            ) : (
-                              <>Pay with {GOODDOLLAR_SYMBOL} — {formatGoodDollarWhole(requiredGd)}</>
-                            )}
-                          </button>
-                        );
-                      })()}
                     </>
                   </div>
                 </motion.div>

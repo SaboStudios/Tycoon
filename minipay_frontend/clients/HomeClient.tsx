@@ -25,9 +25,9 @@ const Footer = dynamic(() => import("@/components/shared/Footer"), {
 export default function HomeClient() {
   return (
     <main className="w-full">
-      <GoodDollarShopPromo />
       <HeroSection />
       <WhatIsTycoon />
+      <GoodDollarShopPromo />
       <HowItWorks />
       <JoinOurCommunity />
       <Footer />
