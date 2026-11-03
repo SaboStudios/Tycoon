@@ -256,8 +256,8 @@ const HeroWalletPanel: React.FC<HeroWalletPanelProps> = ({ onReturningPlayerChan
     );
   }, [guestUser, user, localUsername, fetchedUsername, inputUsername]);
 
-  /** Multiplayer / Join Game — hidden on MiniPay for now. */
-  const canSeeMultiplayer = false;
+  /** Multiplayer create + Join Game on home (same routes as main app). */
+  const canSeeMultiplayer = true;
 
   const { levelInfo } = useUserLevel({
     address: guestUser && !address ? undefined : levelContractLookupAddress,
