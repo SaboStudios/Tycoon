@@ -1,6 +1,7 @@
 'use client'
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { isMobileBoardViewport, SOLO_BOARD_DESKTOP, SOLO_BOARD_MOBILE } from '@/lib/boardRoutes'
 
 export type GameRoomLoadingVariant = 'game' | 'waiting'
 
@@ -13,7 +14,7 @@ export interface GameRoomLoadingProps {
   subtitle?: string
   /** Override tagline (e.g. "show no mercy!") */
   tagline?: string
-  /** Redirect path when variant is 'game' (default: /board-3d-mobile) */
+  /** Redirect path when variant is 'game' (default: viewport-aware solo board) */
   redirectTo?: string
   /** Delay before redirect in ms (default: 5000) */
   redirectDelay?: number
@@ -38,7 +39,7 @@ const GameRoomLoading = (props: GameRoomLoadingProps) => {
     title,
     subtitle,
     tagline,
-    redirectTo = '/board-3d-mobile',
+    redirectTo = isMobileBoardViewport() ? SOLO_BOARD_MOBILE : SOLO_BOARD_DESKTOP,
     redirectDelay = 5000,
   } = props
 

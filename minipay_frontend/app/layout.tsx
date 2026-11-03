@@ -35,7 +35,7 @@ const CRITICAL_SHELL_CSS = [
 // Run before React: (1) Reload board when restored from bfcache so WebGL is fresh. (2) Disable bfcache on board so back button does full load instead of restore (avoids Context Lost + .style crash).
 const BFCACHE_RELOAD_SCRIPT = `
 (function(){
-  var boardPath = /\\/board-3d-(mobile|multi-mobile)(\\/|$)/;
+  var boardPath = /\\/board-3d(-multi)?(-mobile)?(\\/|$)/;
   function isBoard() { return boardPath.test(window.location.pathname); }
   window.addEventListener('pageshow', function(e) {
     if (e.persisted && isBoard()) { window.location.reload(); }

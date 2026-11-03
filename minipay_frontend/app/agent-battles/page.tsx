@@ -12,6 +12,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
 import { walletAuthParams } from "@/lib/walletSession";
+import { multiBoardPath, soloBoardPath } from "@/lib/boardRoutes";
 
 type UserAgent = {
   id: number;
@@ -287,7 +288,7 @@ export default function AgentBattlesPage() {
       if (mode === "agent_vs_agent" && onChain) {
         router.push(`/agent-battles?lobby=${encodeURIComponent(String(game?.id))}`);
       } else {
-        router.push(`/board-3d-mobile?gameCode=${encodeURIComponent(gameCode)}`);
+        router.push(soloBoardPath(gameCode));
       }
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? err?.message ?? "Failed to create match";
@@ -338,7 +339,7 @@ export default function AgentBattlesPage() {
 
     // If already running, redirect immediately.
     if (lobby?.status === "RUNNING" && lobby?.code) {
-      router.push(`/board-3d-multi-mobile?gameCode=${encodeURIComponent(lobby.code)}`);
+      router.push(multiBoardPath(lobby.code));
       return;
     }
 
@@ -383,7 +384,7 @@ export default function AgentBattlesPage() {
       const game = (res as any)?.data?.data;
       const gameCode = game?.code || lobby?.code || "";
       toast.success("Game started on-chain. Share the board link with other players so they can watch.");
-      router.push(`/board-3d-multi-mobile?gameCode=${encodeURIComponent(gameCode)}`);
+      router.push(multiBoardPath(gameCode));
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? err?.message ?? "Failed to start game";
       toast.error(msg);
@@ -471,7 +472,7 @@ export default function AgentBattlesPage() {
                   <span className="font-mono text-lg text-white bg-black/40 px-3 py-2 rounded-lg">{lobby.code}</span>
                   <button
                     type="button"
-                    onClick={() => router.push(`/board-3d-multi-mobile?gameCode=${encodeURIComponent(lobby.code)}`)}
+                    onClick={() => router.push(multiBoardPath(lobby.code))}
                     className="px-5 py-2.5 rounded-xl bg-[#00F0FF] hover:bg-[#0FF0FC] text-[#010F10] font-bold"
                   >
                     Go to board
@@ -480,7 +481,7 @@ export default function AgentBattlesPage() {
                     type="button"
                     onClick={async () => {
                       const origin = typeof window !== "undefined" ? window.location.origin : "";
-                      const url = `${origin}/board-3d-multi-mobile?gameCode=${encodeURIComponent(lobby.code)}`;
+                      const url = `${origin}${multiBoardPath(lobby.code)}`;
                       try {
                         await navigator.clipboard.writeText(url);
                         toast.success("Board link copied");
@@ -573,7 +574,7 @@ export default function AgentBattlesPage() {
                       onClick={() => {
                         const code = lobby?.code || "";
                         if (!code) return;
-                        router.push(`/board-3d-multi-mobile?gameCode=${encodeURIComponent(code)}`);
+                        router.push(multiBoardPath(code));
                       }}
                       disabled={!lobby?.code}
                       className="w-full md:w-auto px-5 py-3 rounded-xl bg-[#00F0FF] hover:bg-[#0FF0FC] text-[#010F10] font-bold disabled:opacity-60"

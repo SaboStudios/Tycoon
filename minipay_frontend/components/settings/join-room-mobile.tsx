@@ -16,9 +16,10 @@ import { Loader2 } from "lucide-react";
 import WhoIsOnlineControl from "@/components/shared/WhoIsOnlineControl";
 import ChallengeOnlinePlayers from "@/components/settings/ChallengeOnlinePlayers";
 import { useGetUsername } from "@/context/ContractProvider";
+import { isMobileBoardViewport, MULTI_BOARD_DESKTOP, MULTI_BOARD_MOBILE } from "@/lib/boardRoutes";
 
 interface JoinRoomMobileProps {
-  /** When game is RUNNING, redirect here (default: /board-3d-multi-mobile). */
+  /** When game is RUNNING, redirect here (default: viewport-aware multi board). */
   redirectToBoard?: string;
   /** When game is PENDING, redirect to this waiting room (default: /game-waiting-3d). */
   redirectToWaiting?: string;
@@ -27,7 +28,7 @@ interface JoinRoomMobileProps {
 }
 
 export default function JoinRoom({
-  redirectToBoard = "/board-3d-multi-mobile",
+  redirectToBoard = isMobileBoardViewport() ? MULTI_BOARD_MOBILE : MULTI_BOARD_DESKTOP,
   redirectToWaiting = "/game-waiting-3d",
   redirectCreateNew = "/game-settings-3d",
 }: JoinRoomMobileProps = {}): JSX.Element {

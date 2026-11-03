@@ -7,9 +7,10 @@ import { useAccount } from "wagmi";
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { useIsRegistered } from "@/context/ContractProvider";
 import { Loader2, AlertCircle } from "lucide-react";
+import { soloBoardPath } from "@/lib/boardRoutes";
 
 /**
- * AI game entry for MiniPay mobile. With a game code, always opens /board-3d-mobile.
+ * AI game entry. With a game code, opens the viewport-appropriate solo board.
  */
 export default function AiPlay3DPage() {
   const searchParams = useSearchParams();
@@ -32,7 +33,7 @@ export default function AiPlay3DPage() {
 
   useEffect(() => {
     if (gameCode && gameCode.length === 6) {
-      router.replace(`/board-3d-mobile?gameCode=${encodeURIComponent(gameCode)}`);
+      router.replace(soloBoardPath(gameCode));
     }
   }, [gameCode, router]);
 

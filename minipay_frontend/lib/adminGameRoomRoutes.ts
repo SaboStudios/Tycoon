@@ -1,3 +1,5 @@
+import { multiBoardPath, soloBoardPath } from "@/lib/boardRoutes";
+
 export const CANCELLABLE_GAME_STATUSES = new Set([
   "PENDING",
   "RUNNING",
@@ -18,9 +20,9 @@ export function getAdminGamePlayPath({ code, status, isAi }: GamePlayRouteInput)
     return `/game-waiting-3d?${q}`;
   }
   if (isAi) {
-    return `/board-3d-mobile?${q}`;
+    return soloBoardPath(code);
   }
-  return `/board-3d-multi-mobile?${q}`;
+  return multiBoardPath(code);
 }
 
 export function canCancelGameStatus(status: string): boolean {

@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState, useMemo } from "react";
-import { Gamepad2, Bot } from "lucide-react";
+import { Gamepad2, Bot, Dices } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useAccount, useChainId, useConnect, useSignMessage, usePublicClient, useSwitchChain } from "wagmi";
@@ -34,6 +34,7 @@ import { useUserLevel } from "@/hooks/useUserLevel";
 import GoodDollarStatusCard from "@/components/gooddollar/GoodDollarStatusCard";
 import { DailyClaim } from "@/components/rewards/DailyClaim";
 import { JulyBogoPromoBanner } from "@/components/promos/JulyBogoPromoBanner";
+import { multiBoardPath, soloBoardPath } from "@/lib/boardRoutes";
 
 function chainIdToBackendChain(chainId: number): string {
   return "CELO";
@@ -466,10 +467,10 @@ const HeroWalletPanel: React.FC<HeroWalletPanelProps> = ({ onReturningPlayerChan
     return;
   }
   if (isAi) {
-    router.push(`/board-3d-mobile?gameCode=${encodeURIComponent(code)}`);
+    router.push(soloBoardPath(code));
     return;
   }
-  router.push(`/board-3d-multi-mobile?gameCode=${encodeURIComponent(code)}`);
+  router.push(multiBoardPath(code));
 };
 
   return (

@@ -20,7 +20,11 @@ interface ClientLayoutProps {
 
 export default function ClientLayout({ children }: ClientLayoutProps) {
   const pathname = usePathname();
-  const isBoard3D = pathname === "/board-3d-mobile" || pathname === "/board-3d-multi-mobile";
+  const isBoard3D =
+    pathname === "/board-3d" ||
+    pathname === "/board-3d-multi" ||
+    pathname === "/board-3d-mobile" ||
+    pathname === "/board-3d-multi-mobile";
   /** Create Game / War Room own their headers — no global nav chrome or floating hamburger. */
   const isSelfHeaderSetup =
     !!pathname &&

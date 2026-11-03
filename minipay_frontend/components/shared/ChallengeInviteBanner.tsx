@@ -34,6 +34,7 @@ import {
 import { TYCOON_CONTRACT_ADDRESSES } from "@/constants/contracts";
 import Erc20Abi from "@/context/abi/ERC20abi.json";
 import { toast } from "react-toastify";
+import { multiBoardPath } from "@/lib/boardRoutes";
 
 /**
  * Full-width challenge invite banner. Closing / dismissing rejects the challenge
@@ -213,7 +214,7 @@ export default function ChallengeInviteBanner({ username }: { username?: string 
       if (code) {
         const status = String(body?.data?.status || "").toUpperCase();
         if (status === "RUNNING") {
-          router.replace(`/board-3d-multi-mobile?gameCode=${encodeURIComponent(code)}`);
+          router.replace(multiBoardPath(code));
         } else {
           router.push(`/game-waiting-3d?gameCode=${encodeURIComponent(code)}`);
         }

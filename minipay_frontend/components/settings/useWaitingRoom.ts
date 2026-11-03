@@ -26,6 +26,11 @@ import {
   getGuestUserPlayAddress,
   ensureMiniPayWalletReady,
 } from "@/lib/minipayGuestFlow";
+import {
+  BOARD_MOBILE_BREAKPOINT_PX,
+  MULTI_BOARD_DESKTOP,
+  MULTI_BOARD_MOBILE,
+} from "@/lib/boardRoutes";
 
 const POLL_INTERVAL = 2000;
 const SOCKET_URL =
@@ -42,14 +47,28 @@ function isTournamentMatchCode(code: string): boolean {
 }
 
 export interface UseWaitingRoomOptions {
-  /** When game is RUNNING, redirect here (default: /board-3d-multi-mobile). */
+  /** When game is RUNNING, redirect here on desktop (default: /board-3d-multi). */
   redirectToBoard?: string;
+  /** On viewports <= 768px, redirect here instead (default: /board-3d-multi-mobile). */
+  redirectToBoardMobile?: string;
 }
 
 export function useWaitingRoom(options: UseWaitingRoomOptions = {}) {
-  const { redirectToBoard = "/board-3d-multi-mobile" } = options;
+  const {
+    redirectToBoard = MULTI_BOARD_DESKTOP,
+    redirectToBoardMobile = MULTI_BOARD_MOBILE,
+  } = options;
 
-  const getRedirectBoardUrl = useCallback(() => redirectToBoard, [redirectToBoard]);
+  const getRedirectBoardUrl = useCallback(() => {
+    if (
+      redirectToBoardMobile &&
+      typeof window !== "undefined" &&
+      window.innerWidth <= BOARD_MOBILE_BREAKPOINT_PX
+    ) {
+      return redirectToBoardMobile;
+    }
+    return redirectToBoard;
+  }, [redirectToBoard, redirectToBoardMobile]);
   const router = useRouter();
   const searchParams = useSearchParams();
   const rawGameCode = searchParams.get("gameCode") ?? "";

@@ -26,6 +26,7 @@ import {
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { TYCOON_CONTRACT_ADDRESSES } from "@/constants/contracts";
 import { shouldUseBackendGuestGameFlow, ensureMiniPayWalletReady } from "@/lib/minipayGuestFlow";
+import { soloBoardPath } from "@/lib/boardRoutes";
 import type { Address } from "viem";
 
 export const AI_ADDRESSES = [
@@ -93,7 +94,6 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
   const { address } = useAccount();
   const wagmiChainId = useChainId();
   const redirectTo3D = options?.redirectTo3D ?? false;
-  const board3DUrl = redirectTo3D ? `/board-3d-mobile?gameCode=` : null;
   const guestAuth = useGuestAuthOptional();
   const isGuest = shouldUseBackendGuestGameFlow(guestAuth?.guestUser ?? null, address, wagmiChainId);
 
@@ -159,7 +159,7 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
         const dbGameId = data?.data?.id ?? data?.id;
         if (!dbGameId) throw new Error("Backend did not return game ID");
 
-        router.push(board3DUrl ? `${board3DUrl}${gameCode}` : `/board-3d-mobile?gameCode=${gameCode}`);
+        router.push(soloBoardPath(gameCode));
       } catch (err: any) {
         // apiClient interceptor already popped the GoodDollar Verify modal; skip the toast.
         if (extractGoodDollarVerify(err)) return;
@@ -315,7 +315,7 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
         console.warn("Failed to set game status to RUNNING:", statusErr);
       }
 
-      router.push(board3DUrl ? `${board3DUrl}${gameCode}` : `/board-3d-mobile?gameCode=${gameCode}`);
+      router.push(soloBoardPath(gameCode));
     } catch (err: any) {
       console.error("handlePlay error:", err);
       const rawMessage = getContractErrorMessage(err, "Something went wrong. Please try again.");

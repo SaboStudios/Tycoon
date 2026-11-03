@@ -28,6 +28,7 @@ import {
   type MatchType,
 } from "@/components/arena/revamp/ArenaRevampPage";
 import { resolveDiscoverAgents } from "@/components/arena/revamp/map-api-agents";
+import { soloBoardPath } from "@/lib/boardRoutes";
 
 /** localStorage key for the last agent the user picked as challenger. */
 const LAST_AGENT_KEY = "tycoon-arena-last-agent-id";
@@ -689,7 +690,7 @@ export default function ArenaPage() {
       if (code) {
         setArenaTxModalOpen(false);
         setSelectedOpponents([]);
-        router.push(`/board-3d-mobile?gameCode=${encodeURIComponent(code)}`);
+        router.push(soloBoardPath(code));
       } else {
         throw new Error("No game code returned");
       }
@@ -756,7 +757,7 @@ export default function ArenaPage() {
         setArenaTxModalOpen(false);
         setHumanVsOpponentId(null);
         setHumanVsStakeUsdc("");
-        router.push(`/board-3d-mobile?gameCode=${encodeURIComponent(code)}`);
+        router.push(soloBoardPath(code));
       } else {
         throw new Error("No game code returned");
       }
