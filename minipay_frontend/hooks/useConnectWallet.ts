@@ -17,7 +17,22 @@ function hasWindowEthereum(): boolean {
  * Chrome (and any browser without window.ethereum): open Reown AppKit so the
  * user can pick WalletConnect / an installed wallet — calling injected() alone
  * hangs forever on "Connecting".
+ *
+ * Chrome extensions (Coinbase SDK, stale MetaMask, Phantom shim) can inject
+ * window.ethereum but never answer eth_requestAccounts. Race the injected
+ * connect against this timeout so we fall through to AppKit instead of hanging.
  */
+const INJECTED_CONNECT_TIMEOUT_MS = 6000;
+
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race<T>([
+    p,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(label)), ms),
+    ),
+  ]);
+}
+
 export function useConnectWallet() {
   const { connect, connectAsync } = useConnect();
   const connectors = useConnectors();
@@ -35,17 +50,27 @@ export function useConnectWallet() {
 
       const preferInjected =
         isMiniPayEmbeddedWallet() || hasWindowEthereum();
+      const timeoutMs = isMiniPayEmbeddedWallet()
+        ? 0
+        : INJECTED_CONNECT_TIMEOUT_MS;
 
       if (preferInjected && injectedConnector) {
         try {
-          await connectAsync({ connector: injectedConnector });
+          const connectPromise = connectAsync({ connector: injectedConnector });
+          if (timeoutMs > 0) {
+            await withTimeout(connectPromise, timeoutMs, "injected-timeout");
+          } else {
+            await connectPromise;
+          }
           return;
         } catch (err) {
-          // User rejection / no accounts — fall through to AppKit on desktop.
+          // User rejection / unresponsive provider / no accounts —
+          // fall through to AppKit on desktop so user can pick WalletConnect.
           if (isMiniPayEmbeddedWallet()) {
             console.warn("MiniPay injected connect failed:", err);
             return;
           }
+          console.warn("Injected connect failed, opening AppKit:", err);
         }
       }
 
@@ -53,13 +78,19 @@ export function useConnectWallet() {
         // Rare: ethereum present but AppKit hasn't registered injected yet.
         const { injected } = await import("wagmi/connectors");
         try {
-          await connectAsync({ connector: injected() });
+          const connectPromise = connectAsync({ connector: injected() });
+          if (timeoutMs > 0) {
+            await withTimeout(connectPromise, timeoutMs, "injected-timeout");
+          } else {
+            await connectPromise;
+          }
           return;
         } catch (err) {
           if (isMiniPayEmbeddedWallet()) {
             console.warn("MiniPay injected() connect failed:", err);
             return;
           }
+          console.warn("Fallback injected() failed, opening AppKit:", err);
         }
       }
 
