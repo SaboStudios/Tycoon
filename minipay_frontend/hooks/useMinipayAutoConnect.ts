@@ -2,29 +2,30 @@
 
 import { useEffect, useState } from "react";
 import { connect as wagmiConnect, disconnect, getAccount } from "@wagmi/core";
-import { injected } from "wagmi/connectors";
-import { useAccount, useConnect, useConnectors } from "wagmi";
+import { useAccount, useConnectors } from "wagmi";
 import { getWagmiConfig } from "@/config";
 import {
   authorizeMiniPayWallet,
   ensureInjectedMiniPayConnection,
+  hasMiniPayProvider,
   isMiniPayEmbeddedWallet,
 } from "@/lib/minipayGuestFlow";
 
 /**
  * MiniPay requires auto-connect on page load — never rely on a manual connect button.
- * With AppKit, connectors[0] is often WalletConnect; always pick injected in MiniPay.
+ * Do NOT auto-connect on desktop Chrome/Brave: Brave has built-in ethereum so a
+ * blind injected()/WC fallback causes Chrome to hang on "Connecting" while Brave
+ * happens to succeed.
  * @see https://docs.minipay.xyz/getting-started/wallet-connection.html
  */
 export function useMinipayAutoConnect(): void {
   const connectors = useConnectors();
-  const { address, isConnecting, connector } = useAccount();
-  const { connect } = useConnect();
+  const { address, connector } = useAccount();
   const [hasAttempted, setHasAttempted] = useState(false);
 
-  // Drop persisted WalletConnect sessions — they cause permission denied on raw sends.
+  // Drop persisted WalletConnect sessions inside MiniPay — they break raw sends.
   useEffect(() => {
-    if (!isMiniPayEmbeddedWallet()) return;
+    if (!hasMiniPayProvider()) return;
 
     const config = getWagmiConfig();
     const account = getAccount(config);
@@ -32,7 +33,7 @@ export function useMinipayAutoConnect(): void {
       void (async () => {
         try {
           await disconnect(config);
-          await wagmiConnect(config, { connector: injected() });
+          await ensureInjectedMiniPayConnection();
           await authorizeMiniPayWallet();
         } catch (err) {
           console.warn("MiniPay connector switch:", err);
@@ -42,37 +43,69 @@ export function useMinipayAutoConnect(): void {
   }, [connector?.id]);
 
   useEffect(() => {
-    if (!isMiniPayEmbeddedWallet()) return;
+    if (!hasMiniPayProvider()) return;
     void authorizeMiniPayWallet().catch((err) => {
       console.warn("MiniPay authorize on load:", err);
     });
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined" || !window.ethereum) return;
-    if (hasAttempted || address || isConnecting || connectors.length === 0) return;
+    if (hasAttempted || address) return;
 
-    const attemptConnect = async () => {
-      try {
-        if (isMiniPayEmbeddedWallet()) {
-          await ensureInjectedMiniPayConnection();
-          await authorizeMiniPayWallet();
-          return;
+    let cancelled = false;
+    let polls = 0;
+
+    const attempt = async () => {
+      // Wait briefly for MiniPay to inject ethereum (webview cold start).
+      if (!hasMiniPayProvider()) {
+        if (polls++ < 20) {
+          window.setTimeout(() => {
+            if (!cancelled) void attempt();
+          }, 50);
+        } else {
+          setHasAttempted(true);
         }
+        return;
+      }
 
+      if (!isMiniPayEmbeddedWallet()) {
+        setHasAttempted(true);
+        return;
+      }
+
+      try {
+        // Prefer the AppKit-registered injected connector when available.
         const injectedConnector =
           connectors.find((c) => c.id === "injected") ??
-          connectors.find((c) => c.type === "injected") ??
-          connectors.find((c) => c.name?.toLowerCase().includes("injected"));
+          connectors.find((c) => c.type === "injected");
 
-        await connect({ connector: injectedConnector ?? connectors[0] });
+        if (injectedConnector) {
+          const config = getWagmiConfig();
+          const account = getAccount(config);
+          if (!account.isConnected || account.connector?.id !== "injected") {
+            if (account.isConnected) {
+              try {
+                await disconnect(config);
+              } catch {
+                // ignore
+              }
+            }
+            await wagmiConnect(config, { connector: injectedConnector });
+          }
+        } else {
+          await ensureInjectedMiniPayConnection();
+        }
+        await authorizeMiniPayWallet();
       } catch (err) {
         console.error("MiniPay auto-connect failed:", err);
       } finally {
-        setHasAttempted(true);
+        if (!cancelled) setHasAttempted(true);
       }
     };
 
-    void attemptConnect();
-  }, [connectors, connect, hasAttempted, address, isConnecting]);
+    void attempt();
+    return () => {
+      cancelled = true;
+    };
+  }, [connectors, hasAttempted, address]);
 }

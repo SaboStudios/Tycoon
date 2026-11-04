@@ -15,8 +15,14 @@ const siteUrl = (() => {
 
 let isInitialized = false;
 
-function initAppKit() {
+/** Safe to call multiple times — required before `useAppKit().open()` on browsers without an injected wallet (e.g. Chrome). */
+export function ensureAppKitInitialized(): void {
   if (isInitialized) return;
+  if (typeof window === 'undefined') return;
+  if (!projectId) {
+    console.error("AppKit: NEXT_PUBLIC_PROJECT_ID is missing");
+    return;
+  }
   createAppKit({
     adapters: [wagmiAdapter],
     networks: [defaultNetwork],
@@ -61,17 +67,16 @@ export default function AppKitProviderWrapper({
 }: {
   children: ReactNode;
 }) {
+  // Init on the client as early as possible so Chrome (no Brave/MetaMask inject)
+  // can open the Connect modal instead of hanging on injected().
+  if (typeof window !== "undefined") {
+    ensureAppKitInitialized();
+  }
+
   useWcmModalAccessibleName();
 
   useEffect(() => {
-    const onUserIntent = () => initAppKit();
-    window.addEventListener("pointerdown", onUserIntent, { once: true, passive: true });
-    window.addEventListener("keydown", onUserIntent, { once: true });
-
-    return () => {
-      window.removeEventListener("pointerdown", onUserIntent);
-      window.removeEventListener("keydown", onUserIntent);
-    };
+    ensureAppKitInitialized();
   }, []);
 
   return <>{children}</>;

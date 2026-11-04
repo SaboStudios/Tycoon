@@ -2,8 +2,6 @@ import { connect, disconnect, getAccount } from '@wagmi/core';
 import { injected } from 'wagmi/connectors';
 import { getAddress } from 'viem';
 import { getWagmiConfig } from '@/config';
-import { isMinipayOnlyHost } from '@/lib/minipaySiteRedirect';
-
 const ZERO = "0x0000000000000000000000000000000000000000";
 
 function isValidUserWalletAddress(a: string | null | undefined): a is string {
@@ -48,7 +46,9 @@ function resolveWindowEthereum(): MiniPayEthereumProvider | null {
 
   if (eth.isMiniPay) return eth;
 
-  const nested = eth.providers?.find((p) => p?.isMiniPay && typeof p.request === 'function');
+  const nested = eth.providers?.find(
+    (p: MiniPayEthereumProvider) => p?.isMiniPay && typeof p.request === 'function',
+  );
   if (nested) return nested;
 
   if (!eth.providers?.length) return eth;
@@ -78,15 +78,23 @@ export async function getInjectedEthereumProvider(): Promise<MiniPayEthereumProv
   return getEthereumProvider();
 }
 
-export function isMiniPayEmbeddedWallet(): boolean {
+/** True when MiniPay's provider is actually injected (not hostname alone). */
+export function hasMiniPayProvider(): boolean {
   if (typeof window === 'undefined') return false;
   const eth = (window as Window & { ethereum?: { isMiniPay?: boolean; providers?: { isMiniPay?: boolean }[] } })
     .ethereum;
   if (!eth) return false;
   if (eth.isMiniPay) return true;
-  if (Array.isArray(eth.providers) && eth.providers.some((p) => p?.isMiniPay)) return true;
-  if (isMinipayOnlyHost(window.location.hostname.toLowerCase())) return true;
-  return false;
+  return (
+    Array.isArray(eth.providers) &&
+    eth.providers.some((p: { isMiniPay?: boolean }) => p?.isMiniPay)
+  );
+}
+
+export function isMiniPayEmbeddedWallet(): boolean {
+  // Provider only — do not use hostname. Chrome on a MiniPay host without
+  // window.ethereum.isMiniPay used to look "connected" and hang on Connect.
+  return hasMiniPayProvider();
 }
 
 export function isMiniPay(): boolean {
