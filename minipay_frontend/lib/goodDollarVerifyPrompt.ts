@@ -54,17 +54,20 @@ export type GoodDollarPlayStatus = {
   enabled?: boolean;
   verified?: boolean;
   play_gate_exempt?: boolean;
+  /** Admin System Settings: open play without Face Verification. */
+  play_open_to_all?: boolean;
   verifyUrl?: string;
   message?: string;
 };
 
 /**
  * True when MiniPay may create games / Arena matches without prompting Verify.
- * Allowlisted ops wallets return play_gate_exempt from the backend.
+ * Allowlisted ops wallets return play_gate_exempt; admin can set play_open_to_all.
  */
 export function canCreateWithoutGoodDollar(gd: GoodDollarPlayStatus | null | undefined): boolean {
   if (!gd) return false;
   if (gd.enabled === false) return true;
+  if (gd.play_open_to_all === true) return true;
   if (gd.verified === true) return true;
   if (gd.play_gate_exempt === true) return true;
   return false;

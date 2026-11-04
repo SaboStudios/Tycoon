@@ -13,6 +13,8 @@ export interface GoodDollarStatus {
   verified: boolean;
   /** Ops allowlist — may create games/Arena without G$ (not daily claim). */
   playGateExempt: boolean;
+  /** Admin toggle — everyone may create games/Arena without G$ (not daily claim). */
+  playOpenToAll: boolean;
   checkedAddresses: string[];
   verifyUrl: string;
 }
@@ -23,6 +25,7 @@ interface RawResponse {
     enabled?: boolean;
     verified?: boolean;
     play_gate_exempt?: boolean;
+    play_open_to_all?: boolean;
     checkedAddresses?: unknown;
     verifyUrl?: string;
   };
@@ -37,6 +40,7 @@ function parse(res: unknown): GoodDollarStatus {
     enabled: Boolean(d.enabled),
     verified: Boolean(d.verified),
     playGateExempt: Boolean(d.play_gate_exempt),
+    playOpenToAll: Boolean(d.play_open_to_all),
     checkedAddresses: checked,
     verifyUrl: typeof d.verifyUrl === "string" ? d.verifyUrl : "https://goodid.gooddollar.org/",
   };
