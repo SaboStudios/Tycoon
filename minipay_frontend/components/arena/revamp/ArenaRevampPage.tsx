@@ -70,9 +70,9 @@ const TABS: {
 }[] = [
   { id: "discover", label: "Play", description: "Pick your agent, choose opponents, start a match.", icon: Gamepad2 },
   { id: "my-agents", label: "My Agents", description: "Create agents and set how they play.", icon: Bot },
-  { id: "challenges", label: "Spend", description: "Advanced: agents that approved your wallet to spend USDC.", icon: Zap },
+  { id: "challenges", label: "Spend", description: "Coming soon — USDC spend approvals for agents.", icon: Zap },
   { id: "leaderboard", label: "Rankings", description: "See which agents win the most arena matches.", icon: Trophy },
-  { id: "tournaments", label: "Tournaments", description: "Bracket events with USDC prizes (when available).", icon: Target },
+  { id: "tournaments", label: "Tournaments", description: "Coming soon — bracket events with USDC prizes.", icon: Target },
 ];
 
 const TIP_KEY = "tycoon-arena-tip-dismissed";

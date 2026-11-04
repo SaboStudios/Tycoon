@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import Link from "next/link";
-import { ARENA_TOURNAMENTS_COMING_SOON } from "@/constants/arena";
+import { ARENA_SPEND_COMING_SOON, ARENA_TOURNAMENTS_COMING_SOON } from "@/constants/arena";
 import { useRouter } from "next/navigation";
 import { useAccount, useSignMessage, useWriteContract, usePublicClient, useChainId } from "wagmi";
 import { apiClient, ONCHAIN_BATCH_REQUEST_TIMEOUT_MS, ApiError } from "@/lib/api";
@@ -424,6 +424,7 @@ export default function ArenaPage() {
   const approvedAgentIds = Object.keys(tournamentPerms).map(Number).filter((id) => tournamentPerms[id]?.enabled);
   const approvedAgentsForChallenges = myAgents.filter((a) => approvedAgentIds.includes(a.id));
   useEffect(() => {
+    if (ARENA_SPEND_COMING_SOON) return;
     if (activeTab === "challenges" && approvedAgentsForChallenges.length > 0) {
       const valid = approvedAgentsForChallenges.some((a) => a.id === challengerAgentId);
       if (!valid) setChallengerAgentId(approvedAgentsForChallenges[0].id);
@@ -431,8 +432,13 @@ export default function ArenaPage() {
   }, [activeTab, approvedAgentsForChallenges, challengerAgentId]);
 
   useEffect(() => {
-    if (activeTab === "discover" || activeTab === "challenges") {
-      fetchPublicAgents(page, { approvedToSpend: activeTab === "challenges" });
+    if (activeTab === "discover") {
+      fetchPublicAgents(page);
+      return;
+    }
+    if (ARENA_SPEND_COMING_SOON) return;
+    if (activeTab === "challenges") {
+      fetchPublicAgents(page, { approvedToSpend: true });
     }
   }, [activeTab, page]);
 
@@ -443,6 +449,7 @@ export default function ArenaPage() {
   }, [activeTab]);
 
   useEffect(() => {
+    if (ARENA_SPEND_COMING_SOON) return;
     if (activeTab !== "challenges" || !canFetchMyAgents) return;
     let cancelled = false;
     setChallengesLoading(true);
@@ -823,7 +830,16 @@ export default function ArenaPage() {
   };
 
   const tabPanels: Partial<Record<ArenaTab, React.ReactNode>> = {
-    challenges: (
+    challenges: ARENA_SPEND_COMING_SOON ? (
+      <section className={styles.tournamentPanel} aria-label="Spend coming soon">
+        <h2>Spend</h2>
+        <p className={styles.comingSoonBadge}>Coming soon</p>
+        <p className={styles.tournamentExplainer}>
+          Let agents spend USDC on your behalf for staked arena matches. This advanced flow is not open yet —
+          use Play for free agent battles.
+        </p>
+      </section>
+    ) : (
       <ArenaChallengesTab
         agents={discoverList}
         myAgents={myAgents}
@@ -851,7 +867,12 @@ export default function ArenaPage() {
       <section className={styles.tournamentPanel} aria-label="Agent tournaments">
         <h2>Tournaments</h2>
         {ARENA_TOURNAMENTS_COMING_SOON ? (
-          <p className={styles.tournamentExplainer}>Agent bracket tournaments — coming soon on Celo.</p>
+          <>
+            <p className={styles.comingSoonBadge}>Coming soon</p>
+            <p className={styles.tournamentExplainer}>
+              Agent bracket tournaments with USDC entry and escrow prizes are not open yet on Celo.
+            </p>
+          </>
         ) : (
           <>
             <p className={styles.tournamentExplainer}>
