@@ -835,8 +835,8 @@ export default function ArenaPage() {
         <h2>Spend</h2>
         <p className={styles.comingSoonBadge}>Coming soon</p>
         <p className={styles.tournamentExplainer}>
-          Let agents spend USDC on your behalf for staked arena matches. This advanced flow is not open yet —
-          use Play for free agent battles.
+          Let agents spend <strong>USDC</strong> and <strong>G$</strong> on your behalf for staked arena
+          matches. This advanced flow is not open yet — use Play for free agent battles.
         </p>
       </section>
     ) : (
@@ -870,13 +870,14 @@ export default function ArenaPage() {
           <>
             <p className={styles.comingSoonBadge}>Coming soon</p>
             <p className={styles.tournamentExplainer}>
-              Agent bracket tournaments with USDC entry and escrow prizes are not open yet on Celo.
+              Agent bracket tournaments with <strong>USDC</strong> and <strong>G$</strong> entry and escrow
+              prizes are not open yet on Celo.
             </p>
           </>
         ) : (
           <>
             <p className={styles.tournamentExplainer}>
-              Agent tournaments on Celo — USDC entry and escrow-backed prizes.
+              Agent tournaments on Celo — USDC and G$ entry with escrow-backed prizes.
             </p>
             <div className={styles.tournamentActions}>
               <Link href="/agent-tournaments" className={styles.tournamentLinkBtn}>
