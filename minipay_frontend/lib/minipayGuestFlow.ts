@@ -49,23 +49,25 @@ function resolveWindowEthereum(): MiniPayEthereumProvider | null {
   const nested = eth.providers?.find(
     (p: MiniPayEthereumProvider) => p?.isMiniPay && typeof p.request === 'function',
   );
-  if (nested) return nested;
-
-  if (!eth.providers?.length) return eth;
-
-  return eth;
+  return nested ?? null;
 }
 
 /**
  * Celopedia / MiniPay project setup: same window.ethereum for authorize, transport, and send.
+ * Only returns the MiniPay provider — never Phantom/MetaMask (Chrome hang on create-game).
  * @see https://docs.minipay.xyz/getting-started/project-setup.html
  */
 export function getEthereumProvider(): MiniPayEthereumProvider {
-  const eth = resolveWindowEthereum();
-  if (!eth) {
+  if (typeof window === 'undefined') {
     throw new Error('window.ethereum is required. Run this app inside MiniPay.');
   }
-  return eth;
+  const eth = (window as Window & { ethereum?: MiniPayEthereumProvider }).ethereum;
+  if (eth?.isMiniPay && typeof eth.request === 'function') return eth;
+  const nested = eth?.providers?.find(
+    (p: MiniPayEthereumProvider) => p?.isMiniPay && typeof p.request === 'function',
+  );
+  if (nested) return nested;
+  throw new Error('MiniPay wallet not found. Open this app from MiniPay, then try again.');
 }
 
 /** @deprecated Use getEthereumProvider() */
@@ -159,7 +161,19 @@ export async function getMiniPayAccountsForTx(): Promise<readonly string[]> {
   return authorizeMiniPayWallet();
 }
 
+/**
+ * MiniPay webview: authorize injected MiniPay.
+ * Desktop Chrome/Brave: require an already-connected wagmi account — do not poke
+ * Phantom/other extensions via eth_requestAccounts (hangs create-game on LAUNCHING).
+ */
 export async function ensureMiniPayWalletReady(): Promise<readonly string[]> {
+  if (!hasMiniPayProvider()) {
+    const account = getAccount(getWagmiConfig());
+    if (account.address && isValidUserWalletAddress(account.address)) {
+      return [getAddress(account.address as `0x${string}`)];
+    }
+    throw new Error('Connect your wallet first, then try again.');
+  }
   return authorizeMiniPayWallet();
 }
 

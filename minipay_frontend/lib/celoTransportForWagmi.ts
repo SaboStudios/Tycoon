@@ -5,21 +5,28 @@ import { getCeloRpcUrlForChainId } from "@/lib/utils/erc8004InjectedEoa";
 import { isMiniPayEmbeddedWallet } from "@/lib/minipayGuestFlow";
 
 /**
- * Route RPC through `window.ethereum` in the browser (MiniPay docs), not Forno HTTP.
+ * Route RPC through MiniPay's injected provider only.
+ * Never use MetaMask/Phantom/Brave as the chain transport — Chrome extensions
+ * (esp. Phantom) throw on eth_request / RPC and leave create-game stuck on LAUNCHING.
  * @see https://docs.minipay.xyz/getting-started/project-setup.html
  */
 export function celoTransportForWagmi(): Transport {
   if (typeof window !== "undefined") {
     const w = window as Window & {
-      ethereum?: { isMiniPay?: boolean; providers?: { isMiniPay?: boolean; request?: unknown }[]; request?: unknown };
+      ethereum?: {
+        isMiniPay?: boolean;
+        providers?: { isMiniPay?: boolean; request?: unknown }[];
+        request?: unknown;
+      };
     };
     const eth = w.ethereum;
-    if (eth && typeof eth.request === "function") {
-      if (eth.isMiniPay) return custom(eth);
-      const nested = eth.providers?.find((p) => p?.isMiniPay && typeof p.request === "function");
-      if (nested) return custom(nested);
-      if (!eth.providers?.length) return custom(eth);
+    if (eth?.isMiniPay && typeof eth.request === "function") {
+      return custom(eth);
     }
+    const nested = eth?.providers?.find(
+      (p) => p?.isMiniPay && typeof p.request === "function",
+    );
+    if (nested) return custom(nested);
   }
   return http(getCeloRpcUrlForChainId(celo.id));
 }
