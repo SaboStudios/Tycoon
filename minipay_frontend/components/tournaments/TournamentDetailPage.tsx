@@ -32,6 +32,9 @@ import { apiClient } from "@/lib/api";
 import { useUserRegistryWallet } from "@/context/ContractProvider";
 import type { ApiResponse } from "@/types/api";
 import { isAgentStyleTournament } from "@/lib/tournamentRoutes";
+import { getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
+import { walletAuthParams } from "@/lib/walletSession";
+import { multiBoardPath } from "@/lib/boardRoutes";
 
 function formatEntryFee(wei: string | number): string {
   const n = Number(wei);
@@ -202,7 +205,21 @@ export function TournamentDetailPage({
   const inviteParams = inviteQuery ? { invite: inviteQuery } : undefined;
   const { guestUser } = useGuestAuthOptional() ?? {};
   const { address: walletAddress } = useAccount();
+  const walletParams = useMemo(
+    () =>
+      walletAuthParams(
+        getGuestUserPlayAddress(guestUser) ?? walletAddress ?? undefined,
+        "CELO"
+      ),
+    [guestUser, walletAddress]
+  );
   const walletChainId = useChainId();
+  const [isMiniPay, setIsMiniPay] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const eth = (window as Window & { ethereum?: { isMiniPay?: boolean } }).ethereum;
+    setIsMiniPay(Boolean(eth?.isMiniPay));
+  }, []);
   const { data: registrySmartWallet } = useUserRegistryWallet(walletAddress ?? undefined);
   const guestSmartWallet =
     guestUser?.smart_wallet_address &&
@@ -393,7 +410,10 @@ export function TournamentDetailPage({
     let cancelled = false;
     (async () => {
       try {
-        const res = await apiClient.get<ApiResponse<{ id: number; name: string }[]>>("/agents");
+        const res = await apiClient.get<ApiResponse<{ id: number; name: string }[]>>(
+          "/agents",
+          walletParams ?? undefined
+        );
         const list = res?.data?.success && Array.isArray(res.data.data) ? res.data.data : [];
         let choices = list;
         if (isBotSelection && tournament?.allowed_agent_ids?.length) {
@@ -416,6 +436,7 @@ export function TournamentDetailPage({
     isBotSelection,
     tournament?.allowed_agent_ids,
     tournament?.status,
+    walletParams,
   ]);
 
   useEffect(() => {
@@ -478,6 +499,7 @@ export function TournamentDetailPage({
       if (agentJoin) {
         await apiClient.post(`/agents/${registerAgentId}/auto-join-tournament`, {
           tournament_id: tournament.id,
+          ...(walletParams ?? {}),
           ...(inviteQuery ? { invite_token: inviteQuery } : {}),
         });
         setActionSuccess("Registered! Your agent is in the event.");
@@ -777,10 +799,18 @@ export function TournamentDetailPage({
             !isRegistered(tournament.id) &&
             guestUser &&
             !userSmartWalletForAutoJoin && (
-              <p className="mt-3 text-sm text-amber-400/90">
-                Add a smart wallet in Profile (same as Arena Challenges) so your agent can join and pay entry fees from your
-                capped tournament permission.
-              </p>
+              isMiniPay ? (
+                <p className="mt-3 text-sm text-amber-400/90">
+                  Agent auto-join is powered by a Tycoon smart wallet, which isn&apos;t set up inside MiniPay.
+                  Open <span className="text-cyan-300">playtycoon.xyz</span> on the web to configure Arena auto-join —
+                  playing matches and joining non-agent tournaments works here as-is.
+                </p>
+              ) : (
+                <p className="mt-3 text-sm text-amber-400/90">
+                  Add a smart wallet in Profile (same as Arena Challenges) so your agent can join and pay entry fees from your
+                  capped tournament permission.
+                </p>
+              )
             )}
           {tournament.status === "REGISTRATION_OPEN" &&
             needsAgentChoice &&
@@ -1216,7 +1246,7 @@ export function TournamentDetailPage({
                                   </ol>
                                   {isAutonomousAgentMatch ? (
                                     <Link
-                                      href={`/board-3d-multi-mobile?gameCode=${encodeURIComponent(gameCodeForMatch)}&spectate=1`}
+                                      href={multiBoardPath(gameCodeForMatch, "&spectate=1")}
                                       className="inline-flex items-center gap-1.5 text-xs text-white/50 hover:text-cyan-300/90 transition-colors"
                                     >
                                       <Eye className="w-3.5 h-3.5" />
@@ -1230,7 +1260,7 @@ export function TournamentDetailPage({
                                   {matchLive ? (
                                     <>
                                       <Link
-                                        href={`/board-3d-multi-mobile?gameCode=${encodeURIComponent(gameCodeForMatch)}${isAutonomousAgentMatch ? "&spectate=1" : ""}`}
+                                        href={multiBoardPath(gameCodeForMatch, isAutonomousAgentMatch ? "&spectate=1" : "")}
                                         className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500/20 border border-cyan-400/45 text-cyan-100 font-semibold text-sm hover:bg-cyan-500/30 transition-colors"
                                       >
                                         {isAutonomousAgentMatch ? <Eye className="w-4 h-4" /> : <Play className="w-4 h-4" />}

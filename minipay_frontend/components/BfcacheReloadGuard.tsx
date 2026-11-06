@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 
-const BOARD_ROUTES = ['/board-3d-mobile', '/board-3d-multi-mobile'];
+const BOARD_ROUTES = ['/board-3d', '/board-3d-multi', '/board-3d-mobile', '/board-3d-multi-mobile'];
 
 /**
  * When the user presses the device back button and the browser restores a board page from bfcache,

@@ -38,6 +38,13 @@ export default function ManageSmartWalletPage() {
   const auth = useGuestAuthOptional();
   const guestUser = auth?.guestUser ?? null;
 
+  const [isMiniPay, setIsMiniPay] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const eth = (window as Window & { ethereum?: { isMiniPay?: boolean } }).ethereum;
+    setIsMiniPay(Boolean(eth?.isMiniPay));
+  }, []);
+
   const fromRegistry = useUserRegistryWallet(walletAddress as Address | undefined);
   const smartWalletFromConnection = fromRegistry.data;
   const smartWalletFromGuest = guestUser?.smart_wallet_address && String(guestUser.smart_wallet_address).trim() && guestUser.smart_wallet_address !== "0x0000000000000000000000000000000000000000"
@@ -423,26 +430,46 @@ export default function ManageSmartWalletPage() {
           </div>
         </header>
         <main className="container mx-auto px-4 py-12 max-w-xl text-center space-y-4">
-          <p className="text-white/80">
-            {useRecreateLabel
-              ? "Smart wallet setup didn’t finish yet (see error below if any). After your host fixes server config, use the button to retry — no gas required from you."
-              : "You don’t have a smart wallet yet. Create one below (no gas required) or from your Profile."}
-          </p>
-          {createWalletError && <p className="text-sm text-red-300">{createWalletError}</p>}
-          <div className="flex flex-wrap gap-3 justify-center">
-            <button
-              type="button"
-              onClick={handleCreateSmartWallet}
-              disabled={createWalletLoading || !auth?.createSmartWallet}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500/25 border border-cyan-500/50 text-cyan-300 font-medium disabled:opacity-50"
-            >
-              {createWalletLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wallet className="w-4 h-4" />}
-              {useRecreateLabel ? "Recreate smart wallet" : "Create smart wallet"}
-            </button>
-            <Link href="/profile" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white font-medium">
-              Go to Profile
-            </Link>
-          </div>
+          {isMiniPay ? (
+            <>
+              <p className="text-white/80">
+                Your MiniPay wallet is your Tycoon play wallet — a separate Tycoon smart wallet isn&apos;t required to play.
+              </p>
+              <p className="text-sm text-white/60">
+                A Tycoon smart wallet is optional and only used by Arena agent auto-join. Open Tycoon on the web at
+                <span className="text-cyan-300"> playtycoon.xyz </span>
+                if you want to set one up.
+              </p>
+              <div className="flex flex-wrap gap-3 justify-center">
+                <Link href="/profile" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white font-medium">
+                  Back to Profile
+                </Link>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-white/80">
+                {useRecreateLabel
+                  ? "Smart wallet setup didn’t finish yet (see error below if any). After your host fixes server config, use the button to retry — no gas required from you."
+                  : "You don’t have a smart wallet yet. Create one below (no gas required) or from your Profile."}
+              </p>
+              {createWalletError && <p className="text-sm text-red-300">{createWalletError}</p>}
+              <div className="flex flex-wrap gap-3 justify-center">
+                <button
+                  type="button"
+                  onClick={handleCreateSmartWallet}
+                  disabled={createWalletLoading || !auth?.createSmartWallet}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500/25 border border-cyan-500/50 text-cyan-300 font-medium disabled:opacity-50"
+                >
+                  {createWalletLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wallet className="w-4 h-4" />}
+                  {useRecreateLabel ? "Recreate smart wallet" : "Create smart wallet"}
+                </button>
+                <Link href="/profile" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white font-medium">
+                  Go to Profile
+                </Link>
+              </div>
+            </>
+          )}
         </main>
       </div>
     );

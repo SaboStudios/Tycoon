@@ -11,7 +11,10 @@ import { ParticleBackground } from "@/components/hero/ParticleBackground";
 import { WARoomLaunchButton } from "@/components/game-setup/WARoomLaunchButton";
 import type { Player } from "@/types/game";
 
-const REDIRECT_TO_BOARD = "/board-3d-multi-mobile";
+import { MULTI_BOARD_DESKTOP, MULTI_BOARD_MOBILE } from "@/lib/boardRoutes";
+
+const REDIRECT_TO_BOARD = MULTI_BOARD_DESKTOP;
+const REDIRECT_TO_BOARD_MOBILE = MULTI_BOARD_MOBILE;
 const COPY_FEEDBACK_MS = 2000;
 const SUPPORT_URL = "https://t.me/+xJLEjw9tbyQwMGVk";
 
@@ -56,7 +59,7 @@ async function copyText(value: string): Promise<boolean> {
   }
 }
 
-/** 3D game waiting room. Redirects to /board-3d-multi-mobile when the game starts. */
+/** 3D game waiting room. Redirects to desktop or mobile multi board when the game starts. */
 export default function GameWaiting3DLobby(): React.ReactElement {
   const {
     router,
@@ -86,7 +89,10 @@ export default function GameWaiting3DLobby(): React.ReactElement {
     contractGameError,
     guestUser,
     username: waitingUsername,
-  } = useWaitingRoom({ redirectToBoard: REDIRECT_TO_BOARD });
+  } = useWaitingRoom({
+    redirectToBoard: REDIRECT_TO_BOARD,
+    redirectToBoardMobile: REDIRECT_TO_BOARD_MOBILE,
+  });
 
   const headerUsername = guestUser?.username ?? waitingUsername ?? null;
   const showOnlineInHeader = true;

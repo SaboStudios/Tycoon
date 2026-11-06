@@ -142,7 +142,7 @@ export function JulyBogoPromoBanner({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.15, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-      className={`relative w-full max-w-sm mt-4 ${className}`}
+      className={`relative w-full max-w-sm ${className}`}
     >
       <div className="group relative overflow-hidden rounded-2xl border border-[#00F0FF]/20 bg-[#0a1618]/40 p-[1px] shadow-[0_8px_32px_rgba(0,0,0,0.35)] backdrop-blur-xl">
         {/* soft inner glow */}

@@ -111,7 +111,9 @@ function RankCard({
   const isPodium = tier === 'podium' && rank >= 1 && rank <= 3;
   const podium = isPodium ? PODIUM_META[rank as 1 | 2 | 3] : null;
   const isDense = tier === 'rest' || tier === 'prize';
-  const inBountyPrize = bountyMode && rank <= bountyWinnerCount;
+  void bountyMode;
+  void bountyWinnerCount;
+  void bountyPrizeUsd;
 
   let shellClass = isDense
     ? 'border-white/[0.06] bg-[#061214]/75 opacity-90'
@@ -178,11 +180,6 @@ function RankCard({
               className={`text-[9px] font-orbitron font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border ${podium.badgeClass}`}
             >
               {podium.badge}
-            </span>
-          )}
-          {inBountyPrize && bountyPrizeUsd != null && (
-            <span className="text-[9px] font-orbitron font-bold uppercase tracking-wider text-amber-400/90 px-1.5 py-0.5 rounded border border-amber-500/30 bg-amber-500/10">
-              ${bountyPrizeUsd}
             </span>
           )}
         </div>
@@ -300,15 +297,6 @@ export function LeaderboardView({
 
     return (
       <>
-        {mode && prizeRows.length > 0 && (
-          <div className="mb-2 flex items-center gap-2 px-1">
-            <Medal className="h-3.5 w-3.5 text-amber-400/80" />
-            <span className="text-[10px] font-orbitron font-bold uppercase tracking-[0.2em] text-amber-200/70">
-              Prize zone · top {bountyWinnerCount}
-            </span>
-          </div>
-        )}
-
         <div className={`${mode ? 'space-y-2.5' : 'space-y-2'}`}>
           {prizeRows.map((row, idx) => {
             const rank = idx + 1;

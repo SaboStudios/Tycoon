@@ -19,6 +19,7 @@ const FarcasterReady = dynamic(() => import("@/components/FarcasterReady"), { ss
 const BfcacheReloadGuard = dynamic(() => import("@/components/BfcacheReloadGuard"), { ssr: false });
 const ReferralCapture = dynamic(() => import("@/components/ReferralCapture"), { ssr: false });
 const DeferredUiStyles = dynamic(() => import("@/components/DeferredUiStyles"), { ssr: false });
+const GoodDollarVerifyModal = dynamic(() => import("@/components/gooddollar/GoodDollarVerifyModal"), { ssr: false });
 
 const CRITICAL_SHELL_CSS = [
   ":root{--mobile-nav-height:82px;--mobile-nav-offset:calc(var(--mobile-nav-height) + env(safe-area-inset-top,0px));--font-dm-sans:ui-sans-serif,system-ui,sans-serif;--font-krona-one:ui-sans-serif,system-ui,sans-serif;--font-orbitron-sans:ui-sans-serif,system-ui,sans-serif}",
@@ -34,7 +35,7 @@ const CRITICAL_SHELL_CSS = [
 // Run before React: (1) Reload board when restored from bfcache so WebGL is fresh. (2) Disable bfcache on board so back button does full load instead of restore (avoids Context Lost + .style crash).
 const BFCACHE_RELOAD_SCRIPT = `
 (function(){
-  var boardPath = /\\/board-3d-(mobile|multi-mobile)(\\/|$)/;
+  var boardPath = /\\/board-3d(-multi)?(-mobile)?(\\/|$)/;
   function isBoard() { return boardPath.test(window.location.pathname); }
   window.addEventListener('pageshow', function(e) {
     if (e.persisted && isBoard()) { window.location.reload(); }
@@ -147,6 +148,7 @@ export default async function RootLayout({
                 <ScrollToTopBtn />
                 <DeferredUiStyles />
                 <DeferredToasts />
+                <GoodDollarVerifyModal />
                 <Toaster
                   position="top-center"
                   containerStyle={{

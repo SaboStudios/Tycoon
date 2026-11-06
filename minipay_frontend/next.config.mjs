@@ -40,11 +40,39 @@ const nextConfig = {
    * Browserslist/SWC only affect syntax downleveling — not this file. Stub it for MiniPay.
    */
   webpack(config, { isServer, webpack }) {
+    // Optional peers pulled by the wagmi/connectors + AppKit barrel that MiniPay
+    // never uses (injected only). Without stubs, Vercel fails "Can't resolve …"
+    // because this repo has no package-lock and npm picks newer nested connectors.
+    const optionalPeerStub = path.join(__dirname, "lib/empty-module-stub.js");
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      "@x402/evm": optionalPeerStub,
+      "@x402/svm": optionalPeerStub,
+      "@x402/svm/exact/client": optionalPeerStub,
+      "@x402/fetch": optionalPeerStub,
+      "@metamask/connect-evm": optionalPeerStub,
+      "@base-org/account": optionalPeerStub,
+      "@coinbase/wallet-sdk": optionalPeerStub,
+      "@coinbase/cdp-sdk": optionalPeerStub,
+      "@safe-global/safe-apps-sdk": optionalPeerStub,
+      "@safe-global/safe-apps-provider": optionalPeerStub,
+      // Tempo Accounts SDK (bare package name imported by @wagmi/core tempo exports)
+      accounts: optionalPeerStub,
+      ...(isServer
+        ? {}
+        : {
+            [nextPolyfillModule]: emptyPolyfill,
+          }),
+    };
+    config.plugins.push(
+      new webpack.NormalModuleReplacementPlugin(/^@x402\//, optionalPeerStub),
+      new webpack.NormalModuleReplacementPlugin(
+        /^@metamask\/connect-evm$/,
+        optionalPeerStub
+      ),
+      new webpack.NormalModuleReplacementPlugin(/^accounts$/, optionalPeerStub)
+    );
     if (!isServer) {
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        [nextPolyfillModule]: emptyPolyfill,
-      };
       config.plugins.push(
         new webpack.NormalModuleReplacementPlugin(
           /polyfills[\\/]polyfill-module(\.js)?$/,

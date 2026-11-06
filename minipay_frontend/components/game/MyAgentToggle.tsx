@@ -1,12 +1,16 @@
 "use client";
 
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import Link from "next/link";
+import { useAccount } from "wagmi";
 import { apiClient } from "@/lib/api";
 import { ApiResponse } from "@/types/api";
 import { Bot, Key, Loader2, Settings2 } from "lucide-react";
 import { AgentSettingsPanel } from "./AgentSettingsPanel";
 import { AgentSettings } from "@/hooks/useAgentSettings";
+import { useGuestAuthOptional } from "@/context/GuestAuthContext";
+import { getGuestUserPlayAddress } from "@/lib/minipayGuestFlow";
+import { walletAuthParams } from "@/lib/walletSession";
 
 export interface UserAgentOption {
   id: number;
@@ -61,6 +65,12 @@ export function MyAgentToggle({
   const [useApiKeyBusy, setUseApiKeyBusy] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
+  const { address } = useAccount();
+  const guestUser = useGuestAuthOptional()?.guestUser ?? null;
+  const walletParams = useMemo(
+    () => walletAuthParams(getGuestUserPlayAddress(guestUser) ?? address ?? undefined, "CELO"),
+    [guestUser, address]
+  );
 
   // Close settings panel when clicking outside
   useEffect(() => {
@@ -77,7 +87,7 @@ export function MyAgentToggle({
   const fetchAgents = useCallback(async () => {
     setLoadingAgents(true);
     try {
-      const res = await apiClient.get<ApiResponse<UserAgentOption[]>>("/agents");
+      const res = await apiClient.get<ApiResponse<UserAgentOption[]>>("/agents", walletParams ?? undefined);
       if (res.data?.success && Array.isArray(res.data.data)) {
         const usable = (res.data.data as UserAgentOption[]).filter(
           (a) => a.use_tycoon_key || (a.hosted_url || a.callback_url)?.startsWith("http") || a.has_api_key
@@ -92,7 +102,7 @@ export function MyAgentToggle({
     } finally {
       setLoadingAgents(false);
     }
-  }, [selectedAgentId]);
+  }, [selectedAgentId, walletParams]);
 
   useEffect(() => {
     if (gameId) fetchAgents();
@@ -102,7 +112,10 @@ export function MyAgentToggle({
     if (!gameId || !selectedAgentId) return;
     setTurningOn(true);
     try {
-      await apiClient.post(`/games/${gameId}/use-my-agent`, { user_agent_id: selectedAgentId });
+      await apiClient.post(`/games/${gameId}/use-my-agent`, {
+        user_agent_id: selectedAgentId,
+        ...(walletParams ?? {}),
+      });
       onBindingsChange?.();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Failed to use agent";
@@ -110,13 +123,13 @@ export function MyAgentToggle({
     } finally {
       setTurningOn(false);
     }
-  }, [gameId, selectedAgentId, onBindingsChange]);
+  }, [gameId, selectedAgentId, onBindingsChange, walletParams]);
 
   const handleTurnOff = useCallback(async () => {
     if (!gameId) return;
     setTurningOff(true);
     try {
-      await apiClient.post(`/games/${gameId}/stop-using-my-agent`);
+      await apiClient.post(`/games/${gameId}/stop-using-my-agent`, { ...(walletParams ?? {}) });
       onBindingsChange?.();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? "Failed to stop agent";
@@ -124,7 +137,7 @@ export function MyAgentToggle({
     } finally {
       setTurningOff(false);
     }
-  }, [gameId, onBindingsChange]);
+  }, [gameId, onBindingsChange, walletParams]);
 
   const agentOn = myAgentOn || !!myAgentApiKey;
 

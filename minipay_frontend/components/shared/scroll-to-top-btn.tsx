@@ -24,10 +24,12 @@ const ScrollToTopBtn: React.FC = (): JSX.Element | null => {
   };
 
   const onLeaderboard = pathname === '/leaderboard';
+  // Arena has its own sticky Start-match dock bottom-right; the FAB would stack on top of it.
+  const hidden = pathname === '/arena';
 
   return (
     <AnimatePresence>
-      {isVisible && (
+      {isVisible && !hidden && (
         <motion.div
           initial={{ opacity: 0, y: 12, scale: 0.9 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}

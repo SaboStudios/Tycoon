@@ -3,9 +3,10 @@
 import { useEffect } from "react";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import { X } from "lucide-react";
-import { useAccount, useConnect } from "wagmi";
-import { injected } from "wagmi/connectors";
+import { useAccount } from "wagmi";
 import AnimationWrapper from "@/animation/animation-wrapper";
+import { useConnectWallet } from "@/hooks/useConnectWallet";
+import { useState } from "react";
 
 interface WalletConnectModalProps {
   isOpen: boolean;
@@ -17,10 +18,14 @@ export default function WalletConnectModal({
   onClose,
 }: WalletConnectModalProps) {
   const { isConnected } = useAccount();
-  const { connect, isPending } = useConnect();
+  const connectWallet = useConnectWallet();
+  const [isPending, setIsPending] = useState(false);
 
   const handleConfirm = () => {
-    connect({ connector: injected() });
+    setIsPending(true);
+    void Promise.resolve(connectWallet()).finally(() => {
+      window.setTimeout(() => setIsPending(false), 12_000);
+    });
   };
 
   useEffect(() => {

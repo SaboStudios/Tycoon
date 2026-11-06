@@ -21,6 +21,23 @@ export const USDT_TOKEN_ADDRESS: Record<number, Address | undefined> = {
 };
 
 /**
+ * GoodDollar G$ ERC-20 on Celo mainnet (18 decimals — chain-verified; GoodDollar
+ * docs list "2 decimals" for the Fuse-native representation only). Used by the
+ * MiniPay shop G$ pay path which transfers G$ to the shop treasury and the
+ * backend verifies + delivers via deliverCollectible/deliverBundle.
+ */
+export const GOODDOLLAR_TOKEN_ADDRESS: Record<number, Address | undefined> = {
+  42220: ((process.env.NEXT_PUBLIC_CELO_GD as Address) ||
+    ('0x62B8B11039FcfE5aB0C56E502b1C372A3d2a9c7A' as Address)),
+};
+
+/** Treasury wallet that receives G$ payments. Falls back to the reward contract. */
+export const GOODDOLLAR_SHOP_TREASURY_ADDRESSES: Record<number, Address | undefined> = {
+  42220: ((process.env.NEXT_PUBLIC_GD_SHOP_TREASURY as Address) ||
+    (process.env.NEXT_PUBLIC_CELO_REWARD as Address)),
+};
+
+/**
  * Stake / shop USDC slot on the reward contract (rewardSystem.usdc()).
  * After owner calls setUsdcToken(USDT), this matches USDT_TOKEN_ADDRESS.
  * Prefer useStakeTokenAddress() so reads stay aligned with the reward contract.

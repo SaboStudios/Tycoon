@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import HeroSection from "@/components/guest/HeroSection";
+import GoodDollarShopPromo from "@/components/guest/GoodDollarShopPromo";
 
 const HowItWorks = dynamic(() => import("@/components/guest/HowItWorks"), {
   loading: () => (
@@ -26,6 +27,7 @@ export default function HomeClient() {
     <main className="w-full">
       <HeroSection />
       <WhatIsTycoon />
+      <GoodDollarShopPromo />
       <HowItWorks />
       <JoinOurCommunity />
       <Footer />

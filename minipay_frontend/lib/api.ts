@@ -1,5 +1,6 @@
 import { ApiResponse } from "@/types/api";
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from "axios";
+import { handleGoodDollarVerifyError } from "@/lib/goodDollarVerifyPrompt";
 
 /** Arena start-game & on-chain lobby start: many sequential txs; default 15s client timeout aborts first. */
 export const ONCHAIN_BATCH_REQUEST_TIMEOUT_MS = 240000;
@@ -52,6 +53,10 @@ class ApiClient {
           const { status, data } = error.response;
           const message = data?.message || data?.error || "API request failed";
           const apiError = new ApiError(status, message, data, error.response);
+          // Backend returns 403 { code: "GOODID_REQUIRED", verifyUrl } for the MiniPay
+          // humanity gate. Pop the Verify modal centrally so every caller gets it
+          // without needing per-site error-shape sniffing.
+          handleGoodDollarVerifyError(apiError);
           return Promise.reject(apiError);
         } else if (error.request) {
           const ax = error as AxiosError;

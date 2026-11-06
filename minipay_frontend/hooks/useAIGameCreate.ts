@@ -12,6 +12,12 @@ import { resolveChainForBackend } from "@/lib/utils/chain";
 import { generateGameCode } from "@/lib/utils/games";
 import { apiClient } from "@/lib/api";
 import {
+  canCreateWithoutGoodDollar,
+  extractGoodDollarVerify,
+  promptGoodDollarVerify,
+} from "@/lib/goodDollarVerifyPrompt";
+import { walletAuthParams } from "@/lib/walletSession";
+import {
   useIsRegistered,
   useGetUsername,
   useCreateAIGame,
@@ -20,6 +26,7 @@ import {
 import { useGuestAuthOptional } from "@/context/GuestAuthContext";
 import { TYCOON_CONTRACT_ADDRESSES } from "@/constants/contracts";
 import { shouldUseBackendGuestGameFlow, ensureMiniPayWalletReady } from "@/lib/minipayGuestFlow";
+import { soloBoardPath } from "@/lib/boardRoutes";
 import type { Address } from "viem";
 
 export const AI_ADDRESSES = [
@@ -87,7 +94,6 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
   const { address } = useAccount();
   const wagmiChainId = useChainId();
   const redirectTo3D = options?.redirectTo3D ?? false;
-  const board3DUrl = redirectTo3D ? `/board-3d-mobile?gameCode=` : null;
   const guestAuth = useGuestAuthOptional();
   const isGuest = shouldUseBackendGuestGameFlow(guestAuth?.guestUser ?? null, address, wagmiChainId);
 
@@ -153,8 +159,10 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
         const dbGameId = data?.data?.id ?? data?.id;
         if (!dbGameId) throw new Error("Backend did not return game ID");
 
-        router.push(board3DUrl ? `${board3DUrl}${gameCode}` : `/board-3d-mobile?gameCode=${gameCode}`);
+        router.push(soloBoardPath(gameCode));
       } catch (err: any) {
+        // apiClient interceptor already popped the GoodDollar Verify modal; skip the toast.
+        if (extractGoodDollarVerify(err)) return;
         const msg = err?.response?.data?.message ?? err?.message ?? "Failed to create AI game.";
         fail(msg);
       }
@@ -210,6 +218,39 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
       }
     }
 
+    // MiniPay registered wallets use on-chain create + POST /games (not *-as-guest).
+    // Check G$ before spending gas; backend also gates POST /games.
+    try {
+      const gdRes = await apiClient.get<{
+        enabled?: boolean;
+        verified?: boolean;
+        play_gate_exempt?: boolean;
+        verifyUrl?: string;
+        message?: string;
+      }>("gooddollar/status", walletAuthParams(address, "CELO"));
+      const gd = (
+        gdRes as {
+          data?: {
+            enabled?: boolean;
+            verified?: boolean;
+            play_gate_exempt?: boolean;
+            verifyUrl?: string;
+            message?: string;
+          };
+        }
+      )?.data;
+      if (!canCreateWithoutGoodDollar(gd)) {
+        promptGoodDollarVerify({
+          verifyUrl: gd?.verifyUrl || "https://goodid.gooddollar.org/",
+          message: gd?.message || "Verify your humanity with GoodDollar to play on MiniPay.",
+        });
+        return;
+      }
+    } catch (gdErr: unknown) {
+      if (extractGoodDollarVerify(gdErr)) return;
+      // If status can't be loaded, continue — POST /games still enforces the gate.
+    }
+
     try {
       const onChainGameId = await createAiGame(usernameNow);
       if (!onChainGameId) throw new Error("Failed to create game on-chain");
@@ -247,6 +288,7 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
 
         if (!dbGameId) throw new Error("Backend did not return game ID");
       } catch (backendError: any) {
+        if (extractGoodDollarVerify(backendError)) return;
         console.error("Backend save error:", backendError);
         throw new Error(backendError.response?.data?.message || "Failed to save game on server");
       }
@@ -273,7 +315,7 @@ export function useAIGameCreate(options?: UseAIGameCreateOptions) {
         console.warn("Failed to set game status to RUNNING:", statusErr);
       }
 
-      router.push(board3DUrl ? `${board3DUrl}${gameCode}` : `/board-3d-mobile?gameCode=${gameCode}`);
+      router.push(soloBoardPath(gameCode));
     } catch (err: any) {
       console.error("handlePlay error:", err);
       const rawMessage = getContractErrorMessage(err, "Something went wrong. Please try again.");

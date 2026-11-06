@@ -6,7 +6,6 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import HeroMarketingContent from "@/components/guest/HeroMarketingContent";
 import HeroNoticeBanner from "@/components/guest/HeroNoticeBanner";
-import { JulyBogoPromoBanner } from "@/components/promos/JulyBogoPromoBanner";
 
 const ParticleBackground = dynamic(
   () => import("@/components/hero/ParticleBackground").then((m) => ({ default: m.ParticleBackground })),
@@ -127,8 +126,8 @@ const HeroSection: React.FC = () => {
       </div>
 
       <main className="relative z-20 flex h-full w-full flex-col items-center justify-start gap-1 overflow-y-auto overflow-x-hidden px-4 pt-4 pb-24">
+        {/* Hero budget: brand + CTA first. Perk promo sits below the play actions. */}
         <HeroMarketingContent showDescription={!hideDescription} />
-        <JulyBogoPromoBanner variant="hero" dismissible />
 
         <div className="relative z-1 mt-6 flex min-h-[152px] w-full flex-col items-center justify-center gap-4">
           <div
@@ -143,7 +142,7 @@ const HeroSection: React.FC = () => {
 
           {walletLoaded && (
             <div
-              className={`relative w-full transition-opacity duration-500 ease-out ${
+              className={`relative flex w-full flex-col items-center transition-opacity duration-500 ease-out ${
                 walletVisible ? "opacity-100" : "opacity-0"
               }`}
             >
@@ -151,6 +150,7 @@ const HeroSection: React.FC = () => {
             </div>
           )}
         </div>
+
       </main>
 
       <div className="hero-overlay-fade-in">

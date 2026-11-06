@@ -2,8 +2,6 @@ import { connect, disconnect, getAccount } from '@wagmi/core';
 import { injected } from 'wagmi/connectors';
 import { getAddress } from 'viem';
 import { getWagmiConfig } from '@/config';
-import { isMinipayOnlyHost } from '@/lib/minipaySiteRedirect';
-
 const ZERO = "0x0000000000000000000000000000000000000000";
 
 function isValidUserWalletAddress(a: string | null | undefined): a is string {
@@ -48,24 +46,28 @@ function resolveWindowEthereum(): MiniPayEthereumProvider | null {
 
   if (eth.isMiniPay) return eth;
 
-  const nested = eth.providers?.find((p) => p?.isMiniPay && typeof p.request === 'function');
-  if (nested) return nested;
-
-  if (!eth.providers?.length) return eth;
-
-  return eth;
+  const nested = eth.providers?.find(
+    (p: MiniPayEthereumProvider) => p?.isMiniPay && typeof p.request === 'function',
+  );
+  return nested ?? null;
 }
 
 /**
  * Celopedia / MiniPay project setup: same window.ethereum for authorize, transport, and send.
+ * Only returns the MiniPay provider — never Phantom/MetaMask (Chrome hang on create-game).
  * @see https://docs.minipay.xyz/getting-started/project-setup.html
  */
 export function getEthereumProvider(): MiniPayEthereumProvider {
-  const eth = resolveWindowEthereum();
-  if (!eth) {
+  if (typeof window === 'undefined') {
     throw new Error('window.ethereum is required. Run this app inside MiniPay.');
   }
-  return eth;
+  const eth = (window as Window & { ethereum?: MiniPayEthereumProvider }).ethereum;
+  if (eth?.isMiniPay && typeof eth.request === 'function') return eth;
+  const nested = eth?.providers?.find(
+    (p: MiniPayEthereumProvider) => p?.isMiniPay && typeof p.request === 'function',
+  );
+  if (nested) return nested;
+  throw new Error('MiniPay wallet not found. Open this app from MiniPay, then try again.');
 }
 
 /** @deprecated Use getEthereumProvider() */
@@ -78,15 +80,23 @@ export async function getInjectedEthereumProvider(): Promise<MiniPayEthereumProv
   return getEthereumProvider();
 }
 
-export function isMiniPayEmbeddedWallet(): boolean {
+/** True when MiniPay's provider is actually injected (not hostname alone). */
+export function hasMiniPayProvider(): boolean {
   if (typeof window === 'undefined') return false;
   const eth = (window as Window & { ethereum?: { isMiniPay?: boolean; providers?: { isMiniPay?: boolean }[] } })
     .ethereum;
   if (!eth) return false;
   if (eth.isMiniPay) return true;
-  if (Array.isArray(eth.providers) && eth.providers.some((p) => p?.isMiniPay)) return true;
-  if (isMinipayOnlyHost(window.location.hostname.toLowerCase())) return true;
-  return false;
+  return (
+    Array.isArray(eth.providers) &&
+    eth.providers.some((p: { isMiniPay?: boolean }) => p?.isMiniPay)
+  );
+}
+
+export function isMiniPayEmbeddedWallet(): boolean {
+  // Provider only — do not use hostname. Chrome on a MiniPay host without
+  // window.ethereum.isMiniPay used to look "connected" and hang on Connect.
+  return hasMiniPayProvider();
 }
 
 export function isMiniPay(): boolean {
@@ -151,7 +161,19 @@ export async function getMiniPayAccountsForTx(): Promise<readonly string[]> {
   return authorizeMiniPayWallet();
 }
 
+/**
+ * MiniPay webview: authorize injected MiniPay.
+ * Desktop Chrome/Brave: require an already-connected wagmi account — do not poke
+ * Phantom/other extensions via eth_requestAccounts (hangs create-game on LAUNCHING).
+ */
 export async function ensureMiniPayWalletReady(): Promise<readonly string[]> {
+  if (!hasMiniPayProvider()) {
+    const account = getAccount(getWagmiConfig());
+    if (account.address && isValidUserWalletAddress(account.address)) {
+      return [getAddress(account.address as `0x${string}`)];
+    }
+    throw new Error('Connect your wallet first, then try again.');
+  }
   return authorizeMiniPayWallet();
 }
 
